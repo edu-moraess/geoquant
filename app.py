@@ -236,6 +236,32 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
 """, unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════
+#   SANITIZATION FUNCTIONS (eliminate undefined/NaN/None)
+# ══════════════════════════════════════════════════════════
+def safe_text(value):
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return ""
+    s = str(value)
+    if s.lower() in ["undefined", "nan", "none", "null"]:
+        return ""
+    return s
+
+def fmt_num(x, fmt=".1f", suffix=""):
+    if x is None or (isinstance(x, float) and np.isnan(x)):
+        return "—"
+    return f"{x:{fmt}}{suffix}"
+
+def safe_delta(val, fmt=".2f"):
+    if val is None or (isinstance(val, float) and np.isnan(val)):
+        return None
+    return f"{val:{fmt}}"
+
+def safe_metric_value(val, default=0.0):
+    if val is None or (isinstance(val, float) and np.isnan(val)):
+        return default
+    return val
+
+# ══════════════════════════════════════════════════════════
 #   CONSTANTS & STRUCTURAL PARAMETERS
 # ══════════════════════════════════════════════════════════
 TICKERS = {
@@ -307,7 +333,7 @@ def fetch_oilprice_spot():
     return 0.0
 
 # ══════════════════════════════════════════════════════════
-#   QUANT ENGINE ARCHITECTURE
+#   QUANT ENGINE ARCHITECTURE (unchanged logic)
 # ══════════════════════════════════════════════════════════
 def rolling_zscore(s, w=60):
     std = s.rolling(w).std()
@@ -381,7 +407,6 @@ def silver_demand_proxy(prices):
     return (0.6*cr[ci]+0.4*br[ci]).rolling(20).mean().reindex(prices.index,method="ffill").fillna(0.0)
 
 def simulate_macro_indices(prices_index):
-    """Gera proxies estruturais para os novos índices macro institucionais unificados."""
     np.random.seed(42)
     n = len(prices_index)
     baltic = pd.Series(1500 + np.cumsum(np.random.normal(2, 45, n)), index=prices_index).clip(600, 4000)
@@ -539,8 +564,6 @@ def _jumps_vec(n, pu, pd_):
 
 def run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase, rw, rb, vws, vbs, jpu, tdf, bs=1.0, dcc_a=0.05, dcc_b=0.93, sims=5000, steps=10, bar=None, scenario_mod=None):
     np.random.seed(42)
-    
-    # Injeta modificadores de cenários interativos (Geo Scenario Engine)
     if scenario_mod:
         jpu *= scenario_mod.get("jump_mult", 1.0)
         bvw *= scenario_mod.get("vol_mult", 1.0)
@@ -606,7 +629,6 @@ def run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase, rw, rb, vws, vbs, jpu
         eps[:, 0], eps[:, 1] = np.where(vw_ > 0, sw / vw_, 0), np.where(vb_ > 0, sb / vb_, 0)
         eps = np.clip(eps, -5, 5)
 
-    # Geração de Percentis Expandida (P1 a P99)
     percentiles = [1, 5, 10, 25, 50, 75, 90, 95, 99]
     fan = {p: np.percentile(pw, p, axis=0) for p in percentiles}
     fb = {p: np.percentile(pb, p, axis=0) for p in percentiles}
@@ -614,16 +636,14 @@ def run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase, rw, rb, vws, vbs, jpu
     term_wti = pw[:, -1]
     term_brt = pb[:, -1]
     
-    # Momentos Estatísticos dos caminhos simulados
     sim_mean = np.mean(term_wti)
     sim_med = np.median(term_wti)
     sim_skew = skew(term_wti)
     sim_kurt = kurtosis(term_wti)
-    sim_mode = 3 * sim_med - 2 * sim_mean # Moda empírica aproximada de Pearson
+    sim_mode = 3 * sim_med - 2 * sim_mean
     
     mask = (pw[:, 1] - wti0) <= np.percentile(pw[:, 1] - wti0, 5)
     
-    # Faixas Operacionais para o Heatmap de Probabilidade
     brackets = {
         "<50": np.mean(term_wti < 50) * 100,
         "50-60": np.mean((term_wti >= 50) & (term_wti < 60)) * 100,
@@ -697,7 +717,6 @@ def benchmark_ml(returns_df, target_col="oil"):
     ci = features.index.intersection(target.index)
     X, y = features.loc[ci], target.loc[ci]
     
-    # Implementação de TimeSeriesSplit Estruturado
     tscv = TimeSeriesSplit(n_splits=5)
     models = {
         "RandomForest": RandomForestRegressor(n_estimators=100, random_state=42),
@@ -806,7 +825,6 @@ with st.sidebar:
     war_start = st.date_input("War start", value=datetime(2026, 2, 28))
     run_btn = st.button("▶  Run Full System Pipeline")
 
-# Mapeamento do Motor de Cenários Geopolíticos (Geo Scenario Engine)
 SCENARIO_MAP = {
     "Base Model (Live)": {"jump_mult": 1.0, "vol_mult": 1.0, "geo_shift": 0.0},
     "Geopolitical Escalation": {"jump_mult": 1.8, "vol_mult": 1.4, "geo_shift": 1.5},
@@ -817,7 +835,7 @@ SCENARIO_MAP = {
 }
 
 # ══════════════════════════════════════════════════════════
-#   HEADER RENDERING
+#   HEADER
 # ══════════════════════════════════════════════════════════
 now_sp = datetime.now(pytz.timezone("America/Sao_Paulo"))
 st.markdown(f"""
@@ -838,7 +856,7 @@ st.markdown(f"""
 </div>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════
-#   EXECUTION RUNTIME PIPELINE
+#   EXECUTION PIPELINE
 # ══════════════════════════════════════════════════════════
 if run_btn or "results" not in st.session_state:
     loading = st.empty()
@@ -933,7 +951,6 @@ if run_btn or "results" not in st.session_state:
         shap_fig, sv, feat_names = run_shap(X_ml, y_ml)
         wf_df = walk_forward_validation(returns["oil"])
 
-        # Cálculo da Métrica de Integridade do Modelo (Model Integrity Score)
         p_vals = [gdiag["LB5"], gdiag["LB10"], gdiag["ARCH_p"], bt_res["Kupiec_p"], bt_res["Christoffersen_p"], bt_res["DQ_p"]]
         valid_p = [p for p in p_vals if not np.isnan(p)]
         model_score = int(np.mean(valid_p) * 100) if valid_p else 85
@@ -957,10 +974,8 @@ if run_btn or "results" not in st.session_state:
         st.stop()
 
 # ══════════════════════════════════════════════════════════
-#   INTERFACE LAYOUT & INTERACTIVE TABS
+#   INTERFACE RENDERING
 # ══════════════════════════════════════════════════════════
-
-# --> EXTRAÇÃO SEGURA DO STATE PARA EVITAR NAMEERRORS <--
 S = st.session_state
 mc = S["results"]
 fan = mc["fan"]
@@ -982,62 +997,65 @@ t_exec, t_vol, t_geo, t_attr, t_mc, t_stat, t_diag, t_ml = st.tabs([
     "Model Diagnostics", "Machine Learning Leaderboard"
 ])
 
-# ── TAB 1: EXECUTIVE SUMMARY (Novo) ──
+# ── TAB 1: EXECUTIVE SUMMARY ──
 with t_exec:
     st.markdown('<div class="sec-label">Report · Asset Management Grade</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title">Executive Macro & Geopolitical Summary</div>', unsafe_allow_html=True)
     
     gf_last = float(gf.iloc[-1]) if len(gf) > 0 else 0.0
     st_last = float(S["stress_idx"].iloc[-1]) if len(S["stress_idx"]) > 0 else 0.0
-    regime_curr = ["Normal", "Elevated Risk", "Stress", "Crisis"][int(S["regimes_ts"].iloc[-1])]
+    if len(S["regimes_ts"]) > 0:
+        regime_curr = ["Normal", "Elevated Risk", "Stress", "Crisis"][int(S["regimes_ts"].iloc[-1])]
+    else:
+        regime_curr = "Normal"
     
     st.markdown(f"""
     <div style="background:#FDFBF8; border:1px solid #D9D5CD; padding:1.5rem; line-height:1.7; color:#1C1C1C; font-size:0.92rem;">
         <strong>Macro Insight Terminal Architecture Report:</strong><br><br>
-        O <strong>GeoFactor Composite</strong> encerrou a última sessão quantificado em <strong>{gf_last:+.2f}σ</strong>, indicando um regime estrutural classificado como <strong>{regime_curr.upper()}</strong>. 
+        O <strong>GeoFactor Composite</strong> encerrou a última sessão quantificado em <strong>{fmt_num(gf_last, ".2f")}σ</strong>, indicando um regime estrutural classificado como <strong>{regime_curr.upper()}</strong>. 
         Este posicionamento reflete uma pressão geopolítica latente com transmissão direta via prêmio de risco físico na curva futura de commodities energéticas. 
-        O índice de estresse integrado do sistema unificado (<strong>Stress Index</strong>) está precificado em <strong>{st_last:.2f}</strong>, condicionado por uma volatilidade implícita do mercado cambial (DXY) e choques estruturais capturados no Fertilizer Index (atualmente operando com multiplicador multiplicativo de cauda de <strong>{S['bs']:.2f}x</strong>).
+        O índice de estresse integrado do sistema unificado (<strong>Stress Index</strong>) está precificado em <strong>{fmt_num(st_last, ".2f")}</strong>, condicionado por uma volatilidade implícita do mercado cambial (DXY) e choques estruturais capturados no Fertilizer Index (atualmente operando com multiplicador multiplicativo de cauda de <strong>{fmt_num(S['bs'], ".2f")}x</strong>).
         <br><br>
         No horizonte preditivo de curto prazo ({mc_steps} dias úteis), o motor estocástico <strong>Conditional EVT + DCC-GARCH-X</strong> aponta para uma assimetria positiva de cauda. 
-        A projeção centralizada (Mediana P50) para o contrato spot do <strong>WTI estabiliza em US$ {fan[50][-1]:.2f}/bbl</strong>, operando dentro de uma amplitude de estresse severo delimitada pelo percentil de cauda extrema (P99) em <strong>US$ {fan[99][-1]:.2f}/bbl</strong>. 
-        A probabilidade implícita de ruptura altista extrema (WTI superando a barreira crítica de US$ 100/bbl) está calibrada em <strong>{M['wti_100']:.1f}%</strong>, enquanto o risco de colapso estrutural deflacionário abaixo de US$ 60/bbl está precificado pelo modelo em apenas <strong>{M['wti_l60']:.1f}%</strong>.
-        A correlação condicional dinâmica (DCC) entre o complexo WTI e Brent mantem-se estruturalmente pinada com parâmetros estáveis de persistência de longo prazo ($\alpha$: {S['dcc_a']:.4f}, $\beta$: {S['dcc_b']:.4f}).
+        A projeção centralizada (Mediana P50) para o contrato spot do <strong>WTI estabiliza em US$ {fmt_num(fan[50][-1], ".2f")}/bbl</strong>, operando dentro de uma amplitude de estresse severo delimitada pelo percentil de cauda extrema (P99) em <strong>US$ {fmt_num(fan[99][-1], ".2f")}/bbl</strong>. 
+        A probabilidade implícita de ruptura altista extrema (WTI superando a barreira crítica de US$ 100/bbl) está calibrada em <strong>{fmt_num(M['wti_100'], ".1f")}%</strong>, enquanto o risco de colapso estrutural deflacionário abaixo de US$ 60/bbl está precificado pelo modelo em apenas <strong>{fmt_num(M['wti_l60'], ".1f")}%</strong>.
+        A correlação condicional dinâmica (DCC) entre o complexo WTI e Brent mantem-se estruturalmente pinada com parâmetros estáveis de persistência de longo prazo ($\alpha$: {fmt_num(S['dcc_a'], ".4f")}, $\beta$: {fmt_num(S['dcc_b'], ".4f")}).
     </div>
     """, unsafe_allow_html=True)
     
     st.markdown('<div style="margin-top:1.5rem;" class="sec-label">Operational Threshold Matrices</div>', unsafe_allow_html=True)
     col_p1, col_p2, col_p3 = st.columns(3)
     with col_p1:
-        st.markdown('<table class="data-table"><thead><tr><th>WTI Altista</th><th>Prob Implícita</th></tr></thead>'
-                    f'<tbody><tr><td>WTI &gt; US$ 70</td><td><strong>{M["wti_70"]:.1f}%</strong></td></tr>'
-                    f'<tr><td>WTI &gt; US$ 80</td><td><strong>{M["wti_80"]:.1f}%</strong></td></tr>'
-                    f'<tr><td>WTI &gt; US$ 90</td><td><strong>{M["wti_90"]:.1f}%</strong></td></tr>'
-                    f'<tr><td>WTI &gt; US$ 100</td><td><strong>{M["wti_100"]:.1f}%</strong></td></tr>'
-                    f'<tr><td>WTI &gt; US$ 120</td><td><strong>{M["wti_120"]:.1f}%</strong></td></tr></tbody></table>', unsafe_allow_html=True)
+        st.markdown('<table class="data-table"><thead><tr><th>WTI Bullish</th><th>Implied Prob</th></tr></thead>'
+                    f'<tbody><tr><td>WTI &gt; US$ 70</td><td><strong>{fmt_num(M["wti_70"], ".1f")}%</strong></td></tr>'
+                    f'<tr><td>WTI &gt; US$ 80</td><td><strong>{fmt_num(M["wti_80"], ".1f")}%</strong></td></tr>'
+                    f'<tr><td>WTI &gt; US$ 90</td><td><strong>{fmt_num(M["wti_90"], ".1f")}%</strong></td></tr>'
+                    f'<tr><td>WTI &gt; US$ 100</td><td><strong>{fmt_num(M["wti_100"], ".1f")}%</strong></td></tr>'
+                    f'<tr><td>WTI &gt; US$ 120</td><td><strong>{fmt_num(M["wti_120"], ".1f")}%</strong></td></tr></tbody></table>', unsafe_allow_html=True)
     with col_p2:
-        st.markdown('<table class="data-table"><thead><tr><th>WTI Baixista</th><th>Prob Implícita</th></tr></thead>'
-                    f'<tbody><tr><td>WTI &lt; US$ 60</td><td><strong>{M["wti_l60"]:.1f}%</strong></td></tr>'
-                    f'<tr><td>WTI &lt; US$ 50</td><td><strong>{M["wti_l50"]:.1f}%</strong></td></tr>'
-                    f'<tr><td>WTI &lt; US$ 40</td><td><strong>{M["wti_l40"]:.1f}%</strong></td></tr></tbody></table>', unsafe_allow_html=True)
+        st.markdown('<table class="data-table"><thead><tr><th>WTI Bearish</th><th>Implied Prob</th></tr></thead>'
+                    f'<tbody><tr><td>WTI &lt; US$ 60</td><td><strong>{fmt_num(M["wti_l60"], ".1f")}%</strong></td></tr>'
+                    f'<tr><td>WTI &lt; US$ 50</td><td><strong>{fmt_num(M["wti_l50"], ".1f")}%</strong></td></tr>'
+                    f'<tr><td>WTI &lt; US$ 40</td><td><strong>{fmt_num(M["wti_l40"], ".1f")}%</strong></td></tr></tbody></table>', unsafe_allow_html=True)
     with col_p3:
-        st.markdown('<table class="data-table"><thead><tr><th>Brent Complex</th><th>Prob Implícita</th></tr></thead>'
-                    f'<tbody><tr><td>Brent &gt; US$ 90</td><td><strong>{M["brent_90"]:.1f}%</strong></td></tr>'
-                    f'<tr><td>Brent &gt; US$ 100</td><td><strong>{M["brent_100"]:.1f}%</strong></td></tr></tbody></table>', unsafe_allow_html=True)
+        st.markdown('<table class="data-table"><thead><tr><th>Brent Complex</th><th>Implied Prob</th></tr></thead>'
+                    f'<tbody><tr><td>Brent &gt; US$ 90</td><td><strong>{fmt_num(M["brent_90"], ".1f")}%</strong></td></tr>'
+                    f'<tr><td>Brent &gt; US$ 100</td><td><strong>{fmt_num(M["brent_100"], ".1f")}%</strong></td></tr></tbody></table>', unsafe_allow_html=True)
 
 # ── TAB 2: MARKET & VOLATILITY ──
 with t_vol:
     st.markdown('<div class="sec-label">01 · Risk Metrics</div>', unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("WTI Crude Spot", f"${wti0:.2f}", f"P50 10d → ${fan[50][-1]:.2f}")
-    c2.metric("Brent Crude", f"${brt0:.2f}", f"Spread ${brt0-wti0:.2f}")
-    c3.metric("WTI Vol p.a.", f"{M['vol_wti']:.1f}%", f"Shrunk {S['dw']['vsa']:.1f}%")
-    c4.metric("Brent Vol p.a.", f"{M['vol_brt']:.1f}%", f"Shrunk {S['db']['vsa']:.1f}%")
+    c1.metric("WTI Crude Spot", f"${wti0:.2f}", delta=safe_delta(fan[50][-1], ".2f"))
+    c2.metric("Brent Crude", f"${brt0:.2f}", delta=safe_delta(brt0-wti0, ".2f"))
+    c3.metric("WTI Vol p.a.", f"{M['vol_wti']:.1f}%", delta=safe_delta(S['dw']['vsa'], ".1f"))
+    c4.metric("Brent Vol p.a.", f"{M['vol_brt']:.1f}%", delta=safe_delta(S['db']['vsa'], ".1f"))
 
     fig_vol = qfig(360)
     fig_vol.add_trace(go.Scatter(x=vw.index, y=vw*np.sqrt(252)*100, name="WTI EGARCH Vol", line=dict(color=C["navy"], width=2)))
     fig_vol.add_trace(go.Scatter(x=vb.index, y=vb*np.sqrt(252)*100, name="Brent EGARCH Vol", line=dict(color=C["blue"], width=2, dash="dash")))
     fig_vol.add_trace(go.Scatter(x=vg.index, y=vg*np.sqrt(252)*100, name="Gold EGARCH Vol", line=dict(color=C["gold"], width=1.5, dash="dot")))
-    fig_vol.update_layout(yaxis_ticksuffix="%", title="EGARCH(1,1) Filtering Engine (Exogenous GeoFactor Multi-Regime)")
+    fig_vol.update_layout(yaxis_ticksuffix="%", title=safe_text("EGARCH(1,1) Filtering Engine (Exogenous GeoFactor Multi-Regime)"))
     st.plotly_chart(fig_vol, use_container_width=True)
 
 # ── TAB 3: GEOPOLITICAL INTELLIGENCE ──
@@ -1048,14 +1066,13 @@ with t_geo:
     fig_geo.add_trace(go.Scatter(x=gf.index, y=gf.values, name="GeoFactor (σ)", line=dict(color=C["navy"], width=2.5), yaxis="y2"))
     st.plotly_chart(fig_geo, use_container_width=True)
     
-    # Exibição do Regime Temporal Expandido
     st.markdown('<div class="sec-label">Structural Regime Shift Engine</div>', unsafe_allow_html=True)
     fig_reg = qfig(240)
     fig_reg.add_trace(go.Scatter(x=S["regimes_ts"].index, y=S["regimes_ts"].values, name="Regime", line=dict(color=C["burgundy"], width=1.8)))
     fig_reg.update_layout(yaxis=dict(tickvals=[0, 1, 2, 3], ticktext=["Normal", "Elevated", "Stress", "Crisis"]))
     st.plotly_chart(fig_reg, use_container_width=True)
 
-# ── TAB 4: GEOFATOR ATTRIBUTION (Novo) ──
+# ── TAB 4: GEOFACTOR ATTRIBUTION ──
 with t_attr:
     st.markdown('<div class="sec-label">03 · Factor Attribution Dashboard</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title">Waterfall Analysis & Dynamic Scaling Weights</div>', unsafe_allow_html=True)
@@ -1071,7 +1088,7 @@ with t_attr:
         decreasing=dict(marker=dict(color=C["burgundy"])),
         increasing=dict(marker=dict(color=C["navy"]))
     ))
-    fig_water.update_layout(**PL, height=380, title="GeoFactor Risk Attribution Matrix")
+    fig_water.update_layout(**PL, height=380, title=safe_text("GeoFactor Risk Attribution Matrix"))
     st.plotly_chart(fig_water, use_container_width=True)
     
     col_at1, col_at2 = st.columns([1, 1])
@@ -1079,23 +1096,22 @@ with t_attr:
         st.markdown('<div class="sec-label">Factor Weight Ranking Table</div>', unsafe_allow_html=True)
         html_tbl = '<table class="data-table"><thead><tr><th>Macro Indicator</th><th>Relative Beta Weight</th></tr></thead><tbody>'
         for _, r in w_df.iterrows():
-            html_tbl += f"<tr><td>{r['Factor']}</td><td><strong>{r['Weight']:.4f}</strong></td></tr>"
+            html_tbl += f"<tr><td>{r['Factor']}</td><td><strong>{fmt_num(r['Weight'], '.4f')}</strong></td></tr>"
         html_tbl += "</tbody></table>"
         st.markdown(html_tbl, unsafe_allow_html=True)
     with col_at2:
         st.markdown('<div class="sec-label">Unbounded Macro Signals Dashboard</div>', unsafe_allow_html=True)
-        st.markdown(f"- **Baltic Dry Index Proxy:** {S['macro_proxies']['baltic'].iloc[-1]:.2f}<br>"
-                    f"- **Freightos Container Index Proxy:** {S['macro_proxies']['freightos'].iloc[-1]:.2f}<br>"
-                    f"- **MOVE Index Equivalent:** {S['macro_proxies']['move'].iloc[-1]:.1f}<br>"
-                    f"- **Financial Conditions Index (FCI):** {S['macro_proxies']['fci'].iloc[-1]:.3f}", unsafe_allow_html=True)
+        st.markdown(f"- **Baltic Dry Index Proxy:** {fmt_num(S['macro_proxies']['baltic'].iloc[-1], '.2f')}<br>"
+                    f"- **Freightos Container Index Proxy:** {fmt_num(S['macro_proxies']['freightos'].iloc[-1], '.2f')}<br>"
+                    f"- **MOVE Index Equivalent:** {fmt_num(S['macro_proxies']['move'].iloc[-1], '.1f')}<br>"
+                    f"- **Financial Conditions Index (FCI):** {fmt_num(S['macro_proxies']['fci'].iloc[-1], '.3f')}", unsafe_allow_html=True)
 
-# ── TAB 5: MONTE CARLO FAN CHART (Expandido) ──
+# ── TAB 5: MONTE CARLO FAN CHART ──
 with t_mc:
     st.markdown('<div class="sec-label">04 · Full Distribution Fan Chart</div>', unsafe_allow_html=True)
     x_ax = list(range(mc_steps+1))
     fig_mc = qfig(460)
     
-    # Plots das bandas simétricas expandidas pedidas institucionalmente
     fig_mc.add_trace(go.Scatter(x=x_ax+x_ax[::-1], y=list(fan[99])+list(fan[1][::-1]), fill="toself", fillcolor=C["fill_light"], line=dict(width=0), name="98% Macro Tail Bound (P1-P99)"))
     fig_mc.add_trace(go.Scatter(x=x_ax+x_ax[::-1], y=list(fan[95])+list(fan[5][::-1]), fill="toself", fillcolor=C["fill_medium"], line=dict(width=0), name="90% Core Policy Bound (P5-P95)"))
     fig_mc.add_trace(go.Scatter(x=x_ax+x_ax[::-1], y=list(fan[75])+list(fan[25][::-1]), fill="toself", fillcolor=C["fill_deep"], line=dict(width=0), name="50% Interquartile Range (P25-P75)"))
@@ -1103,14 +1119,12 @@ with t_mc:
     fig_mc.update_layout(xaxis_title="Simulation Horizon Days (OOS)", yaxis_title="WTI Price Index (USD/bbl)", yaxis_tickprefix="$")
     st.plotly_chart(fig_mc, use_container_width=True)
     
-    # Heatmap de Probabilidade Operacional das Faixas
     st.markdown('<div class="sec-label">Probability Bracket Density Heatmap</div>', unsafe_allow_html=True)
     br_keys = list(mc["brackets"].keys())
     br_vals = list(mc["brackets"].values())
     fig_heat = go.Figure(data=go.Heatmap(z=[br_vals], x=br_keys, y=["Probability %"], colorscale="magma", text=[[f"{v:.1f}%" for v in br_vals]], texttemplate="%{text}", colorbar=None))
-    # CORREÇÃO: evitar conflito de argumento 'margin' duplicado
     heat_layout = PL.copy()
-    heat_layout.pop("margin", None)  # Remove margem padrão para customizar
+    heat_layout.pop("margin", None)
     fig_heat.update_layout(**heat_layout, height=160, margin=dict(t=20, b=20))
     st.plotly_chart(fig_heat, use_container_width=True)
 
@@ -1120,20 +1134,20 @@ with t_stat:
     c_m1, c_m2 = st.columns(2)
     with c_m1:
         st.markdown('<table class="data-table"><thead><tr><th>Simulated Path Moment</th><th>Value</th></tr></thead><tbody>'
-                    f'<tr><td>Expected Simulated Mean</td><td><strong>${moments["mean"]:.2f}</strong></td></tr>'
-                    f'<tr><td>Distribution Median (P50)</td><td><strong>${moments["median"]:.2f}</strong></td></tr>'
-                    f'<tr><td>Pearson Empirical Mode</td><td><strong>${moments["mode"]:.2f}</strong></td></tr>'
-                    f'<tr><td>Simulated Skewness Coefficient</td><td><strong>{moments["skew"]:.4f}</strong></td></tr>'
-                    f'<tr><td>Simulated Excess Kurtosis</td><td><strong>{moments["kurt"]:.4f}</strong></td></tr></tbody></table>', unsafe_allow_html=True)
+                    f'<tr><td>Expected Simulated Mean</td><td><strong>${fmt_num(moments["mean"], ".2f")}</strong></td></tr>'
+                    f'<tr><td>Distribution Median (P50)</td><td><strong>${fmt_num(moments["median"], ".2f")}</strong></td></tr>'
+                    f'<tr><td>Pearson Empirical Mode</td><td><strong>${fmt_num(moments["mode"], ".2f")}</strong></td></tr>'
+                    f'<tr><td>Simulated Skewness Coefficient</td><td><strong>{fmt_num(moments["skew"], ".4f")}</strong></td></tr>'
+                    f'<tr><td>Simulated Excess Kurtosis</td><td><strong>{fmt_num(moments["kurt"], ".4f")}</strong></td></tr></tbody></table>', unsafe_allow_html=True)
     with c_m2:
         st.markdown('<table class="data-table"><thead><tr><th>Institutional Scenario Mapping</th><th>Terminal Target Price</th></tr></thead><tbody>'
-                    f'<tr><td><span style="color:var(--danger)">Extreme Bear (P1)</span></td><td><strong>${fan[1][-1]:.2f}</strong></td></tr>'
-                    f'<tr><td>Bear Case (P10)</td><td><strong>${fan[10][-1]:.2f}</strong></td></tr>'
-                    f'<tr><td>Base Case (P50)</td><td><strong>${fan[50][-1]:.2f}</strong></td></tr>'
-                    f'<tr><td>Bull Case (P90)</td><td><strong>${fan[90][-1]:.2f}</strong></td></tr>'
-                    f'<tr><td><span style="color:var(--success)">Extreme Bull (P99)</span></td><td><strong>${fan[99][-1]:.2f}</strong></td></tr></tbody></table>', unsafe_allow_html=True)
+                    f'<tr><td><span style="color:var(--danger)">Extreme Bear (P1)</span></td><td><strong>${fmt_num(fan[1][-1], ".2f")}</strong></td></tr>'
+                    f'<tr><td>Bear Case (P10)</td><td><strong>${fmt_num(fan[10][-1], ".2f")}</strong></td></tr>'
+                    f'<tr><td>Base Case (P50)</td><td><strong>${fmt_num(fan[50][-1], ".2f")}</strong></td></tr>'
+                    f'<tr><td>Bull Case (P90)</td><td><strong>${fmt_num(fan[90][-1], ".2f")}</strong></td></tr>'
+                    f'<tr><td><span style="color:var(--success)">Extreme Bull (P99)</span></td><td><strong>${fmt_num(fan[99][-1], ".2f")}</strong></td></tr></tbody></table>', unsafe_allow_html=True)
 
-# ── TAB 7: MODEL DIAGNOSTICS (Expandido) ──
+# ── TAB 7: MODEL DIAGNOSTICS ──
 with t_diag:
     st.markdown('<div class="sec-label">06 · Statistical Infrastructure Guardrails</div>', unsafe_allow_html=True)
     
@@ -1146,15 +1160,15 @@ with t_diag:
     
     col_d1, col_d2, col_d3, col_d4 = st.columns(4)
     col_d1.metric("Model Integrity Score", f"{S['model_score']}/100")
-    col_d2.markdown(f'<div class="diag-card">Ljung-Box (Lag 5)<br>{get_status_html(gd["LB5"])}<br><small>p={gd["LB5"]:.4f}</small></div>', unsafe_allow_html=True)
-    col_d3.markdown(f'<div class="diag-card">ARCH-LM Test<br>{get_status_html(gd["ARCH_p"])}<br><small>p={gd["ARCH_p"]:.4f}</small></div>', unsafe_allow_html=True)
-    col_d4.markdown(f'<div class="diag-card">Dynamic Quantile<br>{get_status_html(bt["DQ_p"])}<br><small>p={bt["DQ_p"]:.4f}</small></div>', unsafe_allow_html=True)
+    col_d2.markdown(f'<div class="diag-card">Ljung-Box (Lag 5)<br>{get_status_html(gd["LB5"])}<br><small>p={fmt_num(gd["LB5"], ".4f")}</small></div>', unsafe_allow_html=True)
+    col_d3.markdown(f'<div class="diag-card">ARCH-LM Test<br>{get_status_html(gd["ARCH_p"])}<br><small>p={fmt_num(gd["ARCH_p"], ".4f")}</small></div>', unsafe_allow_html=True)
+    col_d4.markdown(f'<div class="diag-card">Dynamic Quantile<br>{get_status_html(bt["DQ_p"])}<br><small>p={fmt_num(bt["DQ_p"], ".4f")}</small></div>', unsafe_allow_html=True)
 
     st.markdown('<div style="margin-top:1.5rem;" class="sec-label">Regulatory VaR & Expected Shortfall Compliance Backtest Table</div>', unsafe_allow_html=True)
     st.markdown('<table class="data-table"><thead><tr><th>Backtest Validation Module</th><th>Target Criteria</th><th>Observed Value</th><th>Status P-Value</th></tr></thead><tbody>'
-                f'<tr><td>Kupiec Unconditional Coverage</td><td>5.00% Violations Max</td><td>{(bt["obs_freq"]*100):.2f}%</td><td>{get_status_html(bt["Kupiec_p"])} (p={bt["Kupiec_p"]:.4f})</td></tr>'
-                f'<tr><td>Christoffersen Conditional Independence</td><td>No Violation Clustering</td><td>—</td><td>{get_status_html(bt["Christoffersen_p"])} (p={bt["Christoffersen_p"]:.4f})</td></tr>'
-                f'<tr><td>Acerbi Expected Shortfall Metric Z</td><td>Z Score Optimization &lt; 0</td><td>—</td><td><strong>{S["es_z"]:.4f}</strong></td></tr></tbody></table>', unsafe_allow_html=True)
+                f'<tr><td>Kupiec Unconditional Coverage</td><td>5.00% Violations Max</td><td>{(bt["obs_freq"]*100):.2f}%</td><td>{get_status_html(bt["Kupiec_p"])} (p={fmt_num(bt["Kupiec_p"], ".4f")})</td></tr>'
+                f'<tr><td>Christoffersen Conditional Independence</td><td>No Violation Clustering</td><td>—</td><td>{get_status_html(bt["Christoffersen_p"])} (p={fmt_num(bt["Christoffersen_p"], ".4f")})</td></tr>'
+                f'<tr><td>Acerbi Expected Shortfall Metric Z</td><td>Z Score Optimization &lt; 0</td><td>—</td><td><strong>{fmt_num(S["es_z"], ".4f")}</strong></td></tr></tbody></table>', unsafe_allow_html=True)
 
 # ── TAB 8: MACHINE LEARNING LEADERBOARD & SHAP ──
 with t_ml:
@@ -1162,7 +1176,7 @@ with t_ml:
     
     html_ml = '<table class="data-table"><thead><tr><th>Model Pipeline Architecture</th><th>RMSE</th><th>MAE</th><th>MAPE</th><th>Directional Accuracy</th></tr></thead><tbody>'
     for name, metrics in S["ml_metrics"].items():
-        html_ml += f"<tr><td><strong>{name}</strong></td><td>{metrics['RMSE']:.6f}</td><td>{metrics['MAE']:.6f}</td><td>{metrics['MAPE']:.4f}%</td><td><strong>{metrics['Directional Accuracy']}</strong></td></tr>"
+        html_ml += f"<tr><td><strong>{name}</strong></td><td>{fmt_num(metrics['RMSE'], '.6f')}</td><td>{fmt_num(metrics['MAE'], '.6f')}</td><td>{fmt_num(metrics['MAPE'], '.4f')}%</td><td><strong>{metrics['Directional Accuracy']}</strong></td></tr>"
     html_ml += "</tbody></table>"
     st.markdown(html_ml, unsafe_allow_html=True)
     
@@ -1171,13 +1185,12 @@ with t_ml:
     with col_sh1:
         if S["shap_fig"] is not None: st.pyplot(S["shap_fig"])
     with col_sh2:
-        # Tabela Avançada de Drivers SHAP Estruturados
         shap_mean_abs = np.mean(np.abs(S["shap_vals"]), axis=0)
         shap_df = pd.DataFrame({"Variable": S["feat_names"], "Mean Absolute Impact": shap_mean_abs}).sort_values(by="Mean Absolute Impact", ascending=False)
         
         html_shap = '<table class="data-table"><thead><tr><th>Top Drivers (Features)</th><th>Mean Absolute SHAP Impact</th></tr></thead><tbody>'
         for _, r in shap_df.iterrows():
-            html_shap += f"<tr><td>{r['Variable']}</td><td><strong>{r['Mean Absolute Impact']:.6f}</strong></td></tr>"
+            html_shap += f"<tr><td>{r['Variable']}</td><td><strong>{fmt_num(r['Mean Absolute Impact'], '.6f')}</strong></td></tr>"
         html_shap += "</tbody></table>"
         st.markdown(html_shap, unsafe_allow_html=True)
 
