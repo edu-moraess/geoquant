@@ -50,54 +50,149 @@ st.set_page_config(
 )
 
 # ══════════════════════════════════════════════════════════
-#   CLEAN MINIMALIST WHITE CSS (SWISS BANK STYLE)
+#   PROFESSIONAL LIGHT PALETTE – INSTITUTIONAL STYLE
+#   Adapts to Streamlit dark/light mode via theme variables.
 # ══════════════════════════════════════════════════════════
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&family=DM+Mono:wght@300;400&family=DM+Sans:wght@300;400;500&display=swap');
 
-:root {
-    --navy:#0B1628; --navy-mid:#142038; --gold:#C8A96E; --gold-dim:#9E8050;
-    --cream:#F9F8F6; --warm:#FFFFFF; --g10:#EAE6DF; --g30:#C4BDAF;
-    --g50:#70695E; --text:#1A1814; --danger:#7A3F30; --ok:#3D6B4F;
+/* Base properties – inherit from Streamlit theme */
+html, body, [data-testid="stAppViewContainer"] {
+    font-family: 'DM Sans', 'Helvetica Neue', sans-serif !important;
+    font-weight: 300 !important;
 }
-html,body,[data-testid="stAppViewContainer"]{background:var(--warm)!important;
-    font-family:'DM Sans','Helvetica Neue',sans-serif;font-weight:300;color:var(--text);}
-[data-testid="stSidebar"]{background:var(--navy)!important;border-right:1px solid rgba(200,169,110,.15);}
-[data-testid="stSidebar"] *{color:var(--cream)!important;}
+/* Sidebar – light, elegant */
+[data-testid="stSidebar"] {
+    background: #F4F2EE !important;
+    border-right: 1px solid #D3CCC0 !important;
+}
+[data-testid="stSidebar"] * {
+    color: #2E2A24 !important;
+}
 
-div[data-testid="stMetric"]{background:var(--warm);border:1px solid var(--g10);padding:.9rem 1.1rem;}
-div[data-testid="stMetric"] label{font-family:'DM Mono',monospace!important;font-size:.56rem!important;
-    letter-spacing:.2em!important;text-transform:uppercase!important;color:var(--g50)!important;}
-div[data-testid="stMetric"] div[data-testid="stMetricValue"]{font-family:'Cormorant Garamond',Georgia,serif!important;
-    font-size:1.6rem!important;font-weight:300!important;color:var(--navy)!important;}
+/* Metric cards */
+div[data-testid="stMetric"] {
+    background: #FAF9F7;
+    border: 1px solid #E2DDD2;
+    padding: .9rem 1.1rem;
+    border-radius: 2px;
+}
+div[data-testid="stMetric"] label {
+    font-family: 'DM Mono', monospace !important;
+    font-size: .56rem !important;
+    letter-spacing: .2em !important;
+    text-transform: uppercase !important;
+    color: #8B857A !important;
+}
+div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
+    font-family: 'Cormorant Garamond', Georgia, serif !important;
+    font-size: 1.6rem !important;
+    font-weight: 300 !important;
+    color: #2E2A24 !important;
+}
 
-.stButton button{background:var(--navy)!important;color:var(--gold)!important;border:none!important;
-    border-radius:0!important;font-family:'DM Mono',monospace!important;font-size:.62rem!important;
-    letter-spacing:.18em!important;text-transform:uppercase!important;padding:.5rem 1.2rem!important;width:100%;}
-.stProgress>div>div{background:var(--gold)!important;}
+/* Buttons */
+.stButton button {
+    background: #2E2A24 !important;
+    color: #D5B87A !important;
+    border: none !important;
+    border-radius: 2px !important;
+    font-family: 'DM Mono', monospace !important;
+    font-size: .62rem !important;
+    letter-spacing: .18em !important;
+    text-transform: uppercase !important;
+    padding: .5rem 1.2rem !important;
+    width: 100%;
+}
+.stProgress > div > div {
+    background: #D5B87A !important;
+}
 
-[data-testid="stTabs"] [data-baseweb="tab-list"]{background:var(--warm);border-bottom:1px solid var(--g10);gap:0;}
-[data-testid="stTabs"] [data-baseweb="tab"]{font-family:'DM Mono',monospace;font-size:.6rem;
-    letter-spacing:.16em;text-transform:uppercase;color:var(--g50);padding:.6rem 1.2rem;
-    border-bottom:2px solid transparent;background:transparent;}
-[data-testid="stTabs"] [aria-selected="true"]{color:var(--navy)!important;border-bottom:2px solid var(--gold)!important;}
+/* Tabs */
+[data-testid="stTabs"] [data-baseweb="tab-list"] {
+    background: #FAF9F7;
+    border-bottom: 1px solid #E2DDD2;
+    gap: 0;
+}
+[data-testid="stTabs"] [data-baseweb="tab"] {
+    font-family: 'DM Mono', monospace;
+    font-size: .6rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: #8B857A;
+    padding: .6rem 1.2rem;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+}
+[data-testid="stTabs"] [aria-selected="true"] {
+    color: #2E2A24 !important;
+    border-bottom: 2px solid #D5B87A !important;
+}
 
-.sec-label{font-family:'DM Mono',monospace;font-size:.56rem;letter-spacing:.28em;
-    text-transform:uppercase;color:var(--gold-dim);margin-bottom:.2rem;}
-.sec-title{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.25rem;font-weight:400;
-    color:var(--navy);margin-bottom:.8rem;padding-bottomexport:.4rem;border-bottom:1px solid var(--g10);}
-.swiss-div{height:1px;background:linear-gradient(90deg,var(--gold) 0%,var(--g10) 55%,transparent 100%);margin:1.5rem 0;}
-.info-block{background:var(--cream);border-left:2px solid var(--gold);
-    padding:.6rem 1rem;font-size:.74rem;color:var(--g50);margin:.4rem 0;}
-.data-table{width:100%;border-collapse:collapse;font-size:.76rem;}
-.data-table th{font-family:'DM Mono',monospace;font-sizeexport:.54rem;letter-spacing:.18em;
-    text-transform:uppercase;color:var(--g50);padding:.45rem .8rem;
-    border-bottom:1px solid var(--g10);background:var(--cream);}
-.data-table td{padding:.45rem .8rem;border-bottom:1px solid var(--g10);font-weight:300;}
-.footer{margin-top:2.5rem;padding-top:1.2rem;border-top:1px solid var(--g10);
-    font-family:'DM Mono',monospace;font-size:.54rem;letter-spacing:.14em;
-    color:var(--g30);text-transform:uppercase;display:flex;justify-content:space-between;}
+/* Typography helpers */
+.sec-label {
+    font-family: 'DM Mono', monospace;
+    font-size: .56rem;
+    letter-spacing: .28em;
+    text-transform: uppercase;
+    color: #B8A16B;
+    margin-bottom: .2rem;
+}
+.sec-title {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 1.25rem;
+    font-weight: 400;
+    color: #2E2A24;
+    margin-bottom: .8rem;
+    padding-bottom: .4rem;
+    border-bottom: 1px solid #E2DDD2;
+}
+.swiss-div {
+    height: 1px;
+    background: linear-gradient(90deg, #D5B87A 0%, #E2DDD2 55%, transparent 100%);
+    margin: 1.5rem 0;
+}
+.info-block {
+    background: #F8F6F2;
+    border-left: 2px solid #D5B87A;
+    padding: .6rem 1rem;
+    font-size: .74rem;
+    color: #6B645A;
+    margin: .4rem 0;
+}
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .76rem;
+}
+.data-table th {
+    font-family: 'DM Mono', monospace;
+    font-size: .54rem;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: #8B857A;
+    padding: .45rem .8rem;
+    border-bottom: 1px solid #E2DDD2;
+    background: #F8F6F2;
+}
+.data-table td {
+    padding: .45rem .8rem;
+    border-bottom: 1px solid #E2DDD2;
+    font-weight: 300;
+}
+.footer {
+    margin-top: 2.5rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid #E2DDD2;
+    font-family: 'DM Mono', monospace;
+    font-size: .54rem;
+    letter-spacing: .14em;
+    color: #B0A99F;
+    text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -113,26 +208,30 @@ GEO_W = {"oil_vol":0.22,"gold":0.09,"gold_real":0.09,"dxy":-0.10,"spread":0.09,
           "fert":0.22,"wheat":0.07,"copper":0.04,"natgas_vol":0.06}
 ZSC_W = {"oil_gold":0.40,"oil_natgas":0.35,"gold_real":0.25}
 
-# Institutional Clean Plotly Configuration
+# Institutional clean Plotly configuration
 PL = dict(
-    paper_bgcolor="#FFFFFF", plot_bgcolor="#FDFBF8",
-    font=dict(family="DM Sans,Helvetica Neue,sans-serif", color="#1A1814", size=11),
-    title_font=dict(family="Cormorant Garamond,Georgia,serif", size=16, color="#0B1628"),
-    xaxis=dict(gridcolor="#EAE6DF", linecolor="#C4BDAF", zeroline=False,
+    paper_bgcolor="#FAF9F7",
+    plot_bgcolor="#FAF9F7",
+    font=dict(family="DM Sans,Helvetica Neue,sans-serif", color="#2E2A24", size=11),
+    title_font=dict(family="Cormorant Garamond,Georgia,serif", size=16, color="#2E2A24"),
+    xaxis=dict(gridcolor="#E2DDD2", linecolor="#C4BDAF", zeroline=False,
                tickfont=dict(size=10, family="DM Mono,monospace")),
-    yaxis=dict(gridcolor="#EAE6DF", linecolor="#C4BDAF", zeroline=False,
+    yaxis=dict(gridcolor="#E2DDD2", linecolor="#C4BDAF", zeroline=False,
                tickfont=dict(size=10, family="DM Mono,monospace")),
-    legend=dict(bgcolor="rgba(255,255,255,.95)", bordercolor="#C4BDAF",
+    legend=dict(bgcolor="rgba(250,249,247,0.95)", bordercolor="#C4BDAF",
                 borderwidth=1, font=dict(size=10, family="DM Mono,monospace")),
     margin=dict(l=55, r=40, t=50, b=40),
-    hoverlabel=dict(bgcolor="#0B1628", font_color="#C8A96E", font_family="DM Mono,monospace"),
+    hoverlabel=dict(bgcolor="#2E2A24", font_color="#D5B87A", font_family="DM Mono,monospace"),
 )
-C = dict(navy="#0B1628",gold="#C8A96E",gold_dim="#9E8050",blue="#3A5F8A",
-         teal="#2D6B6B",sage="#5F6B47",rust="#7A3F30",gray="#70695E",silver="#9E9488",
-         fan90="#EAE6DF",fan50="#C4BDAF")
+C = dict(primary="#2E2A24", gold="#D5B87A", gold_dim="#B8A16B",
+         blue="#3A5F8A", teal="#2D6B6B", sage="#5F6B47",
+         rust="#7A3F30", gray="#70695E", silver="#9E9488",
+         fan90="#E2DDD2", fan50="#C4BDAF")
 
 def qfig(h=420):
-    fig = go.Figure(); fig.update_layout(**PL, height=h); return fig
+    fig = go.Figure()
+    fig.update_layout(**PL, height=h)
+    return fig
 
 def dual_axis_fig(h=380):
     fig = go.Figure()
@@ -155,21 +254,21 @@ def add_secondary(fig, trace, is_secondary=False):
 # ══════════════════════════════════════════════════════════
 with st.sidebar:
     st.markdown("""
-    <div style='padding:1.3rem 0 1.1rem;border-bottom:1px solid rgba(200,169,110,.18);margin-bottom:1.3rem;'>
+    <div style='padding:1.3rem 0 1.1rem;border-bottom:1px solid #D3CCC0;margin-bottom:1.3rem;'>
         <div style='font-family:"DM Mono",monospace;font-size:.5rem;letter-spacing:.26em;
-        color:#C8A96E;text-transform:uppercase;margin-bottom:#.4rem;'>◆ Edumetria</div>
+        color:#B8A16B;text-transform:uppercase;margin-bottom:.4rem;'>◆ Edumetria</div>
         <div style='font-family:"Cormorant Garamond",Georgia,serif;font-size:1.3rem;
-        font-weight:300;color:#F5F1EB;letter-spacing:.06em;'>GeoQuant Terminal</div>
+        font-weight:300;color:#2E2A24;letter-spacing:.06em;'>GeoQuant Terminal</div>
         <div style='font-family:"DM Mono",monospace;font-size:.5rem;
-        color:rgba(245,241,235,.35);letter-spacing:.14em;margin-top:.3rem;'>Quantitative Research Infrastructure</div>
+        color:#8B857A;letter-spacing:.14em;margin-top:.3rem;'>Quantitative Research Infrastructure</div>
     </div>""", unsafe_allow_html=True)
 
     def slabel(t):
         st.markdown(f'<div style="font-family:\'DM Mono\',monospace;font-size:.54rem;letter-spacing:.2em;'
-                    f'color:#C8A96E;text-transform:uppercase;margin:.9rem 0 .4rem;">{t}</div>',
+                    f'color:#B8A16B;text-transform:uppercase;margin:.9rem 0 .4rem;">{t}</div>',
                     unsafe_allow_html=True)
     def ssep():
-        st.markdown('<div style="height:1px;background:rgba(200,169,110,.1);margin:.6rem 0;"></div>',
+        st.markdown('<div style="height:1px;background:#D3CCC0;margin:.6rem 0;"></div>',
                     unsafe_allow_html=True)
 
     slabel("· Simulation")
@@ -192,7 +291,7 @@ with st.sidebar:
     run_btn = st.button("▶  Run Full System Pipeline")
     st.markdown("""
     <div style='margin-top:1.8rem;font-family:"DM Mono",monospace;font-size:.46rem;
-    color:rgba(245,241,235,.22);letter-spacing:.1em;line-height:2.2;'>
+    color:#B0A99F;letter-spacing:.1em;line-height:2.2;'>
     FOR PROFESSIONAL USE ONLY<br>NOT INVESTMENT ADVICE<br>CONFIDENTIAL & PROPRIETARY
     </div>""", unsafe_allow_html=True)
 
@@ -202,13 +301,13 @@ with st.sidebar:
 now_sp = datetime.now(pytz.timezone("America/Sao_Paulo"))
 st.markdown(f"""
 <div style='display:flex;justify-content:space-between;align-items:flex-start;
-padding:1.6rem 0 1.2rem;border-bottom:1px solid #EAE6DF;margin-bottom:1.8rem;'>
+padding:1.6rem 0 1.2rem;border-bottom:1px solid #E2DDD2;margin-bottom:1.8rem;'>
   <div>
     <div style='display:flex;align-items:baseline;gap:.6rem;'>
-      <span style='font-family:"DM Mono",monospace;font-size:.85rem;color:#C8A96E;letter-spacing:.2em;'>◆◆◆</span>
+      <span style='font-family:"DM Mono",monospace;font-size:.85rem;color:#D5B87A;letter-spacing:.2em;'>◆◆◆</span>
       <div>
         <div style='font-family:"Cormorant Garamond",Georgia,serif;font-size:1.9rem;
-        font-weight:300;color:#0B1628;letter-spacing:.06em;line-height:1;'>GeoQuant · Research Terminal</div>
+        font-weight:300;color:#2E2A24;letter-spacing:.06em;line-height:1;'>GeoQuant · Research Terminal</div>
         <div style='font-family:"DM Mono",monospace;font-size:.55rem;color:#70695E;
         letter-spacing:.2em;text-transform:uppercase;margin-top:.3rem;'>
         Geopolitical Intelligence · EVT+DCC+GARCH-X · Institutional Risk Management</div>
@@ -216,7 +315,7 @@ padding:1.6rem 0 1.2rem;border-bottom:1px solid #EAE6DF;margin-bottom:1.8rem;'>
     </div>
   </div>
   <div style='text-align:right;'>
-    <div style='display:inline-block;background:#0B1628;color:#C8A96E;padding:.2rem .7rem;
+    <div style='display:inline-block;background:#2E2A24;color:#D5B87A;padding:.2rem .7rem;
     font-family:"DM Mono",monospace;font-size:.55rem;letter-spacing:.18em;text-transform:uppercase;'>
     ⚑ WAR REGIME</div>
     <div style='font-family:"DM Mono",monospace;font-size:.57rem;color:#70695E;
@@ -227,349 +326,503 @@ padding:1.6rem 0 1.2rem;border-bottom:1px solid #EAE6DF;margin-bottom:1.8rem;'>
 </div>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════
-#   QUANT ENGINE
+#   QUANT ENGINE (unchanged logic)
 # ══════════════════════════════════════════════════════════
 def rolling_zscore(s, w=60):
     return (s - s.rolling(w).mean()) / s.rolling(w).std().replace(0, np.nan)
 
 def fill_gaps(s):
-    s = s.copy(); valid = s.notna()
-    if valid.sum() < 2: return s.ffill()
+    s = s.copy()
+    valid = s.notna()
+    if valid.sum() < 2:
+        return s.ffill()
     try:
         x = s.index[valid].astype(np.int64)
         f = pd.Series(PchipInterpolator(x, s[valid].values)(s.index.astype(np.int64)), index=s.index)
-        f[valid] = s[valid]; return f
-    except: return s.ffill()
+        f[valid] = s[valid]
+        return f
+    except:
+        return s.ffill()
 
 def _force_update_fert_csv(path="fertilizer_backup.csv"):
     with open(path, "w", newline="") as f:
-        w = csv.writer(f); w.writerow(["date","urea_price","dap_price"])
-        w.writerows([["2026-01-15",540,710],["2026-02-15",560,740],["2026-03-15",590,780],
-                     ["2026-04-15",616,857],["2026-05-01",720,900],["2026-05-06",810,920],
-                     ["2026-05-12",857,920],["2026-06-01",860,925],["2026-06-10",453.5,920]])
+        w = csv.writer(f)
+        w.writerow(["date", "urea_price", "dap_price"])
+        w.writerows([
+            ["2026-01-15", 540, 710],
+            ["2026-02-15", 560, 740],
+            ["2026-03-15", 590, 780],
+            ["2026-04-15", 616, 857],
+            ["2026-05-01", 720, 900],
+            ["2026-05-06", 810, 920],
+            ["2026-05-12", 857, 920],
+            ["2026-06-01", 860, 925],
+            ["2026-06-10", 453.5, 920]
+        ])
 
 def get_usda():
     _force_update_fert_csv()
     try:
-        df   = pd.read_csv("fertilizer_backup.csv", parse_dates=["date"], index_col="date").sort_index()
+        df = pd.read_csv("fertilizer_backup.csv", parse_dates=["date"], index_col="date").sort_index()
         last = df.iloc[-1]
-        return {"urea_price":float(last["urea_price"]),"urea_period":str(last.name.date()),
-                "dap_price":float(last["dap_price"]),"dap_period":str(last.name.date()),
-                "source":"Green Markets / CRU"}
+        return {
+            "urea_price": float(last["urea_price"]),
+            "urea_period": str(last.name.date()),
+            "dap_price": float(last["dap_price"]),
+            "dap_period": str(last.name.date()),
+            "source": "Green Markets / CRU"
+        }
     except:
-        return {"urea_price":453.5,"urea_period":"2026-06-10","dap_price":920,
-                "dap_period":"2026-06-10","source":"fallback"}
+        return {"urea_price": 453.5, "urea_period": "2026-06-10",
+                "dap_price": 920, "dap_period": "2026-06-10", "source": "fallback"}
 
 def fert_black_swan(usda):
     _force_update_fert_csv()
     try:
-        df   = pd.read_csv("fertilizer_backup.csv", parse_dates=["date"], index_col="date")
+        df = pd.read_csv("fertilizer_backup.csv", parse_dates=["date"], index_col="date")
         hist = df["urea_price"].dropna().values
-    except: hist = []
+    except:
+        hist = []
     cur = usda.get("urea_price")
-    if cur is None or len(hist) < 10: return 1.0
+    if cur is None or len(hist) < 10:
+        return 1.0
     rets = np.diff(np.log(hist))
-    thr  = np.quantile(rets, 0.90)
-    exc  = rets[rets > thr] - thr
+    thr = np.quantile(rets, 0.90)
+    exc = rets[rets > thr] - thr
     if len(exc) < 5:
-        mu,sig = np.mean(hist),np.std(hist)
-        if sig==0: return 1.0
-        z = (cur-mu)/sig
-        if z < -1.5: return max(0.5, 1.0+z*0.3)
-        return min(1.0+max(0,z-1.5)*0.8, 3.0)
+        mu, sig = np.mean(hist), np.std(hist)
+        if sig == 0:
+            return 1.0
+        z = (cur - mu) / sig
+        if z < -1.5:
+            return max(0.5, 1.0 + z * 0.3)
+        return min(1.0 + max(0, z - 1.5) * 0.8, 3.0)
     try:
-        shape,loc,scale = stats.genpareto.fit(exc)
-        cr = np.log(cur/hist[-1])
-        if cr <= thr: return 0.6 if cr < -0.1 else 1.0
-        p = 1-stats.genpareto.cdf(cr-thr, shape, loc=loc, scale=scale)
-        return 1.0+min(p*5, 2.0)
-    except: return 1.0
+        shape, loc, scale = stats.genpareto.fit(exc)
+        cr = np.log(cur / hist[-1])
+        if cr <= thr:
+            return 0.6 if cr < -0.1 else 1.0
+        p = 1 - stats.genpareto.cdf(cr - thr, shape, loc=loc, scale=scale)
+        return 1.0 + min(p * 5, 2.0)
+    except:
+        return 1.0
 
 def gold_signals(prices):
     silver = prices["silver"].replace(0, np.nan)
-    if silver.median() > 500: silver /= 100
-    gr = prices["gold"] / (1+prices["tnx"].replace(0,np.nan)/100*5.0)
+    if silver.median() > 500:
+        silver /= 100
+    gr = prices["gold"] / (1 + prices["tnx"].replace(0, np.nan) / 100 * 5.0)
     sg = silver / prices["gold"].replace(0, np.nan)
-    return {"gold_real":gr,"silver_gold":sg,
-            "gold_real_ret_roll":np.log(gr/gr.shift(1)).rolling(20).mean(),
-            "silver_gold_roll":np.log(sg/sg.shift(1)).rolling(20).mean()}
+    return {
+        "gold_real": gr,
+        "silver_gold": sg,
+        "gold_real_ret_roll": np.log(gr / gr.shift(1)).rolling(20).mean(),
+        "silver_gold_roll": np.log(sg / sg.shift(1)).rolling(20).mean()
+    }
 
 def silver_demand_proxy(prices):
-    if "copper" not in prices.columns: return pd.Series(0.0, index=prices.index)
-    cr = prices["copper"].pct_change().dropna(); br = prices["brent"].pct_change().dropna()
+    if "copper" not in prices.columns:
+        return pd.Series(0.0, index=prices.index)
+    cr = prices["copper"].pct_change().dropna()
+    br = prices["brent"].pct_change().dropna()
     ci = cr.index.intersection(br.index)
-    return (0.6*cr[ci]+0.4*br[ci]).rolling(20).mean().reindex(prices.index,method="ffill").fillna(0.0)
+    return (0.6 * cr[ci] + 0.4 * br[ci]).rolling(20).mean().reindex(prices.index, method="ffill").fillna(0.0)
 
 def build_fert_index(returns, usda, bs=1.0):
-    fi = (0.5*returns["natgas"].rolling(20).std() +
-          0.25*returns["wheat"].rolling(20).mean() +
-          0.25*returns["corn"].rolling(20).mean())
-    if usda["urea_price"]: fi += np.clip((usda["urea_price"]-380)/380,-1,2)*0.15
-    if usda["dap_price"]:  fi += np.clip((usda["dap_price"]-610)/610,-1,2)*0.10
+    fi = (0.5 * returns["natgas"].rolling(20).std() +
+          0.25 * returns["wheat"].rolling(20).mean() +
+          0.25 * returns["corn"].rolling(20).mean())
+    if usda["urea_price"]:
+        fi += np.clip((usda["urea_price"] - 380) / 380, -1, 2) * 0.15
+    if usda["dap_price"]:
+        fi += np.clip((usda["dap_price"] - 610) / 610, -1, 2) * 0.10
     fi *= bs
     return fi.clip(fi.quantile(0.02), fi.quantile(0.98)).dropna()
 
 def calibrate_weights(returns, prices, gs, fi, sd, window=60):
-    spread = (prices["brent"]-prices["oil"])/prices["brent"].replace(0,np.nan)
-    X = pd.DataFrame({"oil_vol":returns["oil"].rolling(20).std(),
-        "gold":returns["gold"].rolling(20).mean(),"gold_real":gs["gold_real_ret_roll"],
-        "dxy":returns["dxy"].rolling(20).mean(),"spread":spread.rolling(20).mean(),
-        "wheat":returns["wheat"].rolling(20).mean(),"copper":returns["copper"].rolling(20).mean(),
-        "natgas_vol":returns["natgas"].rolling(20).std(),"fert":fi})
-    if sd is not None: X["silver_demand"] = sd
+    spread = (prices["brent"] - prices["oil"]) / prices["brent"].replace(0, np.nan)
+    X = pd.DataFrame({
+        "oil_vol": returns["oil"].rolling(20).std(),
+        "gold": returns["gold"].rolling(20).mean(),
+        "gold_real": gs["gold_real_ret_roll"],
+        "dxy": returns["dxy"].rolling(20).mean(),
+        "spread": spread.rolling(20).mean(),
+        "wheat": returns["wheat"].rolling(20).mean(),
+        "copper": returns["copper"].rolling(20).mean(),
+        "natgas_vol": returns["natgas"].rolling(20).std(),
+        "fert": fi
+    })
+    if sd is not None:
+        X["silver_demand"] = sd
     y = returns["oil"].shift(-1)
     ci = y.dropna().index.intersection(X.dropna().index)
-    X2,y2 = X.loc[ci].dropna(),y.loc[ci]
-    if len(X2) < window: return GEO_W.copy()
-    Xc,yc = X2.iloc[-window:],y2.iloc[-window:]
-    Xm,Xs = Xc.mean(),Xc.std().replace(0,1)
+    X2, y2 = X.loc[ci].dropna(), y.loc[ci]
+    if len(X2) < window:
+        return GEO_W.copy()
+    Xc, yc = X2.iloc[-window:], y2.iloc[-window:]
+    Xm, Xs = Xc.mean(), Xc.std().replace(0, 1)
     try:
-        mdl = LassoCV(cv=5,random_state=42,alphas=np.logspace(-4,0,20),max_iter=2000).fit((Xc-Xm)/Xs,yc)
-        coef = mdl.coef_/Xs.values
-        w = {col:coef[i] for i,col in enumerate(X2.columns)}
+        mdl = LassoCV(cv=5, random_state=42, alphas=np.logspace(-4, 0, 20), max_iter=2000).fit((Xc - Xm) / Xs, yc)
+        coef = mdl.coef_ / Xs.values
+        w = {col: coef[i] for i, col in enumerate(X2.columns)}
         tot = sum(abs(v) for v in w.values())
-        return {k:v/tot for k,v in w.items()} if tot>0 else GEO_W.copy()
-    except: return GEO_W.copy()
+        return {k: v / tot for k, v in w.items()} if tot > 0 else GEO_W.copy()
+    except:
+        return GEO_W.copy()
 
 def build_geofactor(returns, prices, gs, fi, weights, sd=None):
-    spread = (prices["brent"]-prices["oil"])/prices["brent"].replace(0,np.nan)
-    geo = (weights.get("oil_vol",0)*returns["oil"].rolling(20).std() +
-           weights.get("gold",0)*returns["gold"].rolling(20).mean() +
-           weights.get("gold_real",0)*gs["gold_real_ret_roll"] +
-           weights.get("dxy",0)*returns["dxy"].rolling(20).mean() +
-           weights.get("spread",0)*spread.rolling(20).mean() +
-           weights.get("wheat",0)*returns["wheat"].rolling(20).mean() +
-           weights.get("copper",0)*returns["copper"].rolling(20).mean() +
-           weights.get("natgas_vol",0)*returns["natgas"].rolling(20).std())
+    spread = (prices["brent"] - prices["oil"]) / prices["brent"].replace(0, np.nan)
+    geo = (weights.get("oil_vol", 0) * returns["oil"].rolling(20).std() +
+           weights.get("gold", 0) * returns["gold"].rolling(20).mean() +
+           weights.get("gold_real", 0) * gs["gold_real_ret_roll"] +
+           weights.get("dxy", 0) * returns["dxy"].rolling(20).mean() +
+           weights.get("spread", 0) * spread.rolling(20).mean() +
+           weights.get("wheat", 0) * returns["wheat"].rolling(20).mean() +
+           weights.get("copper", 0) * returns["copper"].rolling(20).mean() +
+           weights.get("natgas_vol", 0) * returns["natgas"].rolling(20).std())
     if sd is not None:
         ci = geo.dropna().index.intersection(sd.dropna().index)
-        if len(ci)>0: geo.loc[ci] += weights.get("silver_demand",0)*sd.loc[ci]
+        if len(ci) > 0:
+            geo.loc[ci] += weights.get("silver_demand", 0) * sd.loc[ci]
     ci = geo.dropna().index.intersection(fi.dropna().index)
-    geo.loc[ci] += weights.get("fert",0)*fi.loc[ci]
+    geo.loc[ci] += weights.get("fert", 0) * fi.loc[ci]
     g = geo.dropna()
     return g.clip(g.quantile(0.05), g.quantile(0.95))
 
 def build_zscore(prices, gs, window=60):
-    w  = min(window, max(20, len(prices)//2))
-    z1 = rolling_zscore(prices["oil"]/prices["gold"].replace(0,np.nan), w)
-    z2 = rolling_zscore(prices["oil"]/prices["natgas"].replace(0,np.nan), w)
+    w = min(window, max(20, len(prices) // 2))
+    z1 = rolling_zscore(prices["oil"] / prices["gold"].replace(0, np.nan), w)
+    z2 = rolling_zscore(prices["oil"] / prices["natgas"].replace(0, np.nan), w)
     z3 = rolling_zscore(gs["gold_real"], w)
-    return (ZSC_W["oil_gold"]*z1+ZSC_W["oil_natgas"]*z2+ZSC_W["gold_real"]*z3).dropna()
+    return (ZSC_W["oil_gold"] * z1 + ZSC_W["oil_natgas"] * z2 + ZSC_W["gold_real"] * z3).dropna()
 
 def fit_garch(ret, exog):
-    rc = ret.loc[ret.index.intersection(exog.index)]*100
+    rc = ret.loc[ret.index.intersection(exog.index)] * 100
     xc = exog.loc[rc.index]
-    try: res = arch_model(rc,x=xc,mean="Constant",vol="GARCH",p=1,q=1,dist="skewt").fit(disp="off")
-    except: res = arch_model(rc,mean="Constant",vol="GARCH",p=1,q=1,dist="skewt").fit(disp="off")
-    return res.conditional_volatility/100
+    try:
+        res = arch_model(rc, x=xc, mean="Constant", vol="GARCH", p=1, q=1, dist="skewt").fit(disp="off")
+    except:
+        res = arch_model(rc, mean="Constant", vol="GARCH", p=1, q=1, dist="skewt").fit(disp="off")
+    return res.conditional_volatility / 100
 
 def bayes_shrink(vg, prior_d, n, geofactor=None):
-    w = np.clip(np.sqrt(n/252), 0.10, 0.95)
-    prior = prior_d*(1.0+0.4*np.tanh(float(geofactor.iloc[-1]))) if geofactor is not None and not geofactor.empty else prior_d
-    lo,hi = prior*0.5,prior*1.5; v_last = float(vg.iloc[-1])
-    vs = vg.copy() if lo<=v_last<=hi else w*vg+(1-w)*prior
-    return vs, {"vga":v_last*np.sqrt(252)*100,"vsa":float(vs.iloc[-1])*np.sqrt(252)*100,
-                "w":w if not (lo<=v_last<=hi) else 1.0}
+    w = np.clip(np.sqrt(n / 252), 0.10, 0.95)
+    prior = prior_d * (1.0 + 0.4 * np.tanh(float(geofactor.iloc[-1]))) if geofactor is not None and not geofactor.empty else prior_d
+    lo, hi = prior * 0.5, prior * 1.5
+    v_last = float(vg.iloc[-1])
+    vs = vg.copy() if lo <= v_last <= hi else w * vg + (1 - w) * prior
+    return vs, {
+        "vga": v_last * np.sqrt(252) * 100,
+        "vsa": float(vs.iloc[-1]) * np.sqrt(252) * 100,
+        "w": w if not (lo <= v_last <= hi) else 1.0
+    }
 
 def fit_dcc(rw, rb, vw, vb):
     common = rw.index.intersection(rb.index).intersection(vw.index).intersection(vb.index)
-    ew=(rw[common]/vw[common]).dropna(); eb=(rb[common]/vb[common]).dropna()
-    c2=ew.index.intersection(eb.index); e=np.column_stack([ew[c2],eb[c2]])
-    Qb=np.cov(e,rowvar=False)
+    ew = (rw[common] / vw[common]).dropna()
+    eb = (rb[common] / vb[common]).dropna()
+    c2 = ew.index.intersection(eb.index)
+    e = np.column_stack([ew[c2], eb[c2]])
+    Qb = np.cov(e, rowvar=False)
+
     def nll(p):
-        a,b=p
-        if a<=0 or b<=0 or a+b>=1: return 1e10
-        Qt=Qb.copy(); ll=0.0
-        for t in range(1,len(e)):
-            Qt=(1-a-b)*Qb+a*np.outer(e[t-1],e[t-1])+b*Qt
-            d=np.sqrt(np.diag(Qt)); d[d==0]=1e-8
-            Rt=Qt/np.outer(d,d); Rt=np.clip(Rt,-0.9999,0.9999)
+        a, b = p
+        if a <= 0 or b <= 0 or a + b >= 1:
+            return 1e10
+        Qt = Qb.copy()
+        ll = 0.0
+        for t in range(1, len(e)):
+            Qt = (1 - a - b) * Qb + a * np.outer(e[t - 1], e[t - 1]) + b * Qt
+            d = np.sqrt(np.diag(Qt))
+            d[d == 0] = 1e-8
+            Rt = Qt / np.outer(d, d)
+            Rt = np.clip(Rt, -0.9999, 0.9999)
             try:
-                L=np.linalg.cholesky(Rt); z=np.linalg.solve(L,e[t])
-                ll+=-0.5*np.sum(z**2)-np.sum(np.log(np.diag(L)))
-            except: return 1e10
+                L = np.linalg.cholesky(Rt)
+                z = np.linalg.solve(L, e[t])
+                ll += -0.5 * np.sum(z ** 2) - np.sum(np.log(np.diag(L)))
+            except:
+                return 1e10
         return -ll
-    res=optimize.minimize(nll,[0.05,0.93],bounds=[(1e-4,0.3),(0.7,0.9999)],method="L-BFGS-B")
-    a,b=res.x; return (0.05,0.93) if a+b>=1 else (float(a),float(b))
+
+    res = optimize.minimize(nll, [0.05, 0.93], bounds=[(1e-4, 0.3), (0.7, 0.9999)], method="L-BFGS-B")
+    a, b = res.x
+    return (0.05, 0.93) if a + b >= 1 else (float(a), float(b))
 
 def _tail_jumps(shocks, vol):
-    n=len(shocks); u=np.random.rand(n)
-    return shocks+np.where(u<0.025,np.random.exponential(0.03,n)*vol,0)-np.where((u>=0.025)&(u<0.05),np.random.exponential(0.02,n)*vol,0)
+    n = len(shocks)
+    u = np.random.rand(n)
+    return shocks + np.where(u < 0.025, np.random.exponential(0.03, n) * vol, 0) - np.where((u >= 0.025) & (u < 0.05), np.random.exponential(0.02, n) * vol, 0)
 
 def _jumps_vec(n, pu, pd_):
-    u=np.random.rand(n); me=np.random.rand(n)<0.15
-    ju=np.where(me,np.random.exponential(0.135,n),np.random.exponential(0.045,n))
-    jd=np.random.exponential(0.025,n)
-    return np.where(u<pu,ju,np.where((u>=pu)&(u<pu+pd_),-jd,0)),np.where(u<pu,ju*0.95,np.where((u>=pu)&(u<pu+pd_),-jd*0.90,0))
+    u = np.random.rand(n)
+    me = np.random.rand(n) < 0.15
+    ju = np.where(me, np.random.exponential(0.135, n), np.random.exponential(0.045, n))
+    jd = np.random.exponential(0.025, n)
+    return np.where(u < pu, ju, np.where((u >= pu) & (u < pu + pd_), -jd, 0)), np.where(u < pu, ju * 0.95, np.where((u >= pu) & (u < pu + pd_), -jd * 0.90, 0))
 
-def run_mc(wti0,brt0,bvw,bvb,fcast,ocol,bcol,rbase,rw,rb,vws,vbs,jpu,tdf,bs=1.0,
-           dcc_a=0.05,dcc_b=0.93,sims=5000,steps=10,bar=None):
+def run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase, rw, rb, vws, vbs, jpu, tdf, bs=1.0,
+           dcc_a=0.05, dcc_b=0.93, sims=5000, steps=10, bar=None):
     np.random.seed(42)
-    ci=rw.index.intersection(rb.index).intersection(vws.index).intersection(vbs.index)
-    ew=(rw[ci]/vws[ci].replace(0,np.nan)).dropna(); eb=(rb[ci]/vbs[ci].replace(0,np.nan)).dropna()
-    c2=ew.index.intersection(eb.index); e=np.column_stack([np.clip(ew[c2],-3,3),np.clip(eb[c2],-3,3)])
-    Qb=np.cov(e,rowvar=False); np.fill_diagonal(Qb,1.0)
-    eps=e[-1]+np.random.normal(0,0.05,(sims,2)); Qt=np.tile(Qb,(sims,1,1)).copy()
-    pu=min(jpu*1.5,0.20) if bs>1.2 else jpu; pd_=0.03*(1.3 if bs>1.2 else 1.0)
-    pw=np.zeros((sims,steps+1)); pb=np.zeros((sims,steps+1))
-    pw[:,0]=wti0; pb[:,0]=brt0
-    ra=1+0.5*np.clip(rbase+np.random.normal(0,0.05,(sims,steps)),-1,1)
+    ci = rw.index.intersection(rb.index).intersection(vws.index).intersection(vbs.index)
+    ew = (rw[ci] / vws[ci].replace(0, np.nan)).dropna()
+    eb = (rb[ci] / vbs[ci].replace(0, np.nan)).dropna()
+    c2 = ew.index.intersection(eb.index)
+    e = np.column_stack([np.clip(ew[c2], -3, 3), np.clip(eb[c2], -3, 3)])
+    Qb = np.cov(e, rowvar=False)
+    np.fill_diagonal(Qb, 1.0)
+    eps = e[-1] + np.random.normal(0, 0.05, (sims, 2))
+    Qt = np.tile(Qb, (sims, 1, 1)).copy()
+    pu = min(jpu * 1.5, 0.20) if bs > 1.2 else jpu
+    pd_ = 0.03 * (1.3 if bs > 1.2 else 1.0)
+    pw = np.zeros((sims, steps + 1))
+    pb = np.zeros((sims, steps + 1))
+    pw[:, 0] = wti0
+    pb[:, 0] = brt0
+    ra = 1 + 0.5 * np.clip(rbase + np.random.normal(0, 0.05, (sims, steps)), -1, 1)
     for t in range(steps):
-        if bar: bar.progress((t+1)/steps)
-        outer=np.einsum("si,sj->sij",eps,eps)
-        Qt=(1-dcc_a-dcc_b)*Qb[np.newaxis]+dcc_a*outer+dcc_b*Qt
-        diag=np.clip(np.sqrt(np.diagonal(Qt,axis1=1,axis2=2)),1e-8,None)
-        Rt=Qt/np.einsum("si,sj->sij",diag,diag); Rt=np.clip(Rt,-0.9999,0.9999); Rt[:,0,0]=Rt[:,1,1]=1.0
-        rho=Rt[:,0,1]; sc=np.sqrt(np.clip(1-rho**2,1e-8,None))
-        z=np.random.standard_t(tdf,(sims,2)); zw=z[:,0]; zb=rho*z[:,0]+sc*z[:,1]
-        vw_=np.clip(bvw*ra[:,t],0,0.08); vb_=np.clip(bvb*ra[:,t],0,0.08)
-        sw=np.clip(zw*vw_,-4*vw_,4*vw_); sb=np.clip(zb*vb_,-4*vb_,4*vb_)
-        sw=_tail_jumps(sw,vw_); sb=_tail_jumps(sb,vb_)
-        jw,jb=_jumps_vec(sims,pu,pd_); sw+=jw; sb+=jb
-        dw=np.clip(fcast[t,ocol]*ra[:,t],-0.02,0.02); db=np.clip(fcast[t,bcol]*ra[:,t],-0.02,0.02)
-        nw=pw[:,t]*np.exp(dw+sw); nb=pb[:,t]*np.exp(db+sb)
-        sp=np.where(nb>0,(nb-nw)/nb,0)
-        nw=np.where(sp<-0.05,nb*1.05,nw); nw=np.where(sp>0.30,nb*0.70,nw)
-        pw[:,t+1]=np.clip(nw,wti0*0.4,wti0*2.5); pb[:,t+1]=np.clip(nb,brt0*0.4,brt0*2.5)
-        eps[:,0]=np.where(vw_>0,sw/vw_,0); eps[:,1]=np.where(vb_>0,sb/vb_,0)
-        eps=np.clip(eps,-5,5)
-    fan={p:np.percentile(pw,p,axis=0)  for p in [5,25,50,75,95]}
-    fb ={p:np.percentile(pb,p,axis=0)  for p in [5,25,50,75,95]}
-    term=pw[:,-1]; v95=np.percentile(pw[:,1]-wti0,5); mask=(pw[:,1]-wti0)<=v95
-    return {"fan":fan,"fan_b":fb,"paths":pw,"metrics":{
-        "vol_wti":bvw*np.sqrt(252)*100,"vol_brt":bvb*np.sqrt(252)*100,
-        "var95":v95,"cvar95":float(np.mean((pw[:,1]-wti0)[mask])),
-        "prob_up":np.mean(term>wti0)*100,"prob_40":np.mean(term<40)*100,"prob_150":np.mean(term>150)*100,
-        "p5":(fan[5][-1]/wti0-1)*100,"p95":(fan[95][-1]/wti0-1)*100}}
+        if bar:
+            bar.progress((t + 1) / steps)
+        outer = np.einsum("si,sj->sij", eps, eps)
+        Qt = (1 - dcc_a - dcc_b) * Qb[np.newaxis] + dcc_a * outer + dcc_b * Qt
+        diag = np.clip(np.sqrt(np.diagonal(Qt, axis1=1, axis2=2)), 1e-8, None)
+        Rt = Qt / np.einsum("si,sj->sij", diag, diag)
+        Rt = np.clip(Rt, -0.9999, 0.9999)
+        Rt[:, 0, 0] = Rt[:, 1, 1] = 1.0
+        rho = Rt[:, 0, 1]
+        sc = np.sqrt(np.clip(1 - rho ** 2, 1e-8, None))
+        z = np.random.standard_t(tdf, (sims, 2))
+        zw = z[:, 0]
+        zb = rho * z[:, 0] + sc * z[:, 1]
+        vw_ = np.clip(bvw * ra[:, t], 0, 0.08)
+        vb_ = np.clip(bvb * ra[:, t], 0, 0.08)
+        sw = np.clip(zw * vw_, -4 * vw_, 4 * vw_)
+        sb = np.clip(zb * vb_, -4 * vb_, 4 * vb_)
+        sw = _tail_jumps(sw, vw_)
+        sb = _tail_jumps(sb, vb_)
+        jw, jb = _jumps_vec(sims, pu, pd_)
+        sw += jw
+        sb += jb
+        dw = np.clip(fcast[t, ocol] * ra[:, t], -0.02, 0.02)
+        db = np.clip(fcast[t, bcol] * ra[:, t], -0.02, 0.02)
+        nw = pw[:, t] * np.exp(dw + sw)
+        nb = pb[:, t] * np.exp(db + sb)
+        sp = np.where(nb > 0, (nb - nw) / nb, 0)
+        nw = np.where(sp < -0.05, nb * 1.05, nw)
+        nw = np.where(sp > 0.30, nb * 0.70, nw)
+        pw[:, t + 1] = np.clip(nw, wti0 * 0.4, wti0 * 2.5)
+        pb[:, t + 1] = np.clip(nb, brt0 * 0.4, brt0 * 2.5)
+        eps[:, 0] = np.where(vw_ > 0, sw / vw_, 0)
+        eps[:, 1] = np.where(vb_ > 0, sb / vb_, 0)
+        eps = np.clip(eps, -5, 5)
+    fan = {p: np.percentile(pw, p, axis=0) for p in [5, 25, 50, 75, 95]}
+    fb = {p: np.percentile(pb, p, axis=0) for p in [5, 25, 50, 75, 95]}
+    term = pw[:, -1]
+    v95 = np.percentile(pw[:, 1] - wti0, 5)
+    mask = (pw[:, 1] - wti0) <= v95
+    return {
+        "fan": fan,
+        "fan_b": fb,
+        "paths": pw,
+        "metrics": {
+            "vol_wti": bvw * np.sqrt(252) * 100,
+            "vol_brt": bvb * np.sqrt(252) * 100,
+            "var95": v95,
+            "cvar95": float(np.mean((pw[:, 1] - wti0)[mask])),
+            "prob_up": np.mean(term > wti0) * 100,
+            "prob_40": np.mean(term < 40) * 100,
+            "prob_150": np.mean(term > 150) * 100,
+            "p5": (fan[5][-1] / wti0 - 1) * 100,
+            "p95": (fan[95][-1] / wti0 - 1) * 100
+        }
+    }
 
 def backtest_var(returns, var_forecast, alpha=0.05):
-    ci=returns.index.intersection(var_forecast.index)
-    if len(ci)==0: return {"calibration_score":0,"Kupiec_p":1,"Christoffersen_p":1,"DQ_p":1,"n_violations":0,"obs_freq":0}
-    r=returns.loc[ci]; v=var_forecast.loc[ci]; viol=(r<-v).astype(int)
-    n=len(viol); nv=viol.sum(); po=nv/n; pe=alpha
-    if nv>0 and nv<n:
-        LR=-2*np.log(((1-pe)**(n-nv)*pe**nv)/((1-po)**(n-nv)*po**nv))
-        kp=1-chi2.cdf(LR,1)
-    else: kp=0.5
-    if n>1:
-        n00=((viol[:-1]==0)&(viol[1:]==0)).sum(); n01=((viol[:-1]==0)&(viol[1:]==1)).sum()
-        n10=((viol[:-1]==1)&(viol[1:]==0)).sum(); n11=((viol[:-1]==1)&(viol[1:]==1)).sum()
-        p01=n01/(n00+n01) if (n00+n01)>0 else 0; p11=n11/(n10+n11) if (n10+n11)>0 else 0
-        LRc=-2*np.log(((1-pe)**(n-1-(n01+n11))*pe**(n01+n11))/((1-p01)**n00*p01**n01*(1-p11)**n10*p11**n11)) if (n01+n11)>0 else 0
-        cp=1-chi2.cdf(LRc,1) if LRc>0 else 0.5
-    else: cp=0.5
-    Xd=pd.DataFrame({"const":1,"hit_lag1":viol.shift(1).fillna(0)})
-    try: dq=1-chi2.cdf(Logit(viol,Xd).fit(disp=0).llr, Xd.shape[1])
-    except: dq=1.0
-    return {"n_violations":int(nv),"obs_freq":po,"exp_freq":pe,
-            "Kupiec_p":kp,"Christoffersen_p":cp,"DQ_p":dq,
-            "calibration_score":1-np.mean([kp,cp,dq])}
+    ci = returns.index.intersection(var_forecast.index)
+    if len(ci) == 0:
+        return {"calibration_score": 0, "Kupiec_p": 1, "Christoffersen_p": 1, "DQ_p": 1, "n_violations": 0, "obs_freq": 0}
+    r = returns.loc[ci]
+    v = var_forecast.loc[ci]
+    viol = (r < -v).astype(int)
+    n = len(viol)
+    nv = viol.sum()
+    po = nv / n
+    pe = alpha
+    if nv > 0 and nv < n:
+        LR = -2 * np.log(((1 - pe) ** (n - nv) * pe ** nv) / ((1 - po) ** (n - nv) * po ** nv))
+        kp = 1 - chi2.cdf(LR, 1)
+    else:
+        kp = 0.5
+    if n > 1:
+        n00 = ((viol[:-1] == 0) & (viol[1:] == 0)).sum()
+        n01 = ((viol[:-1] == 0) & (viol[1:] == 1)).sum()
+        n10 = ((viol[:-1] == 1) & (viol[1:] == 0)).sum()
+        n11 = ((viol[:-1] == 1) & (viol[1:] == 1)).sum()
+        p01 = n01 / (n00 + n01) if (n00 + n01) > 0 else 0
+        p11 = n11 / (n10 + n11) if (n10 + n11) > 0 else 0
+        LRc = -2 * np.log(((1 - pe) ** (n - 1 - (n01 + n11)) * pe ** (n01 + n11)) /
+                          ((1 - p01) ** n00 * p01 ** n01 * (1 - p11) ** n10 * p11 ** n11)) if (n01 + n11) > 0 else 0
+        cp = 1 - chi2.cdf(LRc, 1) if LRc > 0 else 0.5
+    else:
+        cp = 0.5
+    Xd = pd.DataFrame({"const": 1, "hit_lag1": viol.shift(1).fillna(0)})
+    try:
+        dq = 1 - chi2.cdf(Logit(viol, Xd).fit(disp=0).llr, Xd.shape[1])
+    except:
+        dq = 1.0
+    return {
+        "n_violations": int(nv),
+        "obs_freq": po,
+        "exp_freq": pe,
+        "Kupiec_p": kp,
+        "Christoffersen_p": cp,
+        "DQ_p": dq,
+        "calibration_score": 1 - np.mean([kp, cp, dq])
+    }
 
 def backtest_es(returns, cvar_val, var_forecast, alpha=0.05):
-    ci=returns.index.intersection(var_forecast.index)
-    if len(ci)==0: return np.nan
-    r=returns.loc[ci]; v=var_forecast.loc[ci]
-    cv=float(cvar_val) if not isinstance(cvar_val, pd.Series) else float(cvar_val.iloc[0]) if len(cvar_val)>0 else np.nan
-    if np.isnan(cv) or cv==0: return np.nan
-    viol=(r<-v).astype(int)
-    if viol.sum()==0: return np.nan
-    return float(((r[viol==1]+v[viol==1]).sum()/(viol.sum()*cv))-1)
+    ci = returns.index.intersection(var_forecast.index)
+    if len(ci) == 0:
+        return np.nan
+    r = returns.loc[ci]
+    v = var_forecast.loc[ci]
+    cv = float(cvar_val) if not isinstance(cvar_val, pd.Series) else float(cvar_val.iloc[0]) if len(cvar_val) > 0 else np.nan
+    if np.isnan(cv) or cv == 0:
+        return np.nan
+    viol = (r < -v).astype(int)
+    if viol.sum() == 0:
+        return np.nan
+    return float(((r[viol == 1] + v[viol == 1]).sum() / (viol.sum() * cv)) - 1)
 
 def walk_forward_validation(returns_series, train_years=2, test_months=3):
-    dates=returns_series.index; ts=int(train_years*252); qs=int(test_months*21)
-    results=[]; start=0
-    while start+ts+qs<=len(dates):
-        te=start+ts; qe=te+qs
-        mu=returns_series.iloc[start:te].mean()
-        rmse=float(np.sqrt(((mu-returns_series.iloc[te:qe])**2).mean()))
-        results.append({"Window Start":dates[start].strftime("%Y-%m-%d"),
-                        "Window End":dates[qe-1].strftime("%Y-%m-%d"),"OOS RMSE":rmse})
-        start+=qs
+    dates = returns_series.index
+    ts = int(train_years * 252)
+    qs = int(test_months * 21)
+    results = []
+    start = 0
+    while start + ts + qs <= len(dates):
+        te = start + ts
+        qe = te + qs
+        mu = returns_series.iloc[start:te].mean()
+        rmse = float(np.sqrt(((mu - returns_series.iloc[te:qe]) ** 2).mean()))
+        results.append({
+            "Window Start": dates[start].strftime("%Y-%m-%d"),
+            "Window End": dates[qe - 1].strftime("%Y-%m-%d"),
+            "OOS RMSE": rmse
+        })
+        start += qs
     return pd.DataFrame(results)
 
 def benchmark_ml(returns_df, target_col="oil", split=0.8):
-    features=returns_df.shift(1).dropna(); target=returns_df[target_col].iloc[1:]
-    ci=features.index.intersection(target.index); X,y=features.loc[ci],target.loc[ci]
-    sp=int(len(X)*split)
-    Xtr,Xte=X.iloc[:sp],X.iloc[sp:]; ytr,yte=y.iloc[:sp],y.iloc[sp:]
-    models={"RandomForest":RandomForestRegressor(n_estimators=100,random_state=42),
-            "XGBoost":xgb.XGBRegressor(n_estimators=100,random_state=42,verbosity=0),
-            "LightGBM":lgb.LGBMRegressor(n_estimators=100,random_state=42,verbose=-1)}
-    out={}
-    for name,mdl in models.items():
-        mdl.fit(Xtr,ytr); pred=mdl.predict(Xte)
-        out[name]={"RMSE":float(np.sqrt(mean_squared_error(yte,pred))),
-                   "MAE":float(mean_absolute_error(yte,pred))}
+    features = returns_df.shift(1).dropna()
+    target = returns_df[target_col].iloc[1:]
+    ci = features.index.intersection(target.index)
+    X, y = features.loc[ci], target.loc[ci]
+    sp = int(len(X) * split)
+    Xtr, Xte = X.iloc[:sp], X.iloc[sp:]
+    ytr, yte = y.iloc[:sp], y.iloc[sp:]
+    models = {
+        "RandomForest": RandomForestRegressor(n_estimators=100, random_state=42),
+        "XGBoost": xgb.XGBRegressor(n_estimators=100, random_state=42, verbosity=0),
+        "LightGBM": lgb.LGBMRegressor(n_estimators=100, random_state=42, verbose=-1)
+    }
+    out = {}
+    for name, mdl in models.items():
+        mdl.fit(Xtr, ytr)
+        pred = mdl.predict(Xte)
+        out[name] = {
+            "RMSE": float(np.sqrt(mean_squared_error(yte, pred))),
+            "MAE": float(mean_absolute_error(yte, pred))
+        }
     return out, X, y
 
 def run_shap(X, y):
-    mdl=RandomForestRegressor(n_estimators=100,random_state=42); mdl.fit(X,y)
-    exp=shap.TreeExplainer(mdl); sv=exp.shap_values(X)
-    fig,ax=plt.subplots(figsize=(6,4),facecolor="#FFFFFF"); ax.set_facecolor("#FDFBF8")
-    shap.summary_plot(sv,X,show=False,plot_size=None)
-    plt.tight_layout(); return fig
+    mdl = RandomForestRegressor(n_estimators=100, random_state=42)
+    mdl.fit(X, y)
+    exp = shap.TreeExplainer(mdl)
+    sv = exp.shap_values(X)
+    fig, ax = plt.subplots(figsize=(6, 4), facecolor="#FAF9F7")
+    ax.set_facecolor("#FAF9F7")
+    shap.summary_plot(sv, X, show=False, plot_size=None)
+    plt.tight_layout()
+    return fig
 
 def garch_diagnostics(resid):
-    r=resid.dropna()
-    if len(r)<20: return {"LB5":np.nan,"LB10":np.nan,"ARCH_p":np.nan}
-    lb=acorr_ljungbox(r,lags=[5,10],return_df=True)
-    arch=het_arch(r**2,nlags=10)
-    return {"LB5":lb.loc[5,"lb_pvalue"] if 5 in lb.index else np.nan,
-            "LB10":lb.loc[10,"lb_pvalue"] if 10 in lb.index else np.nan,
-            "ARCH_p":arch[1] if len(arch)>1 else np.nan}
+    r = resid.dropna()
+    if len(r) < 20:
+        return {"LB5": np.nan, "LB10": np.nan, "ARCH_p": np.nan}
+    lb = acorr_ljungbox(r, lags=[5, 10], return_df=True)
+    arch = het_arch(r ** 2, nlags=10)
+    return {
+        "LB5": lb.loc[5, "lb_pvalue"] if 5 in lb.index else np.nan,
+        "LB10": lb.loc[10, "lb_pvalue"] if 10 in lb.index else np.nan,
+        "ARCH_p": arch[1] if len(arch) > 1 else np.nan
+    }
 
 def fit_evt_tails(rv, q=0.95):
-    th_up=np.percentile(rv,q*100); th_lo=np.percentile(rv,(1-q)*100)
-    eu=rv[rv>th_up]-th_up; el=-rv[rv<th_lo]-th_lo
-    su,_,scu=stats.genpareto.fit(eu) if len(eu)>5 else (0.5,0,0.1)
-    sl,_,scl=stats.genpareto.fit(el) if len(el)>5 else (0.5,0,0.1)
-    return {"upper":(su,scu,th_up),"lower":(sl,scl,th_lo)}
+    th_up = np.percentile(rv, q * 100)
+    th_lo = np.percentile(rv, (1 - q) * 100)
+    eu = rv[rv > th_up] - th_up
+    el = -rv[rv < th_lo] - th_lo
+    su, _, scu = stats.genpareto.fit(eu) if len(eu) > 5 else (0.5, 0, 0.1)
+    sl, _, scl = stats.genpareto.fit(el) if len(el) > 5 else (0.5, 0, 0.1)
+    return {"upper": (su, scu, th_up), "lower": (sl, scl, th_lo)}
 
-# ── Data fetch ──
 @st.cache_data(ttl=900, show_spinner=False)
 def fetch_data(start):
-    tl=list(TICKERS.values()); tk=list(TICKERS.keys())
+    tl = list(TICKERS.values())
+    tk = list(TICKERS.keys())
     def _close(raw):
-        if raw is None or raw.empty: return pd.DataFrame()
+        if raw is None or raw.empty:
+            return pd.DataFrame()
         if isinstance(raw.columns, pd.MultiIndex):
-            lvl=raw.columns.get_level_values(0).unique().tolist()
-            field=next((f for f in ["Close","Adj Close"] if f in lvl),None)
-            return raw[field].copy() if field else raw.iloc[:,:len(tk)].copy()
+            lvl = raw.columns.get_level_values(0).unique().tolist()
+            field = next((f for f in ["Close", "Adj Close"] if f in lvl), None)
+            return raw[field].copy() if field else raw.iloc[:, :len(tk)].copy()
         return raw.copy()
     for adj in [True, False]:
         try:
-            raw=yf.download(tl,start=start,progress=False,auto_adjust=adj)
-            out=_close(raw)
-            if not out.empty and len(out)>5:
-                out.columns=tk[:len(out.columns)]
+            raw = yf.download(tl, start=start, progress=False, auto_adjust=adj)
+            out = _close(raw)
+            if not out.empty and len(out) > 5:
+                out.columns = tk[:len(out.columns)]
                 return out.ffill().bfill()
-        except: pass
-    frames={}
-    for key,sym in TICKERS.items():
+        except:
+            pass
+    frames = {}
+    for key, sym in TICKERS.items():
         try:
-            t=yf.Ticker(sym); df=t.history(start=start,auto_adjust=True)
-            if df.empty: df=t.history(period="120d",auto_adjust=True)
+            t = yf.Ticker(sym)
+            df = t.history(start=start, auto_adjust=True)
+            if df.empty:
+                df = t.history(period="120d", auto_adjust=True)
             if not df.empty:
-                col="Close" if "Close" in df.columns else df.columns[0]
-                frames[key]=fill_gaps(df[col])
-        except: pass
+                col = "Close" if "Close" in df.columns else df.columns[0]
+                frames[key] = fill_gaps(df[col])
+        except:
+            pass
     if frames:
-        out=pd.DataFrame(frames).ffill().bfill()
-        if not out.empty and len(out)>5: return out
+        out = pd.DataFrame(frames).ffill().bfill()
+        if not out.empty and len(out) > 5:
+            return out
     return pd.DataFrame()
 
 @st.cache_data(ttl=60, show_spinner=False)
 def fetch_live(lw=65.0, lb=68.0):
     try:
-        wti=float(yf.Ticker("CL=F").fast_info.get("last_price",0))
-        brt=float(yf.Ticker("BZ=F").fast_info.get("last_price",0))
-        if wti>0 and brt>0: return wti,brt
-    except: pass
+        wti = float(yf.Ticker("CL=F").fast_info.get("last_price", 0))
+        brt = float(yf.Ticker("BZ=F").fast_info.get("last_price", 0))
+        if wti > 0 and brt > 0:
+            return wti, brt
+    except:
+        pass
     try:
-        d=yf.download(["CL=F","BZ=F"],period="5d",progress=False,auto_adjust=True)
-        if isinstance(d.columns,pd.MultiIndex): d=d["Close"]
-        return float(d["CL=F"].dropna().iloc[-1]),float(d["BZ=F"].dropna().iloc[-1])
-    except: return lw,lb
+        d = yf.download(["CL=F", "BZ=F"], period="5d", progress=False, auto_adjust=True)
+        if isinstance(d.columns, pd.MultiIndex):
+            d = d["Close"]
+        return float(d["CL=F"].dropna().iloc[-1]), float(d["BZ=F"].dropna().iloc[-1])
+    except:
+        return lw, lb
 
 # ══════════════════════════════════════════════════════════
 #   PIPELINE
@@ -577,122 +830,160 @@ def fetch_live(lw=65.0, lb=68.0):
 needs_run = run_btn or "results" not in st.session_state
 
 if needs_run:
-    loading=st.empty()
+    loading = st.empty()
     loading.markdown("""
     <div style='text-align:center;padding:2.5rem 2rem;background:#FDFBF8;border:1px solid #C4BDAF;margin:1rem 0;'>
       <div style='font-family:"DM Mono",monospace;font-size:.56rem;letter-spacing:.22em;color:#9E8050;text-transform:uppercase;margin-bottom:.7rem;'>Initialising Research Terminal</div>
       <div style='font-family:"Cormorant Garamond",Georgia,serif;font-size:1.4rem;color:#0B1628;font-weight:300;'>Loading market data & calibrating quantitative framework…</div>
     </div>""", unsafe_allow_html=True)
-    prog=st.progress(0)
+    prog = st.progress(0)
 
     # 1 · Data
     prog.progress(8)
-    prices=fetch_data(war_start_str)
-    if prices.empty or len(prices)<5:
-        loading.empty(); prog.empty()
+    prices = fetch_data(war_start_str)
+    if prices.empty or len(prices) < 5:
+        loading.empty()
+        prog.empty()
         st.error("Failed to load market data. Please wait 1 minute and try again.")
         st.stop()
-    prices=prices.ffill().bfill()
+    prices = prices.ffill().bfill()
     for key in TICKERS:
-        if key not in prices.columns: prices[key]=np.nan
-    prices=prices.ffill().bfill()
+        if key not in prices.columns:
+            prices[key] = np.nan
+    prices = prices.ffill().bfill()
 
-    lw=float(prices["oil"].dropna().iloc[-1]); lb=float(prices["brent"].dropna().iloc[-1])
-    wti0,brt0=fetch_live(lw,lb)
-    prices.loc[prices.index[-1],"oil"]=wti0; prices.loc[prices.index[-1],"brent"]=brt0
-    returns=np.log(prices/prices.shift(1)).dropna()
+    lw = float(prices["oil"].dropna().iloc[-1])
+    lb = float(prices["brent"].dropna().iloc[-1])
+    wti0, brt0 = fetch_live(lw, lb)
+    prices.loc[prices.index[-1], "oil"] = wti0
+    prices.loc[prices.index[-1], "brent"] = brt0
+    returns = np.log(prices / prices.shift(1)).dropna()
 
     # 2 · Signals
     prog.progress(20)
-    usda=get_usda(); bs_mult=fert_black_swan(usda)
-    gs=gold_signals(prices); sd=silver_demand_proxy(prices)
-    weights=GEO_W.copy(); weights["silver_demand"]=0.02
-    tot=sum(abs(v) for v in weights.values()); weights={k:v/tot for k,v in weights.items()}
-    fi=build_fert_index(returns,usda,bs_mult)
-    dyn_w=calibrate_weights(returns,prices,gs,fi,sd)
-    if dyn_w: weights=dyn_w
-    gf_raw=build_geofactor(returns,prices,gs,fi,weights,sd)
-    gf=(gf_raw-gf_raw.mean())/gf_raw.std() if len(gf_raw)>1 else gf_raw
-    zsc=build_zscore(prices,gs)
+    usda = get_usda()
+    bs_mult = fert_black_swan(usda)
+    gs = gold_signals(prices)
+    sd = silver_demand_proxy(prices)
+    weights = GEO_W.copy()
+    weights["silver_demand"] = 0.02
+    tot = sum(abs(v) for v in weights.values())
+    weights = {k: v / tot for k, v in weights.items()}
+    fi = build_fert_index(returns, usda, bs_mult)
+    dyn_w = calibrate_weights(returns, prices, gs, fi, sd)
+    if dyn_w:
+        weights = dyn_w
+    gf_raw = build_geofactor(returns, prices, gs, fi, weights, sd)
+    gf = (gf_raw - gf_raw.mean()) / gf_raw.std() if len(gf_raw) > 1 else gf_raw
+    zsc = build_zscore(prices, gs)
 
     # 3 · GARCH
     prog.progress(38)
-    vw=fit_garch(returns["oil"],gf); vb_s=fit_garch(returns["brent"],gf); vg=fit_garch(returns["gold"],gf)
-    n=len(returns); pwd=prior_wti/np.sqrt(252); pbd=prior_brent/np.sqrt(252); pgd=0.18/np.sqrt(252)
-    vw,dw=bayes_shrink(vw,pwd,n,gf); vb_s,db=bayes_shrink(vb_s,pbd,n,gf); vg,_=bayes_shrink(vg,pgd,n)
-    bvw=float(vw.iloc[-1]); bvb=float(vb_s.iloc[-1])
+    vw = fit_garch(returns["oil"], gf)
+    vb_s = fit_garch(returns["brent"], gf)
+    vg = fit_garch(returns["gold"], gf)
+    n = len(returns)
+    pwd = prior_wti / np.sqrt(252)
+    pbd = prior_brent / np.sqrt(252)
+    pgd = 0.18 / np.sqrt(252)
+    vw, dw = bayes_shrink(vw, pwd, n, gf)
+    vb_s, db = bayes_shrink(vb_s, pbd, n, gf)
+    vg, _ = bayes_shrink(vg, pgd, n)
+    bvw = float(vw.iloc[-1])
+    bvb = float(vb_s.iloc[-1])
 
     # 4 · DCC + VAR
     prog.progress(55)
-    dcc_a,dcc_b=fit_dcc(returns["oil"],returns["brent"],vw,vb_s)
-    rv=returns.loc[gf.index.intersection(returns.index)]
-    vm=VAR(rv).fit(min(5,max(1,len(rv)//10)))
-    fcast=vm.forecast(rv.values[-vm.k_ar:],steps=mc_steps)
-    cols=list(rv.columns); ocol=cols.index("oil"); bcol=cols.index("brent")
-    tdf_d=max(2.5,min(6.0,tail_df/np.sqrt(max(bvb/(pbd*1.5),0.5))))
-    rbase=float(np.tanh(gf.iloc[-1]/2)) if not gf.empty else 0.0
-    jpu=min(jump_up*1.5,0.15) if returns["wheat"].tail(20).mean()>0.005 else jump_up
+    dcc_a, dcc_b = fit_dcc(returns["oil"], returns["brent"], vw, vb_s)
+    rv = returns.loc[gf.index.intersection(returns.index)]
+    vm = VAR(rv).fit(min(5, max(1, len(rv) // 10)))
+    fcast = vm.forecast(rv.values[-vm.k_ar:], steps=mc_steps)
+    cols = list(rv.columns)
+    ocol = cols.index("oil")
+    bcol = cols.index("brent")
+    tdf_d = max(2.5, min(6.0, tail_df / np.sqrt(max(bvb / (pbd * 1.5), 0.5))))
+    rbase = float(np.tanh(gf.iloc[-1] / 2)) if not gf.empty else 0.0
+    jpu = min(jump_up * 1.5, 0.15) if returns["wheat"].tail(20).mean() > 0.005 else jump_up
 
     # 5 · MC
     prog.progress(68)
-    mb=st.empty(); mc_bar=st.progress(0)
-    mb.markdown('<div style="font-family:\'DM Mono\',monospace;font-size:.58rem;letter-spacing:.14em;color:#9E8050;">Monte Carlo simulation executing…</div>',unsafe_allow_html=True)
-    mc=run_mc(wti0,brt0,bvw,bvb,fcast,ocol,bcol,rbase,returns["oil"],returns["brent"],
-              vw,vb_s,jpu,tdf_d,bs_mult,dcc_a,dcc_b,mc_sims,mc_steps,mc_bar)
-    mb.empty(); mc_bar.empty()
+    mb = st.empty()
+    mc_bar = st.progress(0)
+    mb.markdown('<div style="font-family:\'DM Mono\',monospace;font-size:.58rem;letter-spacing:.14em;color:#9E8050;">Monte Carlo simulation executing…</div>', unsafe_allow_html=True)
+    mc = run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase, returns["oil"], returns["brent"],
+                vw, vb_s, jpu, tdf_d, bs_mult, dcc_a, dcc_b, mc_sims, mc_steps, mc_bar)
+    mb.empty()
+    mc_bar.empty()
 
     # 6 · Analytics
     prog.progress(80)
-    ret_ann=returns[["oil","brent"]].mean()*252; vol_ann=returns[["oil","brent"]].std()*np.sqrt(252)
-    neg=returns[["oil","brent"]][returns[["oil","brent"]]<0].std()*np.sqrt(252)
-    corr_mx=returns[["oil","brent","gold","dxy","tnx"]].dropna().corr()
-    stress_c=pd.DataFrame({"vol_wti":vw.rolling(20).mean()*np.sqrt(252)*100,
-        "vol_brt":vb_s.rolling(20).mean()*np.sqrt(252)*100,
-        "corr":returns["oil"].rolling(20).corr(returns["brent"]),
-        "gold_z":rolling_zscore(prices["gold"],60),"geofactor":gf}).dropna()
-    stress_idx=(stress_c["vol_wti"]/50+stress_c["vol_brt"]/50+np.abs(stress_c["corr"]-0.8)*2+
-                stress_c["gold_z"].clip(0,3)/3+stress_c["geofactor"].clip(0,2)/2)/5
-    feat_imp=pd.DataFrame({"Feature":list(weights.keys()),"Importance":np.abs(list(weights.values()))}).sort_values("Importance",ascending=False)
-    evt=fit_evt_tails(returns["oil"].values)
-    gdiag=garch_diagnostics(vw)
-    var_s=vw.iloc[-252:]*1.645; cvar_s=vw.iloc[-252:]*2.326
-    bt_res=backtest_var(returns["oil"].iloc[-252:],var_s)
-    es_z=backtest_es(returns["oil"].iloc[-252:],float(cvar_s.iloc[-1]),var_s)
+    ret_ann = returns[["oil", "brent"]].mean() * 252
+    vol_ann = returns[["oil", "brent"]].std() * np.sqrt(252)
+    neg = returns[["oil", "brent"]][returns[["oil", "brent"]] < 0].std() * np.sqrt(252)
+    corr_mx = returns[["oil", "brent", "gold", "dxy", "tnx"]].dropna().corr()
+    stress_c = pd.DataFrame({
+        "vol_wti": vw.rolling(20).mean() * np.sqrt(252) * 100,
+        "vol_brt": vb_s.rolling(20).mean() * np.sqrt(252) * 100,
+        "corr": returns["oil"].rolling(20).corr(returns["brent"]),
+        "gold_z": rolling_zscore(prices["gold"], 60),
+        "geofactor": gf
+    }).dropna()
+    stress_idx = (stress_c["vol_wti"] / 50 + stress_c["vol_brt"] / 50 + np.abs(stress_c["corr"] - 0.8) * 2 +
+                  stress_c["gold_z"].clip(0, 3) / 3 + stress_c["geofactor"].clip(0, 2) / 2) / 5
+    feat_imp = pd.DataFrame({
+        "Feature": list(weights.keys()),
+        "Importance": np.abs(list(weights.values()))
+    }).sort_values("Importance", ascending=False)
+    evt = fit_evt_tails(returns["oil"].values)
+    gdiag = garch_diagnostics(vw)
+    var_s = vw.iloc[-252:] * 1.645
+    cvar_s = vw.iloc[-252:] * 2.326
+    bt_res = backtest_var(returns["oil"].iloc[-252:], var_s)
+    es_z = backtest_es(returns["oil"].iloc[-252:], float(cvar_s.iloc[-1]), var_s)
 
     try:
-        corr_ewma=float(np.clip(
-            returns[["oil","brent"]].dropna().ewm(alpha=0.06).cov(pairwise=True)
-            .loc[(returns.index[-1],"oil"),"brent"] /
-            np.sqrt(returns[["oil","brent"]].dropna().ewm(alpha=0.06).cov(pairwise=True)
-            .loc[(returns.index[-1],"oil"),"oil"] *
-            returns[["oil","brent"]].dropna().ewm(alpha=0.06).cov(pairwise=True)
-            .loc[(returns.index[-1],"brent"),"brent"]), -1,1))
-    except: corr_ewma=0.95
+        corr_ewma = float(np.clip(
+            returns[["oil", "brent"]].dropna().ewm(alpha=0.06).cov(pairwise=True)
+            .loc[(returns.index[-1], "oil"), "brent"] /
+            np.sqrt(returns[["oil", "brent"]].dropna().ewm(alpha=0.06).cov(pairwise=True)
+                    .loc[(returns.index[-1], "oil"), "oil"] *
+                    returns[["oil", "brent"]].dropna().ewm(alpha=0.06).cov(pairwise=True)
+                    .loc[(returns.index[-1], "brent"), "brent"]), -1, 1))
+    except:
+        corr_ewma = 0.95
 
     # 7 · ML
     prog.progress(90)
-    try: ml_metrics,X_ml,y_ml=benchmark_ml(returns)
-    except Exception as e: ml_metrics={"Error":{"RMSE":str(e),"MAE":"—"}}; X_ml=returns.shift(1).dropna(); y_ml=returns["oil"].iloc[1:]
-    try: shap_fig=run_shap(X_ml,y_ml)
-    except: shap_fig=None
-    wf_df=walk_forward_validation(returns["oil"])
+    try:
+        ml_metrics, X_ml, y_ml = benchmark_ml(returns)
+    except Exception as e:
+        ml_metrics = {"Error": {"RMSE": str(e), "MAE": "—"}}
+        X_ml = returns.shift(1).dropna()
+        y_ml = returns["oil"].iloc[1:]
+    try:
+        shap_fig = run_shap(X_ml, y_ml)
+    except:
+        shap_fig = None
+    wf_df = walk_forward_validation(returns["oil"])
 
-    prog.progress(100); loading.empty(); prog.empty()
+    prog.progress(100)
+    loading.empty()
+    prog.empty()
 
     st.session_state.update({
-        "results":mc,"gf":gf,"zsc":zsc,"vw":vw,"vb":vb_s,"vg":vg,"fi":fi,"gs":gs,
-        "prices":prices,"returns":returns,"wti0":wti0,"brt0":brt0,"usda":usda,
-        "bs":bs_mult,"dw":dw,"db":db,"tdf":tdf_d,"dcc_a":dcc_a,"dcc_b":dcc_b,
-        "weights":weights,"sharpe":ret_ann/vol_ann,"sortino":ret_ann/neg,
-        "skew_oil":returns["oil"].skew(),"kurt_oil":returns["oil"].kurtosis(),
-        "skew_brt":returns["brent"].skew(),"kurt_brt":returns["brent"].kurtosis(),
-        "corr_mx":corr_mx,"stress_idx":stress_idx,"feat_imp":feat_imp,"evt":evt,
-        "gdiag":gdiag,"bt_res":bt_res,"es_z":es_z,"corr_ewma":corr_ewma,
-        "ml_metrics":ml_metrics,"shap_fig":shap_fig,"wf_df":wf_df,
+        "results": mc, "gf": gf, "zsc": zsc, "vw": vw, "vb": vb_s, "vg": vg, "fi": fi, "gs": gs,
+        "prices": prices, "returns": returns, "wti0": wti0, "brt0": brt0, "usda": usda,
+        "bs": bs_mult, "dw": dw, "db": db, "tdf": tdf_d, "dcc_a": dcc_a, "dcc_b": dcc_b,
+        "weights": weights, "sharpe": ret_ann / vol_ann, "sortino": ret_ann / neg,
+        "skew_oil": returns["oil"].skew(), "kurt_oil": returns["oil"].kurtosis(),
+        "skew_brt": returns["brent"].skew(), "kurt_brt": returns["brent"].kurtosis(),
+        "corr_mx": corr_mx, "stress_idx": stress_idx, "feat_imp": feat_imp, "evt": evt,
+        "gdiag": gdiag, "bt_res": bt_res, "es_z": es_z, "corr_ewma": corr_ewma,
+        "ml_metrics": ml_metrics, "shap_fig": shap_fig, "wf_df": wf_df,
     })
 
 # ══════════════════════════════════════════════════════════
-#   RENDER
+#   RENDER (unchanged, only styling adapted)
 # ══════════════════════════════════════════════════════════
 if "results" not in st.session_state:
     st.info("Configure parameters in the sidebar and click **▶ Run Full System Pipeline** to start.")
@@ -725,12 +1016,12 @@ with tab1:
     st.markdown('<div class="swiss-div"></div>', unsafe_allow_html=True)
     fig_vol=qfig(380)
     fig_vol.add_trace(go.Scatter(x=vw.index,y=vw*np.sqrt(252)*100,name="WTI Vol",
-        line=dict(color=C["navy"],width=2.2)))
+        line=dict(color=C["primary"],width=2.2)))
     fig_vol.add_trace(go.Scatter(x=vb.index,y=vb*np.sqrt(252)*100,name="Brent Vol",
         line=dict(color=C["blue"],width=2.2,dash="dash")))
     fig_vol.add_trace(go.Scatter(x=vg.index,y=vg*np.sqrt(252)*100,name="Gold Vol",
         line=dict(color=C["gold"],width=1.8,dash="dot")))
-    fig_vol.add_hrect(y0=25,y1=45,fillcolor="rgba(11,22,40,0.03)",line_width=0,
+    fig_vol.add_hrect(y0=25,y1=45,fillcolor="rgba(46,42,36,0.03)",line_width=0,
         annotation_text="Normal band 25–45%",annotation_position="top left",
         annotation_font=dict(size=9,color=C["gray"],family="DM Mono,monospace"))
     fig_vol.update_layout(yaxis_ticksuffix="%",
@@ -748,7 +1039,7 @@ with tab2:
         line=dict(color=C["blue"],width=2.2),
         fill="tozeroy",fillcolor="rgba(58,95,138,0.04)"))
     fig_geo.add_trace(go.Scatter(x=gf.index,y=gf.values,name="GeoFactor (σ)",
-        line=dict(color=C["navy"],width=2.8),yaxis="y2"))
+        line=dict(color=C["primary"],width=2.8),yaxis="y2"))
     for y in [1.5,-1.5]:
         fig_geo.add_shape(type="line",x0=zsc.index.min(),x1=zsc.index.max(),
             y0=y,y1=y,line=dict(dash="dot",color=C["gold_dim"],width=1.2),yref="y")
@@ -787,7 +1078,7 @@ with tab2:
     st.markdown('<div class="swiss-div"></div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title" style="font-size:1.1rem;">Agricultural Commodities — Indexed from Regime Inception</div>', unsafe_allow_html=True)
     fig_ag=qfig(280)
-    for asset,color,label in [("wheat",C["navy"],"Wheat"),("corn",C["blue"],"Corn"),("soy",C["gray"],"Soy")]:
+    for asset,color,label in [("wheat",C["primary"],"Wheat"),("corn",C["blue"],"Corn"),("soy",C["gray"],"Soy")]:
         bv=float(prices[asset].iloc[0]); rel=(prices[asset]/bv*100).dropna()
         fig_ag.add_trace(go.Scatter(x=rel.index,y=rel.values,
             name=f"{label} (base ${bv:.0f})",line=dict(color=color,width=2.0)))
@@ -797,7 +1088,7 @@ with tab2:
 
 # ── TAB 3 · Monte Carlo ──────────────────────────────────
 with tab3:
-    war_n="  ⚑ Regime Drift Adjusted" if S.get("returns") is not None and returns["wheat"].tail(20).mean()>0.005 else ""
+    war_n="  ⚑ Regime Drift Adjusted" if returns["wheat"].tail(20).mean()>0.005 else ""
     bs_n=f"  ⚠ Stress Multiplier ×{bs:.2f}" if bs>1.2 else ""
     st.markdown('<div class="sec-label">03 · Probabilistic Forecast</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="sec-title">Predictive Distribution Simulation · EVT+DCC Process · {mc_sims:,} Scenarios{war_n}{bs_n}</div>', unsafe_allow_html=True)
@@ -811,7 +1102,7 @@ with tab3:
     fig_mc.add_trace(go.Scatter(x=x_ax,y=list(fb[50]),name=f"Brent P50 → ${fb[50][-1]:.2f}",
         line=dict(color=C["blue"],width=2.2,dash="dash")))
     fig_mc.add_trace(go.Scatter(x=x_ax,y=list(fan[50]),name=f"WTI P50 → ${fan[50][-1]:.2f}",
-        line=dict(color=C["navy"],width=3.2)))
+        line=dict(color=C["primary"],width=3.2)))
     fig_mc.add_trace(go.Scatter(x=x_ax,y=list(fan[95]),name=f"P95 → ${fan[95][-1]:.2f}",
         line=dict(color=C["gold_dim"],width=1.4,dash="dot")))
     fig_mc.add_trace(go.Scatter(x=x_ax,y=list(fan[5]),name=f"P5 → ${fan[5][-1]:.2f}",
@@ -861,7 +1152,7 @@ with tab4:
     fig_corr=qfig(320)
     cm=S["corr_mx"].values; cols_=list(S["corr_mx"].columns)
     fig_corr.add_trace(go.Heatmap(z=cm,x=cols_,y=cols_,
-        colorscale=[[0,"#7A3F30"],[0.5,"#FFFFFF"],[1,"#0B1628"]],
+        colorscale=[[0,"#7A3F30"],[0.5,"#FFFFFF"],[1,"#2E2A24"]],
         zmid=0,text=np.round(cm,3),texttemplate="%{text}",
         textfont=dict(size=10,family="DM Mono,monospace"),showscale=True))
     fig_corr.update_layout(title="EWMA Asset Interdependence Topology")
@@ -886,7 +1177,7 @@ with tab5:
     fig_imp=qfig(300)
     fi_df=S["feat_imp"].head(10)
     fig_imp.add_trace(go.Bar(x=fi_df["Importance"],y=fi_df["Feature"],orientation="h",
-        marker_color=C["navy"],name="Importance"))
+        marker_color=C["primary"],name="Importance"))
     fig_imp.update_layout(xaxis_title="Absolute LASSO Structural Coefficient",yaxis_autorange="reversed",
         title="Structural Factor Importance Optimization")
     st.plotly_chart(fig_imp, use_container_width=True)
@@ -940,7 +1231,7 @@ with tab8:
         st.dataframe(wf,use_container_width=True)
         fig_wf=qfig(300)
         fig_wf.add_trace(go.Bar(x=wf["Window End"],y=wf["OOS RMSE"],
-            marker_color=C["navy"],name="OOS RMSE"))
+            marker_color=C["primary"],name="OOS RMSE"))
         fig_wf.update_layout(title="Rolling Window Multi-Period Errors",
             xaxis_title="Evaluation Window End",yaxis_title="OOS RMSE")
         st.plotly_chart(fig_wf, use_container_width=True)
