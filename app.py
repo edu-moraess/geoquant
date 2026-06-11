@@ -106,7 +106,7 @@ st.markdown(
     f"""
     <div style="border-bottom: 2px solid #1F4E79; margin-bottom: 1.5rem;">
         <h1 style="color: #1F4E79; font-weight: 400; margin-bottom: 0;">GeoQuant · Institutional Research</h1>
-        <p style="color: #6B7280; font-size: 0.8rem;">Geopolitical Intelligence · EVT+DCC+GARCH-X · AI Explainability · {now_sp.strftime('%d %B %Y · %H:%M')} (SP)</p>
+        <p style="color: #6B7280; font-size: 0.8rem;">Geopolitical Intelligence · EVT+DCC+GARCH-X · {now_sp.strftime('%d %B %Y · %H:%M')} (SP)</p>
     </div>
     """, unsafe_allow_html=True)
 
