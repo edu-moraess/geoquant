@@ -57,10 +57,10 @@ PLOTLY_LAYOUT = {
     "plot_bgcolor": "#F8F9FA",
     "font": {"family": "Helvetica Neue, Arial", "color": "#2C3E50", "size": 11},
     "title_font": {"family": "Helvetica Neue", "size": 14, "color": "#1F4E79"},
-    "xaxis": {"gridcolor": "#E5E7EB", "linecolor": "#D1D5DB", "zerolinecolor": "#D1D5DB"},
-    "yaxis": {"gridcolor": "#E5E7EB", "linecolor": "#D1D5DB", "zerolinecolor": "#D1D5DB"},
+    "xaxis": {"gridcolor": "#E5E7EB", "linecolor": "#D1D5DB", "zerolinecolor": "#D1D5DB", "title": ""},
+    "yaxis": {"gridcolor": "#E5E7EB", "linecolor": "#D1D5DB", "zerolinecolor": "#D1D5DB", "title": ""},
     "legend": {"bgcolor": "rgba(255,255,255,0.9)", "bordercolor": "#D1D5DB", "borderwidth": 1},
-    "margin": {"l": 50, "r": 30, "t": 60, "b": 40},
+    "margin": {"l": 50, "r": 50, "t": 60, "b": 40},
 }
 COLORS = {
     "wti": "#1F4E79", "brent": "#2D6B6B", "gold": "#C8A96E",
@@ -461,7 +461,7 @@ def fetch_data(start_date=None):
             pass
     if frames:
         out = pd.DataFrame(frames).ffill().dropna()
-        if not out.empty and len(out) > 5:
+        if not out.empty && len(out) > 5:
             return out
     return pd.DataFrame()
 
@@ -730,7 +730,7 @@ if needs_run:
     })
 
 # =============================================================================
-# DISPLAY (TODAS AS 8 ABAS)
+# DISPLAY
 # =============================================================================
 if "results" in st.session_state:
     mc = st.session_state["results"]
@@ -797,7 +797,7 @@ if "results" in st.session_state:
             fig_vol.add_trace(go.Scatter(x=vb.index, y=vb*np.sqrt(252)*100, name="Brent", line=dict(color=COLORS["brent"], width=2.5, dash="dash")))
             fig_vol.add_trace(go.Scatter(x=vg.index, y=vg*np.sqrt(252)*100, name="Gold", line=dict(color=COLORS["gold"], width=2, dash="dot")))
             fig_vol.add_hrect(y0=25, y1=45, fillcolor="rgba(45,107,107,0.05)", line_width=0, annotation_text="Normal band 25–45%")
-            fig_vol.update_layout(yaxis_ticksuffix="%", title="Annualised Volatility")
+            fig_vol.update_layout(yaxis=dict(ticksuffix="%", title="Annualised Volatility"))
             st.plotly_chart(fig_vol, use_container_width=True)
         else:
             st.info("Volatility data not available.")
@@ -813,8 +813,8 @@ if "results" in st.session_state:
                                            fillcolor="rgba(95,107,71,0.1)", line=dict(color=COLORS["fertilizer"], width=2.5)), secondary_y=False)
                 fig_f.add_trace(go.Scatter(x=ng_vol.index, y=ng_vol.values, name="NatGas Volatility",
                                            line=dict(color=COLORS["natgas"], width=2, dash="dash")), secondary_y=True)
-                fig_f.update_yaxes(title_text="Fertilizer Index", secondary_y=False, title_font=dict(size=10))
-                fig_f.update_yaxes(title_text="NatGas Vol %", secondary_y=True, title_font=dict(size=10))
+                fig_f.update_yaxes(title_text="Fertilizer Index", secondary_y=False)
+                fig_f.update_yaxes(title_text="NatGas Vol %", secondary_y=True)
                 fig_f.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                 st.plotly_chart(fig_f, use_container_width=True)
             else:
@@ -832,8 +832,8 @@ if "results" in st.session_state:
                 fig_g.add_trace(go.Scatter(x=gs["silver_gold"].dropna().index, y=(gs["silver_gold"].dropna()/sg_b).values,
                                            name="Silver / Gold", line=dict(color=COLORS["silver"], width=2, dash="dash")), secondary_y=True)
                 fig_g.add_hline(y=1.0, line_dash="dot", line_color="#9CA3AF", line_width=1.5)
-                fig_g.update_yaxes(title_text="Gold/Real Yield (norm)", secondary_y=False, title_font=dict(size=10))
-                fig_g.update_yaxes(title_text="Silver/Gold (norm)", secondary_y=True, title_font=dict(size=10))
+                fig_g.update_yaxes(title_text="Gold/Real Yield (norm)", secondary_y=False)
+                fig_g.update_yaxes(title_text="Silver/Gold (norm)", secondary_y=True)
                 fig_g.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                 st.plotly_chart(fig_g, use_container_width=True)
             else:
@@ -849,8 +849,6 @@ if "results" in st.session_state:
                                          fillcolor="rgba(31,78,121,0.1)"), secondary_y=False)
             fig_geo.add_trace(go.Scatter(x=gf.index, y=gf.values, name="GeoFactor (norm)",
                                          line=dict(color=COLORS["gold"], width=3)), secondary_y=True)
-            fig_geo.add_hline(y=1.5, line_dash="dot", line_color=COLORS["gold"], secondary_y=False)
-            fig_geo.add_hline(y=-1.5, line_dash="dot", line_color=COLORS["gold"], secondary_y=False)
             fig_geo.update_yaxes(title_text="Z-Score (σ)", secondary_y=False)
             fig_geo.update_yaxes(title_text="GeoFactor (σ)", secondary_y=True)
             st.plotly_chart(fig_geo, use_container_width=True)
@@ -866,7 +864,7 @@ if "results" in st.session_state:
                 if len(rel) > 0:
                     fig_ag.add_trace(go.Scatter(x=rel.index, y=rel.values, name=f"{label} (base ${bv:.0f})", line=dict(color=color, width=2)))
         fig_ag.add_hline(y=100, line_dash="dot", line_color="#9CA3AF")
-        fig_ag.update_layout(yaxis_title="Price Index (base = 100)")
+        fig_ag.update_layout(yaxis=dict(title="Price Index (base = 100)"))
         st.plotly_chart(fig_ag, use_container_width=True)
 
     # ----- TAB 3: MONTE CARLO -----
@@ -898,7 +896,7 @@ if "results" in st.session_state:
             fig_mc.add_hline(y=wti0, line_dash="dash", line_color="#6B7280", annotation_text=f"Current ${wti0:.2f}")
             fig_mc.add_hline(y=40, line_dash="dot", line_color=COLORS["stress"], annotation_text="Stress $40")
             fig_mc.add_hline(y=150, line_dash="dot", line_color=COLORS["stress"], annotation_text="Stress $150")
-            fig_mc.update_layout(xaxis_title="Trading Days Ahead", yaxis_title="Price (USD/bbl)", yaxis_tickprefix="$")
+            fig_mc.update_layout(xaxis=dict(title="Trading Days Ahead"), yaxis=dict(title="Price (USD/bbl)", tickprefix="$"))
             st.plotly_chart(fig_mc, use_container_width=True)
             c1,c2,c3 = st.columns(3)
             c1.metric("Prob Up 10d", f"{M.get('prob_up',0):.1f}%")
@@ -943,13 +941,13 @@ if "results" in st.session_state:
         st.divider()
         st.subheader("Risk‑Return Profile")
         risk_return = pd.DataFrame({"Asset": ["WTI","Brent"], "Sharpe": [sharpe["oil"], sharpe["brent"]],
-                                    "Volatility": [M.get("vol_wti",0), M.get("vol_brt",0)]})
+                                    "Volatility": [M.get("vol_wti',0), M.get("vol_brt",0)]})
         fig_scatter = go.Figure()
         fig_scatter.add_trace(go.Scatter(x=risk_return["Volatility"], y=risk_return["Sharpe"],
                                          mode="markers+text", text=risk_return["Asset"], textposition="top center",
                                          marker=dict(size=20, color=[COLORS["wti"], COLORS["brent"]]), showlegend=False))
         fig_scatter.add_shape(type="line", x0=0, y0=0, x1=100, y1=2, line=dict(dash="dot", color="gray"))
-        fig_scatter.update_layout(xaxis_title="Annualised Volatility (%)", yaxis_title="Sharpe Ratio", height=450)
+        fig_scatter.update_layout(xaxis=dict(title="Annualised Volatility (%)"), yaxis=dict(title="Sharpe Ratio"), height=450)
         st.plotly_chart(fig_scatter, use_container_width=True)
         st.divider()
         st.subheader("Global Stress Indicator")
@@ -960,7 +958,7 @@ if "results" in st.session_state:
             fig_stress.add_hline(y=0.3, line_dash="dash", line_color="green", annotation_text="Low")
             fig_stress.add_hline(y=0.6, line_dash="dash", line_color="orange", annotation_text="Elevated")
             fig_stress.add_hline(y=0.8, line_dash="dash", line_color="red", annotation_text="Crisis")
-            fig_stress.update_layout(yaxis_title="Composite Stress (0-1)", title="Market Stress Indicator")
+            fig_stress.update_layout(yaxis=dict(title="Composite Stress (0-1)"), title="Market Stress Indicator")
             st.plotly_chart(fig_stress, use_container_width=True)
             latest = stress_index.iloc[-1]
             color = "green" if latest<0.3 else ("orange" if latest<0.6 else "red")
@@ -968,7 +966,7 @@ if "results" in st.session_state:
         else:
             st.info("Stress index not available.")
 
-    # ----- TAB 6: INSTITUTIONAL BACKTEST (CORRIGIDA) -----
+    # ----- TAB 6: INSTITUTIONAL BACKTEST -----
     with tab6:
         st.subheader("VaR and Expected Shortfall Backtesting")
         if 'returns' in st.session_state and 'vw' in st.session_state:
@@ -1001,11 +999,12 @@ if "results" in st.session_state:
                 v_aligned = var_series.loc[common_idx]
                 viol = (r_aligned < -v_aligned).astype(int)
                 fig_viol.add_trace(go.Scatter(x=common_idx, y=viol, mode='markers', name='VaR Violations'))
+                fig_viol.update_layout(xaxis=dict(title=""), yaxis=dict(title="Violation Event"))
                 st.plotly_chart(fig_viol, use_container_width=True)
         else:
             st.info("Run full analysis first.")
 
-    # ----- TAB 7: ADVANCED ANALYTICS (EVT, GARCH diagnostics, rolling IC) -----
+    # ----- TAB 7: ADVANCED ANALYTICS -----
     with tab7:
         st.subheader("Advanced Analytics (EVT, GARCH Diagnostics, Rolling IC)")
         st.markdown("**Extreme Value Theory – Oil Returns Tails**")
@@ -1021,7 +1020,7 @@ if "results" in st.session_state:
             fig_ic = quant_fig(400)
             fig_ic.add_trace(go.Scatter(x=rolling_ic_series.index, y=rolling_ic_series.values, name="Rolling IC (1y)"))
             fig_ic.add_hline(y=0, line_dash="dash", line_color="gray")
-            fig_ic.update_layout(title="Information Coefficient – GeoFactor vs Future Returns")
+            fig_ic.update_layout(title="Information Coefficient – GeoFactor vs Future Returns", xaxis=dict(title=""), yaxis=dict(title="IC Corr"))
             st.plotly_chart(fig_ic, use_container_width=True)
         else:
             st.info("Not enough data for rolling IC.")
@@ -1036,7 +1035,7 @@ if "results" in st.session_state:
         if feature_importance is not None:
             st.subheader("Feature Importance (LASSO weights)")
             fig_imp = go.Figure(go.Bar(x=feature_importance['importance'], y=feature_importance['feature'], orientation='h'))
-            fig_imp.update_layout(height=400, title="Marginal Contribution to GeoFactor")
+            fig_imp.update_layout(height=400, title="Marginal Contribution to GeoFactor", xaxis=dict(title="Weight Absolute Value"), yaxis=dict(title="Feature"))
             st.plotly_chart(fig_imp, use_container_width=True)
         if 'returns' in st.session_state and 'vw' in st.session_state:
             ret_series = returns['oil'].iloc[-252:]
