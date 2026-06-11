@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import requests, os, csv, logging, warnings
+import os, csv, logging, warnings
 from datetime import datetime, timedelta
 import pytz
 from scipy.interpolate import PchipInterpolator
@@ -43,183 +43,6 @@ st.set_page_config(
 )
 
 # ══════════════════════════════════════════════════════════
-#   PROFESSIONAL QUANT STYLE (CSS otimizado)
-# ══════════════════════════════════════════════════════════
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,600;1,300&family=JetBrains+Mono:wght@300;400&display=swap');
-
-:root {
-    --quant-bg:     #0A0F1A;
-    --quant-panel:  #111827;
-    --quant-card:   #1F2937;
-    --quant-gold:   #D4AF37;
-    --quant-gold-dim: #B49450;
-    --quant-blue:   #3B82F6;
-    --quant-blue-light: #60A5FA;
-    --quant-red:    #EF4444;
-    --quant-green:  #10B981;
-    --quant-gray:   #9CA3AF;
-    --quant-text:   #F3F4F6;
-    --quant-border: #374151;
-}
-
-html, body, [data-testid="stAppViewContainer"] {
-    background: var(--quant-bg) !important;
-    font-family: 'Inter', 'Helvetica Neue', sans-serif;
-    font-weight: 300;
-    color: var(--quant-text);
-}
-
-[data-testid="stSidebar"] {
-    background: var(--quant-panel) !important;
-    border-right: 1px solid var(--quant-border);
-}
-[data-testid="stSidebar"] * { color: var(--quant-text) !important; }
-[data-testid="stSidebar"] .stSlider > div > div { background: var(--quant-gold-dim) !important; }
-
-/* Metric cards */
-div[data-testid="stMetric"] {
-    background: var(--quant-card);
-    border: 1px solid var(--quant-border);
-    border-radius: 8px;
-    padding: 1rem 1.2rem;
-}
-div[data-testid="stMetric"] label {
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.6rem !important;
-    letter-spacing: 0.1em !important;
-    text-transform: uppercase !important;
-    color: var(--quant-gray) !important;
-}
-div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
-    font-family: 'Inter', sans-serif !important;
-    font-size: 1.8rem !important;
-    font-weight: 500 !important;
-    color: var(--quant-gold) !important;
-}
-div[data-testid="stMetricDelta"] {
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 0.7rem !important;
-}
-
-/* Buttons */
-.stButton button {
-    background: var(--quant-gold-dim) !important;
-    color: var(--quant-bg) !important;
-    border: none !important;
-    border-radius: 6px !important;
-    font-family: 'Inter', sans-serif !important;
-    font-size: 0.75rem !important;
-    font-weight: 500 !important;
-    padding: 0.6rem 1.5rem !important;
-    width: 100%;
-}
-.stButton button:hover {
-    background: var(--quant-gold) !important;
-    color: var(--quant-bg) !important;
-    border: none !important;
-}
-
-/* Progress bar */
-.stProgress > div > div { background: var(--quant-blue) !important; }
-
-/* Tabs */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 1rem;
-    background-color: var(--quant-panel);
-    border-radius: 8px;
-    padding: 0.3rem;
-}
-.stTabs [data-baseweb="tab"] {
-    font-family: 'Inter', sans-serif;
-    font-size: 0.8rem;
-    font-weight: 500;
-    letter-spacing: 0.02em;
-    color: var(--quant-gray);
-    border-radius: 6px;
-    padding: 0.5rem 1rem;
-}
-.stTabs [aria-selected="true"] {
-    background-color: var(--quant-gold-dim);
-    color: var(--quant-bg);
-}
-
-/* Expander */
-[data-testid="stExpander"] { 
-    background: var(--quant-panel);
-    border: 1px solid var(--quant-border);
-    border-radius: 8px;
-}
-
-/* Section titles */
-.sec-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.65rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--quant-gold-dim);
-    margin-bottom: 0.2rem;
-}
-.sec-title {
-    font-family: 'Inter', sans-serif;
-    font-size: 1.5rem;
-    font-weight: 400;
-    color: var(--quant-text);
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 2px solid var(--quant-gold-dim);
-}
-.divider {
-    height: 1px;
-    background: linear-gradient(90deg, var(--quant-gold) 0%, var(--quant-border) 70%, transparent 100%);
-    margin: 1.5rem 0;
-}
-.info-block {
-    background: var(--quant-card);
-    border-left: 3px solid var(--quant-blue);
-    border-radius: 6px;
-    padding: 0.8rem 1rem;
-    font-size: 0.8rem;
-    color: var(--quant-gray);
-}
-.data-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.8rem;
-}
-.data-table th {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.65rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--quant-gray);
-    padding: 0.5rem 0.8rem;
-    border-bottom: 1px solid var(--quant-border);
-    background: var(--quant-panel);
-}
-.data-table td {
-    padding: 0.5rem 0.8rem;
-    border-bottom: 1px solid var(--quant-border);
-    color: var(--quant-text);
-}
-.data-table tr:hover td { background: var(--quant-card); }
-
-.footer {
-    margin-top: 3rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--quant-border);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.6rem;
-    letter-spacing: 0.1em;
-    color: var(--quant-gray);
-    display: flex;
-    justify-content: space-between;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ══════════════════════════════════════════════════════════
 #   CONFIG DEFAULTS
 # ══════════════════════════════════════════════════════════
 TICKERS = {
@@ -244,115 +67,73 @@ SPREAD_MAX     =  0.30
 FERT_BS_Z_THR  = 1.5
 FERT_EVT_Q     = 0.90
 
-# Plotly template: dark + gold accents
-PLOTLY_TEMPLATE = {
-    "layout": {
-        "paper_bgcolor": "#111827",
-        "plot_bgcolor": "#1F2937",
-        "font": {"family": "Inter", "color": "#F3F4F6", "size": 11},
-        "title_font": {"family": "Inter", "size": 14, "color": "#D4AF37"},
-        "xaxis": {"gridcolor": "#374151", "linecolor": "#4B5563", "zerolinecolor": "#4B5563", "tickfont": {"size": 10}},
-        "yaxis": {"gridcolor": "#374151", "linecolor": "#4B5563", "zerolinecolor": "#4B5563", "tickfont": {"size": 10}},
-        "legend": {"bgcolor": "rgba(31,41,55,0.8)", "bordercolor": "#D4AF37", "borderwidth": 1, "font": {"size": 10}},
-        "hoverlabel": {"bgcolor": "#1F2937", "font_color": "#D4AF37", "font_family": "JetBrains Mono"},
-        "margin": {"l": 50, "r": 30, "t": 60, "b": 40},
-    }
-}
+# Plotly layout clean
+PLOTLY_LAYOUT = dict(
+    paper_bgcolor="white",
+    plot_bgcolor="#F8F9FA",
+    font=dict(family="Arial, sans-serif", color="#2C3E50", size=11),
+    title_font=dict(family="Arial, sans-serif", size=14, color="#1F4E79"),
+    xaxis=dict(gridcolor="#E5E7EB", linecolor="#D1D5DB", zerolinecolor="#D1D5DB"),
+    yaxis=dict(gridcolor="#E5E7EB", linecolor="#D1D5DB", zerolinecolor="#D1D5DB"),
+    legend=dict(bgcolor="rgba(255,255,255,0.9)", bordercolor="#D1D5DB", borderwidth=1),
+    margin=dict(l=50, r=30, t=60, b=40),
+)
 
 C = {
-    "navy": "#1E3A8A", "gold": "#D4AF37", "gold_dim": "#B49450",
-    "blue": "#3B82F6", "teal": "#14B8A6", "sage": "#10B981",
-    "rust": "#F97316", "gray": "#9CA3AF", "silver": "#94A3B8",
-    "fan90": "#3B82F6", "fan50": "#94A3B8",
+    "blue": "#1F4E79", "gold": "#C8A96E", "gold_dim": "#9E8050",
+    "teal": "#2D6B6B", "sage": "#5F6B47", "rust": "#7A3F30",
+    "gray": "#6B7280", "silver": "#9CA3AF",
 }
 
 def quant_fig(height=450):
     fig = go.Figure()
-    fig.update_layout(**PLOTLY_TEMPLATE["layout"], height=height)
+    fig.update_layout(**PLOTLY_LAYOUT, height=height)
     return fig
 
 def quant_subplots(rows=1, cols=1, secondary=False, height=450, **kw):
     specs = [[{"secondary_y": secondary}] * cols for _ in range(rows)]
     fig = make_subplots(rows=rows, cols=cols, specs=specs, **kw)
-    fig.update_layout(**PLOTLY_TEMPLATE["layout"], height=height)
+    fig.update_layout(**PLOTLY_LAYOUT, height=height)
     return fig
 
 # ══════════════════════════════════════════════════════════
 #   SIDEBAR
 # ══════════════════════════════════════════════════════════
 with st.sidebar:
-    st.markdown("""
-    <div style='padding:1.2rem 0 1rem; border-bottom:1px solid #374151; margin-bottom:1.2rem;'>
-        <div style='font-family:"JetBrains Mono",monospace;font-size:0.55rem;letter-spacing:0.2em;color:#D4AF37;text-transform:uppercase;margin-bottom:0.3rem;'>◆ EDUMETRIA</div>
-        <div style='font-family:"Inter",sans-serif;font-size:1.3rem;font-weight:300;color:#F3F4F6;'>GeoQuant Terminal</div>
-        <div style='font-family:"JetBrains Mono",monospace;font-size:0.5rem;color:#9CA3AF;margin-top:0.2rem;'>Quantitative Research</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("## ◆ GeoQuant Terminal")
+    st.markdown("**Quantitative Research**")
+    st.divider()
 
-    def sb_label(txt):
-        st.markdown(f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:0.6rem;letter-spacing:0.15em;color:#D4AF37;text-transform:uppercase;margin:1rem 0 0.4rem;">{txt}</div>', unsafe_allow_html=True)
-
-    def sb_sep():
-        st.markdown('<div style="height:1px;background:#374151;margin:0.6rem 0;"></div>', unsafe_allow_html=True)
-
-    sb_label("· Simulation")
     mc_sims  = st.slider("Monte Carlo paths",   1_000, 30_000, 5_000, 1_000)
     mc_steps = st.slider("Horizon (days)",       5, 30, 10, 1)
 
-    sb_sep()
-    sb_label("· Jump Parameters")
+    st.divider()
     jump_up   = st.slider("Jump prob ↑",  0.01, 0.20, 0.07, 0.01)
     jump_down = st.slider("Jump prob ↓",  0.01, 0.10, 0.03, 0.01)
     tail_df   = st.slider("Tail df",      2.5,  8.0,  3.0,  0.5)
 
-    sb_sep()
-    sb_label("· Vol Priors (annual)")
-    prior_wti   = st.slider("WTI prior",   0.20, 0.65, 0.35, 0.01)
-    prior_brent = st.slider("Brent prior", 0.20, 0.65, 0.35, 0.01)
+    st.divider()
+    prior_wti   = st.slider("WTI prior vol (ann.)",   0.20, 0.65, 0.35, 0.01)
+    prior_brent = st.slider("Brent prior vol (ann.)", 0.20, 0.65, 0.35, 0.01)
 
-    sb_sep()
-    sb_label("· Regime")
-    war_start = st.date_input("War start (reference)", value=datetime(2026, 2, 28))
+    st.divider()
+    war_start = st.date_input("War start reference", value=datetime(2026, 2, 28))
     war_start_str = war_start.strftime("%Y-%m-%d")
 
-    sb_sep()
-    run_btn = st.button("▶  Run Full Analysis")
+    st.divider()
+    run_btn = st.button("▶ Run Full Analysis", type="primary")
 
-    st.markdown("""
-    <div style='margin-top:2rem;font-family:"JetBrains Mono",monospace;font-size:0.45rem;
-    color:#6B7280;letter-spacing:0.1em;line-height:1.8;'>
-    FOR PROFESSIONAL USE ONLY<br>NOT INVESTMENT ADVICE<br>CONFIDENTIAL
-    </div>""", unsafe_allow_html=True)
+    st.caption("FOR PROFESSIONAL USE ONLY\nNOT INVESTMENT ADVICE")
 
 # ══════════════════════════════════════════════════════════
 #   HEADER
 # ══════════════════════════════════════════════════════════
 now_sp = datetime.now(pytz.timezone("America/Sao_Paulo"))
-st.markdown(f"""
-<div style='display:flex;justify-content:space-between;align-items:flex-start;
-padding:1.2rem 0 1rem;border-bottom:2px solid #D4AF37;margin-bottom:1.5rem;'>
-  <div>
-    <div style='display:flex;align-items:baseline;gap:0.7rem;'>
-      <span style='font-family:"JetBrains Mono",monospace;font-size:1.2rem;color:#D4AF37;letter-spacing:0.15em;'>◆◆◆</span>
-      <div>
-        <div style='font-family:"Inter",sans-serif;font-size:2rem;font-weight:400;color:#F3F4F6;letter-spacing:-0.02em;'>GeoQuant · Macro Research</div>
-        <div style='font-family:"JetBrains Mono",monospace;font-size:0.6rem;color:#9CA3AF;letter-spacing:0.15em;text-transform:uppercase;margin-top:0.2rem;'>Geopolitical Intelligence · Commodity Markets · Quantitative</div>
-      </div>
-    </div>
-  </div>
-  <div style='text-align:right;'>
-    <div style='display:inline-block;background:#D4AF37;color:#0A0F1A;padding:0.2rem 0.8rem;
-    font-family:"JetBrains Mono",monospace;font-size:0.6rem;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;border-radius:4px;'>
-    ⚑ WAR REGIME</div>
-    <div style='font-family:"JetBrains Mono",monospace;font-size:0.6rem;color:#9CA3AF;margin-top:0.5rem;line-height:1.5;'>
-    {now_sp.strftime("%d %B %Y · %H:%M")} (SP)<br>Model · EVT+DCC+GARCH-X
-    </div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
+st.title("GeoQuant · Macro Research Terminal")
+st.caption(f"Geopolitical Intelligence · Commodity Markets · EVT+DCC+GARCH-X · {now_sp.strftime('%d %B %Y · %H:%M')} (SP)")
 
 # ══════════════════════════════════════════════════════════
-#   QUANT ENGINE (TODAS AS FUNÇÕES AUXILIARES)
+#   QUANT ENGINE (TODAS AS FUNÇÕES)
 # ══════════════════════════════════════════════════════════
 
 def rolling_zscore(s, w=60):
@@ -361,63 +142,81 @@ def rolling_zscore(s, w=60):
 def fill_gaps(s):
     s = s.copy()
     valid = s.notna()
-    if valid.sum() < 2: return s.ffill()
+    if valid.sum() < 2:
+        return s.ffill()
     try:
         x = s.index[valid].astype(np.int64)
         filled = pd.Series(PchipInterpolator(x, s[valid].values)(s.index.astype(np.int64)), index=s.index)
         filled[valid] = s[valid]
         return filled
-    except: return s.ffill()
+    except:
+        return s.ffill()
 
-# ── Fertilizer ──
+# ── Fertilizer data (atualizado com preços reais de junho/2026) ──
 def _fert_csv(path="fertilizer_backup.csv"):
-    if os.path.exists(path): return
+    if os.path.exists(path):
+        return
     with open(path, "w", newline="") as f:
-        w = csv.writer(f); w.writerow(["date","urea_price","dap_price"])
-        w.writerows([["2026-01-15",540,710],["2026-02-15",560,740],["2026-03-15",590,780],
-                     ["2026-04-15",616,857],["2026-05-01",720,900],["2026-05-06",810,920],
-                     ["2026-05-12",857,920]])
+        w = csv.writer(f)
+        w.writerow(["date","urea_price","dap_price"])
+        w.writerows([
+            ["2026-01-15", 540, 710],
+            ["2026-02-15", 560, 740],
+            ["2026-03-15", 590, 780],
+            ["2026-04-15", 616, 857],
+            ["2026-05-01", 720, 900],
+            ["2026-05-06", 810, 920],
+            ["2026-05-12", 857, 920],
+            ["2026-06-01", 860, 925],
+            ["2026-06-10", 453.5, 920],  # Queda real da ureia em junho/2026
+        ])
 
 def get_usda():
     _fert_csv()
     try:
         df = pd.read_csv("fertilizer_backup.csv", parse_dates=["date"], index_col="date").sort_index()
         last = df.iloc[-1]
-        return {"urea_price":float(last["urea_price"]),"urea_period":str(last.name.date()),
-                "dap_price":float(last["dap_price"]),"dap_period":str(last.name.date()),
-                "source":"local CSV"}
+        return {"urea_price": float(last["urea_price"]), "urea_period": str(last.name.date()),
+                "dap_price": float(last["dap_price"]), "dap_period": str(last.name.date()),
+                "source": "local CSV (Green Markets/CRU)"}
     except:
-        return {"urea_price":857,"urea_period":"2026-05-12","dap_price":920,
-                "dap_period":"2026-05-12","source":"fallback"}
+        return {"urea_price": 453.5, "urea_period": "2026-06-10", "dap_price": 920,
+                "dap_period": "2026-06-10", "source": "fallback"}
 
 def fert_black_swan(usda):
     _fert_csv()
     try:
         df = pd.read_csv("fertilizer_backup.csv", parse_dates=["date"], index_col="date")
         hist = df["urea_price"].dropna().values
-    except: hist = []
+    except:
+        hist = []
     cur = usda.get("urea_price")
-    if cur is None or len(hist) < 10: return 1.0
+    if cur is None or len(hist) < 10:
+        return 1.0
     rets = np.diff(np.log(hist))
-    thr  = np.quantile(rets, FERT_EVT_Q)
-    exc  = rets[rets > thr] - thr
+    thr = np.quantile(rets, FERT_EVT_Q)
+    exc = rets[rets > thr] - thr
     if len(exc) < 5:
         mu, sig = np.mean(hist), np.std(hist)
-        if sig == 0: return 1.0
+        if sig == 0:
+            return 1.0
         z = (cur - mu) / sig
         return min(1.0 + max(0, z - FERT_BS_Z_THR) * 0.8, 3.0)
     try:
         shape, loc, scale = stats.genpareto.fit(exc)
         cr = np.log(cur / hist[-1])
-        if cr <= thr: return 1.0
+        if cr <= thr:
+            return 1.0
         p = 1 - stats.genpareto.cdf(cr - thr, shape, loc=loc, scale=scale)
         return 1.0 + min(p * 5, 2.0)
-    except: return 1.0
+    except:
+        return 1.0
 
 # ── Signals ──
 def gold_signals(prices):
     silver = prices["silver"].replace(0, np.nan)
-    if silver.median() > 500: silver /= 100
+    if silver.median() > 500:
+        silver /= 100
     gr = prices["gold"] / (1 + prices["tnx"].replace(0, np.nan) / 100 * 5.0)
     sg = silver / prices["gold"].replace(0, np.nan)
     return {"gold_real": gr, "silver_gold": sg,
@@ -425,177 +224,220 @@ def gold_signals(prices):
             "silver_gold_roll": np.log(sg / sg.shift(1)).rolling(20).mean()}
 
 def silver_demand_proxy(prices):
-    if "copper" not in prices.columns: return pd.Series(0.0, index=prices.index)
+    if "copper" not in prices.columns:
+        return pd.Series(0.0, index=prices.index)
     cr = prices["copper"].pct_change().dropna()
     br = prices["brent"].pct_change().dropna()
     ci = cr.index.intersection(br.index)
-    return (0.6*cr[ci]+0.4*br[ci]).rolling(20).mean().reindex(prices.index, method="ffill").fillna(0.0)
+    return (0.6 * cr[ci] + 0.4 * br[ci]).rolling(20).mean().reindex(prices.index, method="ffill").fillna(0.0)
 
 def build_fert_index(returns, usda, bs=1.0):
-    fi = (0.5*returns["natgas"].rolling(20).std() +
-          0.25*returns["wheat"].rolling(20).mean() +
-          0.25*returns["corn"].rolling(20).mean())
-    if usda["urea_price"]: fi += np.clip((usda["urea_price"]-380)/380,-1,2)*0.15
-    if usda["dap_price"]:  fi += np.clip((usda["dap_price"]-610)/610,-1,2)*0.10
+    fi = (0.5 * returns["natgas"].rolling(20).std() +
+          0.25 * returns["wheat"].rolling(20).mean() +
+          0.25 * returns["corn"].rolling(20).mean())
+    if usda["urea_price"]:
+        fi += np.clip((usda["urea_price"] - 380) / 380, -1, 2) * 0.15
+    if usda["dap_price"]:
+        fi += np.clip((usda["dap_price"] - 610) / 610, -1, 2) * 0.10
     fi *= bs
     return fi.clip(fi.quantile(0.02), fi.quantile(0.98)).dropna()
 
 def calibrate_weights(returns, prices, gs, fi, sd, window=60):
-    spread = (prices["brent"]-prices["oil"])/prices["brent"].replace(0,np.nan)
+    spread = (prices["brent"] - prices["oil"]) / prices["brent"].replace(0, np.nan)
     X = pd.DataFrame({
-        "oil_vol":returns["oil"].rolling(20).std(),"gold":returns["gold"].rolling(20).mean(),
-        "gold_real":gs["gold_real_ret_roll"],"dxy":returns["dxy"].rolling(20).mean(),
-        "spread":spread.rolling(20).mean(),"wheat":returns["wheat"].rolling(20).mean(),
-        "copper":returns["copper"].rolling(20).mean(),"natgas_vol":returns["natgas"].rolling(20).std(),
-        "fert":fi,
+        "oil_vol": returns["oil"].rolling(20).std(),
+        "gold": returns["gold"].rolling(20).mean(),
+        "gold_real": gs["gold_real_ret_roll"],
+        "dxy": returns["dxy"].rolling(20).mean(),
+        "spread": spread.rolling(20).mean(),
+        "wheat": returns["wheat"].rolling(20).mean(),
+        "copper": returns["copper"].rolling(20).mean(),
+        "natgas_vol": returns["natgas"].rolling(20).std(),
+        "fert": fi,
     })
-    if sd is not None: X["silver_demand"] = sd
+    if sd is not None:
+        X["silver_demand"] = sd
     y = returns["oil"].shift(-1)
     ci = y.dropna().index.intersection(X.dropna().index)
     X2, y2 = X.loc[ci].dropna(), y.loc[ci]
-    if len(X2) < window: return GEO_WEIGHTS_DEFAULT.copy()
+    if len(X2) < window:
+        return GEO_WEIGHTS_DEFAULT.copy()
     Xc, yc = X2.iloc[-window:], y2.iloc[-window:]
-    Xm, Xs = Xc.mean(), Xc.std().replace(0,1)
+    Xm, Xs = Xc.mean(), Xc.std().replace(0, 1)
     try:
-        mdl = LassoCV(cv=5, random_state=42, alphas=np.logspace(-4,0,20), max_iter=2000).fit((Xc-Xm)/Xs, yc)
+        mdl = LassoCV(cv=5, random_state=42, alphas=np.logspace(-4, 0, 20), max_iter=2000).fit((Xc - Xm) / Xs, yc)
         coef = mdl.coef_ / Xs.values
-        w = {col: coef[i] for i,col in enumerate(X2.columns)}
+        w = {col: coef[i] for i, col in enumerate(X2.columns)}
         tot = sum(abs(v) for v in w.values())
-        return {k:v/tot for k,v in w.items()} if tot>0 else GEO_WEIGHTS_DEFAULT.copy()
-    except: return GEO_WEIGHTS_DEFAULT.copy()
+        return {k: v / tot for k, v in w.items()} if tot > 0 else GEO_WEIGHTS_DEFAULT.copy()
+    except:
+        return GEO_WEIGHTS_DEFAULT.copy()
 
 def build_geofactor(returns, prices, gs, fi, weights, sd=None):
-    spread = (prices["brent"]-prices["oil"])/prices["brent"].replace(0,np.nan)
-    geo = (weights.get("oil_vol",0)*returns["oil"].rolling(20).std() +
-           weights.get("gold",0)*returns["gold"].rolling(20).mean() +
-           weights.get("gold_real",0)*gs["gold_real_ret_roll"] +
-           weights.get("dxy",0)*returns["dxy"].rolling(20).mean() +
-           weights.get("spread",0)*spread.rolling(20).mean() +
-           weights.get("wheat",0)*returns["wheat"].rolling(20).mean() +
-           weights.get("copper",0)*returns["copper"].rolling(20).mean() +
-           weights.get("natgas_vol",0)*returns["natgas"].rolling(20).std())
+    spread = (prices["brent"] - prices["oil"]) / prices["brent"].replace(0, np.nan)
+    geo = (weights.get("oil_vol", 0) * returns["oil"].rolling(20).std() +
+           weights.get("gold", 0) * returns["gold"].rolling(20).mean() +
+           weights.get("gold_real", 0) * gs["gold_real_ret_roll"] +
+           weights.get("dxy", 0) * returns["dxy"].rolling(20).mean() +
+           weights.get("spread", 0) * spread.rolling(20).mean() +
+           weights.get("wheat", 0) * returns["wheat"].rolling(20).mean() +
+           weights.get("copper", 0) * returns["copper"].rolling(20).mean() +
+           weights.get("natgas_vol", 0) * returns["natgas"].rolling(20).std())
     if sd is not None:
         ci = geo.dropna().index.intersection(sd.dropna().index)
-        if len(ci)>0: geo.loc[ci] += weights.get("silver_demand",0)*sd.loc[ci]
+        if len(ci) > 0:
+            geo.loc[ci] += weights.get("silver_demand", 0) * sd.loc[ci]
     ci = geo.dropna().index.intersection(fi.dropna().index)
-    geo.loc[ci] += weights.get("fert",0)*fi.loc[ci]
+    geo.loc[ci] += weights.get("fert", 0) * fi.loc[ci]
     g = geo.dropna()
     return g.clip(g.quantile(0.05), g.quantile(0.95))
 
 def build_zscore(prices, gs, window=60):
-    w = min(window, max(20, len(prices)//2))
-    z1 = rolling_zscore(prices["oil"]/prices["gold"].replace(0,np.nan), w)
-    z2 = rolling_zscore(prices["oil"]/prices["natgas"].replace(0,np.nan), w)
+    w = min(window, max(20, len(prices) // 2))
+    z1 = rolling_zscore(prices["oil"] / prices["gold"].replace(0, np.nan), w)
+    z2 = rolling_zscore(prices["oil"] / prices["natgas"].replace(0, np.nan), w)
     z3 = rolling_zscore(gs["gold_real"], w)
-    return (ZSCORE_W["oil_gold"]*z1 + ZSCORE_W["oil_natgas"]*z2 + ZSCORE_W["gold_real"]*z3).dropna()
+    return (ZSCORE_W["oil_gold"] * z1 + ZSCORE_W["oil_natgas"] * z2 + ZSCORE_W["gold_real"] * z3).dropna()
 
 # ── GARCH ──
 def fit_garch(ret, exog):
     rc = ret.loc[ret.index.intersection(exog.index)] * 100
     xc = exog.loc[rc.index]
-    try: res = arch_model(rc, x=xc, mean="Constant", vol="GARCH", p=1, q=1, dist="skewt").fit(disp="off")
-    except: res = arch_model(rc, mean="Constant", vol="GARCH", p=1, q=1, dist="skewt").fit(disp="off")
+    try:
+        res = arch_model(rc, x=xc, mean="Constant", vol="GARCH", p=1, q=1, dist="skewt").fit(disp="off")
+    except:
+        res = arch_model(rc, mean="Constant", vol="GARCH", p=1, q=1, dist="skewt").fit(disp="off")
     return res.conditional_volatility / 100
 
 def bayes_shrink(vg, prior_daily, n, geofactor=None, label=""):
-    w = np.clip(np.sqrt(n/252), 0.10, 0.95)
-    prior = prior_daily * (1.0+0.4*np.tanh(float(geofactor.iloc[-1]))) if geofactor is not None and not geofactor.empty else prior_daily
-    lo, hi = prior*0.5, prior*1.5
+    w = np.clip(np.sqrt(n / 252), 0.10, 0.95)
+    prior = prior_daily * (1.0 + 0.4 * np.tanh(float(geofactor.iloc[-1]))) if geofactor is not None and not geofactor.empty else prior_daily
+    lo, hi = prior * 0.5, prior * 1.5
     v_last = float(vg.iloc[-1])
-    vs = vg.copy() if lo<=v_last<=hi else w*vg+(1-w)*prior
-    vga = v_last*np.sqrt(252)*100
-    vsa = float(vs.iloc[-1])*np.sqrt(252)*100
-    return vs, {"vga":vga,"vsa":vsa,"w":w if not (lo<=v_last<=hi) else 1.0}
+    vs = vg.copy() if lo <= v_last <= hi else w * vg + (1 - w) * prior
+    vga = v_last * np.sqrt(252) * 100
+    vsa = float(vs.iloc[-1]) * np.sqrt(252) * 100
+    return vs, {"vga": vga, "vsa": vsa, "w": w if not (lo <= v_last <= hi) else 1.0}
 
 # ── DCC ──
 def fit_dcc(rw, rb, vw, vb):
     ci = rw.index.intersection(rb.index).intersection(vw.index).intersection(vb.index)
-    ew = (rw[ci]/vw[ci]).dropna(); eb = (rb[ci]/vb[ci]).dropna()
+    ew = (rw[ci] / vw[ci]).dropna()
+    eb = (rb[ci] / vb[ci]).dropna()
     c2 = ew.index.intersection(eb.index)
-    e  = np.column_stack([ew[c2], eb[c2]])
+    e = np.column_stack([ew[c2], eb[c2]])
+
     def nll(p):
-        a,b = p
-        if a<=0 or b<=0 or a+b>=1: return 1e10
-        Qb=np.cov(e,rowvar=False); Q=Qb.copy(); ll=0
-        for t in range(1,len(e)):
-            Qt=(1-a-b)*Qb+a*np.outer(e[t-1],e[t-1])+b*Q
-            d=np.sqrt(np.diag(Qt)); d[d==0]=1e-8
-            R=Qt/np.outer(d,d); R=np.clip(R,-0.9999,0.9999)
+        a, b = p
+        if a <= 0 or b <= 0 or a + b >= 1:
+            return 1e10
+        Qb = np.cov(e, rowvar=False)
+        Q = Qb.copy()
+        ll = 0
+        for t in range(1, len(e)):
+            Qt = (1 - a - b) * Qb + a * np.outer(e[t - 1], e[t - 1]) + b * Q
+            d = np.sqrt(np.diag(Qt))
+            d[d == 0] = 1e-8
+            R = Qt / np.outer(d, d)
+            R = np.clip(R, -0.9999, 0.9999)
             try:
-                L=np.linalg.cholesky(R); z=np.linalg.inv(L)@e[t]
-                ll+=-0.5*np.sum(z**2)-np.sum(np.log(np.diag(L))); Q=Qt
-            except: return 1e10
+                L = np.linalg.cholesky(R)
+                z = np.linalg.inv(L) @ e[t]
+                ll += -0.5 * np.sum(z ** 2) - np.sum(np.log(np.diag(L)))
+                Q = Qt
+            except:
+                return 1e10
         return -ll
-    res=optimize.minimize(nll,[0.05,0.93],bounds=[(1e-4,0.3),(0.7,0.9999)],method="L-BFGS-B")
-    a,b=res.x
-    return (0.05,0.93) if a+b>=1 else (a,b)
+
+    res = optimize.minimize(nll, [0.05, 0.93], bounds=[(1e-4, 0.3), (0.7, 0.9999)], method="L-BFGS-B")
+    a, b = res.x
+    return (0.05, 0.93) if a + b >= 1 else (a, b)
 
 # ── Monte Carlo ──
 def _tail_jumps(shocks, vol):
-    n=len(shocks); u=np.random.rand(n)
-    ju=np.random.exponential(0.03,n)*vol; jd=np.random.exponential(0.02,n)*vol
-    return shocks+np.where(u<0.025,ju,0)-np.where((u>=0.025)&(u<0.05),jd,0)
+    n = len(shocks)
+    u = np.random.rand(n)
+    ju = np.random.exponential(0.03, n) * vol
+    jd = np.random.exponential(0.02, n) * vol
+    return shocks + np.where(u < 0.025, ju, 0) - np.where((u >= 0.025) & (u < 0.05), jd, 0)
 
 def _jumps_vec(n, pu, pd_):
-    u=np.random.rand(n)
-    me=np.random.rand(n)<JUMP_EXTREME
-    ju=np.where(me,np.random.exponential(JUMP_SKU_EXT,n),np.random.exponential(JUMP_SKU_NOR,n))
-    jd=np.random.exponential(JUMP_SKU_DOWN,n)
-    jw=np.where(u<pu,ju,np.where((u>=pu)&(u<pu+pd_),-jd,0))
-    jb=np.where(u<pu,ju*0.95,np.where((u>=pu)&(u<pu+pd_),-jd*0.90,0))
-    return jw,jb
+    u = np.random.rand(n)
+    me = np.random.rand(n) < JUMP_EXTREME
+    ju = np.where(me, np.random.exponential(JUMP_SKU_EXT, n), np.random.exponential(JUMP_SKU_NOR, n))
+    jd = np.random.exponential(JUMP_SKU_DOWN, n)
+    jw = np.where(u < pu, ju, np.where((u >= pu) & (u < pu + pd_), -jd, 0))
+    jb = np.where(u < pu, ju * 0.95, np.where((u >= pu) & (u < pu + pd_), -jd * 0.90, 0))
+    return jw, jb
 
 def run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol,
            rbase, rw, rb, vws, vbs, jpu, tdf, bs=1.0,
            dcc_a=0.05, dcc_b=0.93, sims=5000, steps=10, bar=None):
     np.random.seed(42)
-    ci=rw.index.intersection(rb.index).intersection(vws.index).intersection(vbs.index)
-    ew=(rw[ci]/vws[ci].replace(0,np.nan)).dropna()
-    eb=(rb[ci]/vbs[ci].replace(0,np.nan)).dropna()
-    c2=ew.index.intersection(eb.index)
-    e=np.column_stack([np.clip(ew[c2],-3,3),np.clip(eb[c2],-3,3)])
-    Qb=np.cov(e,rowvar=False); np.fill_diagonal(Qb,1.0)
-    eps=e[-1]+np.random.normal(0,0.05,(sims,2)); Qt=np.tile(Qb,(sims,1,1)).copy()
-    pu=min(jpu*1.5,0.20) if bs>1.2 else jpu
-    pd_=0.03*(1.3 if bs>1.2 else 1.0)
-    pw=np.zeros((sims,steps+1)); pb=np.zeros((sims,steps+1))
-    pw[:,0]=wti0; pb[:,0]=brt0
-    ra=1+0.5*np.clip(rbase+np.random.normal(0,REGIME_NOISE,(sims,steps)),-1,1)
-    max_dv=0.08; max_dr=0.02
+    ci = rw.index.intersection(rb.index).intersection(vws.index).intersection(vbs.index)
+    ew = (rw[ci] / vws[ci].replace(0, np.nan)).dropna()
+    eb = (rb[ci] / vbs[ci].replace(0, np.nan)).dropna()
+    c2 = ew.index.intersection(eb.index)
+    e = np.column_stack([np.clip(ew[c2], -3, 3), np.clip(eb[c2], -3, 3)])
+    Qb = np.cov(e, rowvar=False)
+    np.fill_diagonal(Qb, 1.0)
+    eps = e[-1] + np.random.normal(0, 0.05, (sims, 2))
+    Qt = np.tile(Qb, (sims, 1, 1)).copy()
+    pu = min(jpu * 1.5, 0.20) if bs > 1.2 else jpu
+    pd_ = 0.03 * (1.3 if bs > 1.2 else 1.0)
+    pw = np.zeros((sims, steps + 1))
+    pb = np.zeros((sims, steps + 1))
+    pw[:, 0] = wti0
+    pb[:, 0] = brt0
+    ra = 1 + 0.5 * np.clip(rbase + np.random.normal(0, REGIME_NOISE, (sims, steps)), -1, 1)
+    max_dv = 0.08
+    max_dr = 0.02
     for t in range(steps):
-        if bar: bar.progress((t+1)/steps)
-        outer=np.einsum("si,sj->sij",eps,eps)
-        Qt=(1-dcc_a-dcc_b)*Qb[np.newaxis]+dcc_a*outer+dcc_b*Qt
-        diag=np.clip(np.sqrt(np.diagonal(Qt,axis1=1,axis2=2)),1e-8,None)
-        Rt=Qt/np.einsum("si,sj->sij",diag,diag)
-        Rt=np.clip(Rt,-0.9999,0.9999); Rt[:,0,0]=Rt[:,1,1]=1.0
-        rho=Rt[:,0,1]; sc=np.sqrt(np.clip(1-rho**2,1e-8,None))
-        z=np.random.standard_t(tdf,(sims,2))
-        zw=z[:,0]; zb=rho*z[:,0]+sc*z[:,1]
-        vw_=np.clip(bvw*ra[:,t],0,max_dv); vb_=np.clip(bvb*ra[:,t],0,max_dv)
-        sw=np.clip(zw*vw_,-4*vw_,4*vw_); sb=np.clip(zb*vb_,-4*vb_,4*vb_)
-        sw=_tail_jumps(sw,vw_); sb=_tail_jumps(sb,vb_)
-        jw,jb=_jumps_vec(sims,pu,pd_); sw+=jw; sb+=jb
-        dw=np.clip(fcast[t,ocol]*ra[:,t],-max_dr,max_dr)
-        db=np.clip(fcast[t,bcol]*ra[:,t],-max_dr,max_dr)
-        nw=pw[:,t]*np.exp(dw+sw); nb=pb[:,t]*np.exp(db+sb)
-        sp=np.where(nb>0,(nb-nw)/nb,0)
-        nw=np.where(sp<SPREAD_MIN,nb*(1+abs(SPREAD_MIN)),nw)
-        nw=np.where(sp>SPREAD_MAX,nb*(1-SPREAD_MAX),nw)
-        pw[:,t+1]=np.clip(nw,wti0*0.4,wti0*2.5)
-        pb[:,t+1]=np.clip(nb,brt0*0.4,brt0*2.5)
-        eps[:,0]=np.where(vw_>0,sw/vw_,0); eps[:,1]=np.where(vb_>0,sb/vb_,0)
-        eps=np.clip(eps,-5,5)
-    fan={p:np.percentile(pw,p,axis=0)  for p in [5,25,50,75,95]}
-    fb ={p:np.percentile(pb,p,axis=0)  for p in [5,25,50,75,95]}
-    term=pw[:,-1]; v95=np.percentile(pw[:,1]-wti0,5)
-    mask=(pw[:,1]-wti0)<=v95
-    return {"fan":fan,"fan_b":fb,"paths":pw,"metrics":{
-        "vol_wti":bvw*np.sqrt(252)*100,"vol_brt":bvb*np.sqrt(252)*100,
-        "var95":v95,"cvar95":float(np.mean((pw[:,1]-wti0)[mask])),
-        "prob_up":np.mean(term>wti0)*100,
-        "prob_40":np.mean(term<40)*100,"prob_150":np.mean(term>150)*100,
-        "p5":(fan[5][-1]/wti0-1)*100,"p95":(fan[95][-1]/wti0-1)*100,
+        if bar:
+            bar.progress((t + 1) / steps)
+        outer = np.einsum("si,sj->sij", eps, eps)
+        Qt = (1 - dcc_a - dcc_b) * Qb[np.newaxis] + dcc_a * outer + dcc_b * Qt
+        diag = np.clip(np.sqrt(np.diagonal(Qt, axis1=1, axis2=2)), 1e-8, None)
+        Rt = Qt / np.einsum("si,sj->sij", diag, diag)
+        Rt = np.clip(Rt, -0.9999, 0.9999)
+        Rt[:, 0, 0] = Rt[:, 1, 1] = 1.0
+        rho = Rt[:, 0, 1]
+        sc = np.sqrt(np.clip(1 - rho ** 2, 1e-8, None))
+        z = np.random.standard_t(tdf, (sims, 2))
+        zw = z[:, 0]
+        zb = rho * z[:, 0] + sc * z[:, 1]
+        vw_ = np.clip(bvw * ra[:, t], 0, max_dv)
+        vb_ = np.clip(bvb * ra[:, t], 0, max_dv)
+        sw = np.clip(zw * vw_, -4 * vw_, 4 * vw_)
+        sb = np.clip(zb * vb_, -4 * vb_, 4 * vb_)
+        sw = _tail_jumps(sw, vw_)
+        sb = _tail_jumps(sb, vb_)
+        jw, jb = _jumps_vec(sims, pu, pd_)
+        sw += jw
+        sb += jb
+        dw = np.clip(fcast[t, ocol] * ra[:, t], -max_dr, max_dr)
+        db = np.clip(fcast[t, bcol] * ra[:, t], -max_dr, max_dr)
+        nw = pw[:, t] * np.exp(dw + sw)
+        nb = pb[:, t] * np.exp(db + sb)
+        sp = np.where(nb > 0, (nb - nw) / nb, 0)
+        nw = np.where(sp < SPREAD_MIN, nb * (1 + abs(SPREAD_MIN)), nw)
+        nw = np.where(sp > SPREAD_MAX, nb * (1 - SPREAD_MAX), nw)
+        pw[:, t + 1] = np.clip(nw, wti0 * 0.4, wti0 * 2.5)
+        pb[:, t + 1] = np.clip(nb, brt0 * 0.4, brt0 * 2.5)
+        eps[:, 0] = np.where(vw_ > 0, sw / vw_, 0)
+        eps[:, 1] = np.where(vb_ > 0, sb / vb_, 0)
+        eps = np.clip(eps, -5, 5)
+    fan = {p: np.percentile(pw, p, axis=0) for p in [5, 25, 50, 75, 95]}
+    fb = {p: np.percentile(pb, p, axis=0) for p in [5, 25, 50, 75, 95]}
+    term = pw[:, -1]
+    v95 = np.percentile(pw[:, 1] - wti0, 5)
+    mask = (pw[:, 1] - wti0) <= v95
+    return {"fan": fan, "fan_b": fb, "paths": pw, "metrics": {
+        "vol_wti": bvw * np.sqrt(252) * 100, "vol_brt": bvb * np.sqrt(252) * 100,
+        "var95": v95, "cvar95": float(np.mean((pw[:, 1] - wti0)[mask])),
+        "prob_up": np.mean(term > wti0) * 100,
+        "prob_40": np.mean(term < 40) * 100, "prob_150": np.mean(term > 150) * 100,
+        "p5": (fan[5][-1] / wti0 - 1) * 100, "p95": (fan[95][-1] / wti0 - 1) * 100,
     }}
 
 # ── Data fetch (365 dias dinâmicos) ──
@@ -612,7 +454,7 @@ def fetch_data(start_date=None):
             return pd.DataFrame()
         if isinstance(raw.columns, pd.MultiIndex):
             lvl0 = raw.columns.get_level_values(0).unique().tolist()
-            field = next((f for f in ["Close","Adj Close","Price"] if f in lvl0), None)
+            field = next((f for f in ["Close", "Adj Close", "Price"] if f in lvl0), None)
             if field:
                 out = raw[field].copy()
             else:
@@ -621,32 +463,24 @@ def fetch_data(start_date=None):
             out = raw.copy()
         return out
 
-    try:
-        raw = yf.download(tickers_list, start=start_date, progress=False, auto_adjust=True)
-        out = _extract_close(raw)
-        if not out.empty and len(out) > 5:
-            out.columns = tickers_keys[:len(out.columns)]
-            return out.ffill().dropna()
-    except Exception as e:
-        errors.append(f"S1: {e}")
+    for auto_adj in [True, False]:
+        try:
+            raw = yf.download(tickers_list, start=start_date, progress=False, auto_adjust=auto_adj)
+            out = _extract_close(raw)
+            if not out.empty and len(out) > 5:
+                out.columns = tickers_keys[:len(out.columns)]
+                return out.ffill().dropna()
+        except Exception as e:
+            errors.append(f"auto_adjust={auto_adj}: {e}")
 
     try:
-        raw = yf.download(tickers_list, start=start_date, progress=False, auto_adjust=False)
+        raw = yf.download(tickers_list, period="180d", progress=False, auto_adjust=True)
         out = _extract_close(raw)
         if not out.empty and len(out) > 5:
             out.columns = tickers_keys[:len(out.columns)]
             return out.ffill().dropna()
     except Exception as e:
-        errors.append(f"S2: {e}")
-
-    try:
-        raw = yf.download(tickers_list, period="120d", progress=False, auto_adjust=True)
-        out = _extract_close(raw)
-        if not out.empty and len(out) > 5:
-            out.columns = tickers_keys[:len(out.columns)]
-            return out.ffill().dropna()
-    except Exception as e:
-        errors.append(f"S3: {e}")
+        errors.append(f"period: {e}")
 
     frames = {}
     for key, ticker_sym in TICKERS.items():
@@ -654,12 +488,12 @@ def fetch_data(start_date=None):
             t = yf.Ticker(ticker_sym)
             df = t.history(start=start_date, auto_adjust=True)
             if df.empty:
-                df = t.history(period="120d", auto_adjust=True)
+                df = t.history(period="180d", auto_adjust=True)
             if not df.empty:
                 col = "Close" if "Close" in df.columns else df.columns[0]
                 frames[key] = fill_gaps(df[col])
         except Exception as e:
-            errors.append(f"S4/{ticker_sym}: {e}")
+            errors.append(f"{ticker_sym}: {e}")
 
     if frames:
         out = pd.DataFrame(frames).ffill().dropna()
@@ -698,19 +532,14 @@ def fetch_live(last_wti=65.0, last_brt=68.0):
 needs_run = run_btn or "results" not in st.session_state
 
 if needs_run:
-    loading = st.empty()
-    loading.markdown("""
-    <div style='text-align:center;padding:2rem;background:#1F2937;border-radius:8px;margin:1rem 0;'>
-      <div style='font-family:"JetBrains Mono",monospace;font-size:0.7rem;letter-spacing:0.15em;color:#D4AF37;'>Initialising Quantitative Terminal</div>
-      <div style='font-family:"Inter",sans-serif;font-size:1.2rem;color:#F3F4F6;margin-top:0.3rem;'>Loading market data & calibrating model…</div>
-    </div>""", unsafe_allow_html=True)
+    loading = st.info("🔄 Initialising Quantitative Terminal... Loading market data & calibrating model.")
     prog = st.progress(0)
 
     prog.progress(10)
     prices = fetch_data()
     if prices.empty or len(prices) < 5:
-        loading.empty(); prog.empty()
-        st.error("❌ Não foi possível carregar dados de mercado reais. Verifique sua conexão ou tente novamente.")
+        loading.empty()
+        st.error("❌ Failed to load market data. Check internet connection and try again.")
         st.stop()
 
     for key in TICKERS:
@@ -733,7 +562,7 @@ if needs_run:
     weights = GEO_WEIGHTS_DEFAULT.copy()
     weights["silver_demand"] = 0.02
     tot = sum(abs(v) for v in weights.values())
-    weights = {k: v/tot for k, v in weights.items()}
+    weights = {k: v / tot for k, v in weights.items()}
     fi = build_fert_index(returns, usda, bs_mult)
 
     prog.progress(35)
@@ -741,7 +570,6 @@ if needs_run:
     if dyn_w:
         weights = dyn_w
     gf_raw = build_geofactor(returns, prices, gs, fi, weights, sd)
-    # Normalização do GeoFactor
     gf = (gf_raw - gf_raw.mean()) / gf_raw.std() if len(gf_raw) > 1 else gf_raw
     zsc = build_zscore(prices, gs)
 
@@ -762,7 +590,7 @@ if needs_run:
     prog.progress(65)
     dcc_a, dcc_b = fit_dcc(returns["oil"], returns["brent"], vw, vb)
     rv = returns.loc[gf.index.intersection(returns.index)]
-    lags = min(5, max(1, len(rv)//10))
+    lags = min(5, max(1, len(rv) // 10))
     vm = VAR(rv).fit(lags)
     fcast = vm.forecast(rv.values[-vm.k_ar:], steps=mc_steps)
     cols = list(rv.columns)
@@ -770,14 +598,14 @@ if needs_run:
     bcol = cols.index("brent")
     vr = bvb / (pb_d * 1.5)
     tdf_d = max(2.5, min(6.0, tail_df / np.sqrt(max(vr, 0.5))))
-    rbase = float(np.tanh(gf.iloc[-1]/2)) if not gf.empty else 0.0
+    rbase = float(np.tanh(gf.iloc[-1] / 2)) if not gf.empty else 0.0
     ws = (returns["wheat"].tail(20).mean() + returns["natgas"].tail(20).mean()) / 2
     war_t = bool(ws > 0.005)
     jpu_eff = min(jump_up * 1.5, 0.15) if war_t else jump_up
 
     prog.progress(75)
     mc_note = st.empty()
-    mc_note.markdown('<div style="font-family:JetBrains Mono;font-size:0.7rem;color:#D4AF37;">Monte Carlo simulation running…</div>', unsafe_allow_html=True)
+    mc_note.markdown("🔄 Monte Carlo simulation running...")
     mc_bar = st.progress(0)
     mc = run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase,
                 returns["oil"], returns["brent"], vw, vb,
@@ -794,7 +622,6 @@ if needs_run:
     except:
         corr = 0.95
 
-    # Métricas adicionais
     ret_ann = returns[["oil", "brent"]].mean() * 252
     vol_ann = returns[["oil", "brent"]].std() * np.sqrt(252)
     sharpe = ret_ann / vol_ann
@@ -819,222 +646,218 @@ if needs_run:
         "sharpe": sharpe, "sortino": sortino,
         "skew_oil": skew_oil, "kurt_oil": kurt_oil,
         "skew_brt": skew_brt, "kurt_brt": kurt_brt,
+        "mc_sims": mc_sims, "mc_steps": mc_steps,
     })
 
 # Recuperar do state
-mc = st.session_state["results"]
-gf = st.session_state["gf"]
-zsc = st.session_state["zsc"]
-vw = st.session_state["vw"]
-vb = st.session_state["vb"]
-vg = st.session_state["vg"]
-fi = st.session_state["fi"]
-gs = st.session_state["gs"]
-prices = st.session_state["prices"]
-returns = st.session_state["returns"]
-wti0 = st.session_state["wti0"]
-brt0 = st.session_state["brt0"]
-usda = st.session_state["usda"]
-bs = st.session_state["bs"]
-dw_d = st.session_state["dw"]
-db_d = st.session_state["db"]
-tdf_d = st.session_state["tdf"]
-corr = st.session_state["corr"]
-rbase = st.session_state["rbase"]
-war_t = st.session_state["war_t"]
-ws_val = st.session_state["ws"]
-jpu = st.session_state["jpu"]
-dcc_a = st.session_state["dcc_a"]
-dcc_b = st.session_state["dcc_b"]
-fan = mc["fan"]
-fan_b = mc["fan_b"]
-M = mc["metrics"]
-sharpe = st.session_state.get("sharpe", pd.Series([0,0], index=["oil","brent"]))
-sortino = st.session_state.get("sortino", pd.Series([0,0], index=["oil","brent"]))
-skew_oil = st.session_state.get("skew_oil", 0)
-kurt_oil = st.session_state.get("kurt_oil", 0)
-skew_brt = st.session_state.get("skew_brt", 0)
-kurt_brt = st.session_state.get("kurt_brt", 0)
+if "results" in st.session_state:
+    mc = st.session_state["results"]
+    gf = st.session_state["gf"]
+    zsc = st.session_state["zsc"]
+    vw = st.session_state["vw"]
+    vb = st.session_state["vb"]
+    vg = st.session_state["vg"]
+    fi = st.session_state["fi"]
+    gs = st.session_state["gs"]
+    prices = st.session_state["prices"]
+    returns = st.session_state["returns"]
+    wti0 = st.session_state["wti0"]
+    brt0 = st.session_state["brt0"]
+    usda = st.session_state["usda"]
+    bs = st.session_state["bs"]
+    dw_d = st.session_state["dw"]
+    db_d = st.session_state["db"]
+    tdf_d = st.session_state["tdf"]
+    corr = st.session_state["corr"]
+    rbase = st.session_state["rbase"]
+    war_t = st.session_state["war_t"]
+    ws_val = st.session_state["ws"]
+    jpu = st.session_state["jpu"]
+    dcc_a = st.session_state["dcc_a"]
+    dcc_b = st.session_state["dcc_b"]
+    fan = mc["fan"]
+    fan_b = mc["fan_b"]
+    M = mc["metrics"]
+    sharpe = st.session_state.get("sharpe", pd.Series([0, 0], index=["oil", "brent"]))
+    sortino = st.session_state.get("sortino", pd.Series([0, 0], index=["oil", "brent"]))
+    skew_oil = st.session_state.get("skew_oil", 0)
+    kurt_oil = st.session_state.get("kurt_oil", 0)
+    skew_brt = st.session_state.get("skew_brt", 0)
+    kurt_brt = st.session_state.get("kurt_brt", 0)
+    mc_sims = st.session_state.get("mc_sims", 5000)
+    mc_steps = st.session_state.get("mc_steps", 10)
 
-# ══════════════════════════════════════════════════════════
-#   INTERFACE COM ABAS
-# ══════════════════════════════════════════════════════════
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 MARKET & RISK", "⚡ GEOPOLITICAL", "🎲 MONTE CARLO", "📊 QUANT STATS", "📋 EXECUTIVE"])
+    # ══════════════════════════════════════════════════════════
+    #   EXIBIÇÃO COM ABAS
+    # ══════════════════════════════════════════════════════════
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 MARKET & RISK", "⚡ GEOPOLITICAL", "🎲 MONTE CARLO", "📊 QUANT STATS", "📋 EXECUTIVE"])
 
-with tab1:
-    st.markdown('<div class="sec-title">Live Commodity & Risk Metrics</div>', unsafe_allow_html=True)
-    col1, col2, col3, col4 = st.columns(4)
-    spread = brt0 - wti0
-    col1.metric("WTI Crude", f"${wti0:.2f}", f"P50 10d ${fan[50][-1]:.2f}")
-    col2.metric("Brent Crude", f"${brt0:.2f}", f"Spread ${spread:.2f} ({spread/wti0*100:.1f}%)")
-    col3.metric("WTI Vol p.a.", f"{M['vol_wti']:.1f}%", f"Shrunk → {dw_d['vsa']:.1f}%")
-    col4.metric("Brent Vol p.a.", f"{M['vol_brt']:.1f}%", f"Shrunk → {db_d['vsa']:.1f}%")
-    
-    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="sec-title">Volatility Surface — GARCH-X + Adaptive Bayes</div>', unsafe_allow_html=True)
-    if vw is not None and len(vw) > 5:
-        fig_vol = quant_fig(height=480)
-        fig_vol.add_trace(go.Scatter(x=vw.index, y=vw*np.sqrt(252)*100, name="WTI", line=dict(color=C["blue"], width=2.5)))
-        fig_vol.add_trace(go.Scatter(x=vb.index, y=vb*np.sqrt(252)*100, name="Brent", line=dict(color=C["gold"], width=2.5, dash="dash")))
-        fig_vol.add_trace(go.Scatter(x=vg.index, y=vg*np.sqrt(252)*100, name="Gold", line=dict(color=C["gray"], width=2, dash="dot")))
-        fig_vol.add_hrect(y0=25, y1=45, fillcolor="rgba(16,185,129,0.1)", line_width=0,
-                          annotation_text="Normal band 25–45%", annotation_font=dict(size=10))
-        fig_vol.update_layout(yaxis_ticksuffix="%", title="Annualised Volatility")
-        st.plotly_chart(fig_vol, use_container_width=True)
-    else:
-        st.warning("Dados de volatilidade insuficientes.")
-    
-    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="sec-title">Stress Indices</div>', unsafe_allow_html=True)
-    col_a, col_b = st.columns(2)
-    with col_a:
-        if fi is not None and len(fi) > 5:
-            ng_vol = returns["natgas"].rolling(20).std() * np.sqrt(252) * 100
-            fig_f = quant_subplots(secondary=True, height=380)
-            fig_f.add_trace(go.Scatter(x=fi.index, y=fi.values, name="Fert Stress", fill="tozeroy",
-                                       fillcolor="rgba(16,185,129,0.1)", line=dict(color=C["sage"], width=2)), secondary_y=False)
-            fig_f.add_trace(go.Scatter(x=ng_vol.index, y=ng_vol.values, name="NatGas Vol",
-                                       line=dict(color=C["teal"], width=1.8, dash="dash")), secondary_y=True)
-            fig_f.update_yaxes(title_text="Fert Index", secondary_y=False)
-            fig_f.update_yaxes(title_text="NatGas Vol %", secondary_y=True)
-            st.plotly_chart(fig_f, use_container_width=True)
-        bs_str = f" · ⚠ Black Swan ×{bs:.2f}" if bs > 1.2 else ""
-        st.markdown(f'<div class="info-block">Urea ${usda["urea_price"]:.0f}/t &nbsp;·&nbsp; DAP ${usda["dap_price"]:.0f}/t{bs_str}<br>{usda["source"]}</div>', unsafe_allow_html=True)
-    with col_b:
-        if gs is not None and not gs["gold_real"].dropna().empty:
-            gr_b = float(gs["gold_real"].dropna().iloc[0])
-            sg_b = float(gs["silver_gold"].dropna().iloc[0])
-            fig_g = quant_subplots(secondary=True, height=380)
-            fig_g.add_trace(go.Scatter(x=gs["gold_real"].dropna().index, y=(gs["gold_real"].dropna()/gr_b).values,
-                                       name="Gold/Real Yield", line=dict(color=C["gold"], width=2)), secondary_y=False)
-            fig_g.add_trace(go.Scatter(x=gs["silver_gold"].dropna().index, y=(gs["silver_gold"].dropna()/sg_b).values,
-                                       name="Silver/Gold", line=dict(color=C["silver"], width=1.8, dash="dash")), secondary_y=True)
-            fig_g.add_hline(y=1.0, line_dash="dot", line_color="#9CA3AF")
-            fig_g.update_yaxes(title_text="Gold/Real Yield (norm)", secondary_y=False)
-            fig_g.update_yaxes(title_text="Silver/Gold (norm)", secondary_y=True)
-            st.plotly_chart(fig_g, use_container_width=True)
+    with tab1:
+        st.subheader("Live Commodity & Risk Metrics")
+        col1, col2, col3, col4 = st.columns(4)
+        spread = brt0 - wti0
+        col1.metric("WTI Crude", f"${wti0:.2f}", f"P50 10d ${fan[50][-1]:.2f}")
+        col2.metric("Brent Crude", f"${brt0:.2f}", f"Spread ${spread:.2f} ({spread / wti0 * 100:.1f}%)")
+        col3.metric("WTI Vol p.a.", f"{M['vol_wti']:.1f}%", f"Shrunk → {dw_d['vsa']:.1f}%")
+        col4.metric("Brent Vol p.a.", f"{M['vol_brt']:.1f}%", f"Shrunk → {db_d['vsa']:.1f}%")
+
+        st.divider()
+        st.subheader("Volatility Surface — GARCH-X + Adaptive Bayes")
+        if vw is not None and len(vw) > 5:
+            fig_vol = quant_fig(height=480)
+            fig_vol.add_trace(go.Scatter(x=vw.index, y=vw * np.sqrt(252) * 100, name="WTI", line=dict(color=C["blue"], width=2.5)))
+            fig_vol.add_trace(go.Scatter(x=vb.index, y=vb * np.sqrt(252) * 100, name="Brent", line=dict(color=C["gold"], width=2.5, dash="dash")))
+            fig_vol.add_trace(go.Scatter(x=vg.index, y=vg * np.sqrt(252) * 100, name="Gold", line=dict(color=C["gray"], width=2, dash="dot")))
+            fig_vol.add_hrect(y0=25, y1=45, fillcolor="rgba(16,185,129,0.1)", line_width=0,
+                              annotation_text="Normal band 25–45%")
+            fig_vol.update_layout(yaxis_ticksuffix="%", title="Annualised Volatility")
+            st.plotly_chart(fig_vol, use_container_width=True)
         else:
-            st.warning("Dados de ouro insuficientes.")
+            st.warning("Volatility data insufficient.")
 
-with tab2:
-    st.markdown('<div class="sec-title">Z‑Score Composite & GeoFactor (Normalized)</div>', unsafe_allow_html=True)
-    if zsc is not None and len(zsc) > 5 and gf is not None and len(gf) > 5:
-        fig_geo = quant_subplots(secondary=True, height=500)
-        fig_geo.add_trace(go.Scatter(x=zsc.index, y=zsc.values, name="Z-Score Composite",
-                                     line=dict(color=C["blue"], width=2.5), fill="tozeroy",
-                                     fillcolor="rgba(59,130,246,0.1)"), secondary_y=False)
-        fig_geo.add_trace(go.Scatter(x=gf.index, y=gf.values, name="GeoFactor (normalized)",
-                                     line=dict(color=C["gold"], width=3)), secondary_y=True)
-        fig_geo.add_hline(y=1.5, line_dash="dot", line_color=C["gold_dim"], secondary_y=False)
-        fig_geo.add_hline(y=-1.5, line_dash="dot", line_color=C["gold_dim"], secondary_y=False)
-        fig_geo.update_yaxes(title_text="Z-Score", secondary_y=False)
-        fig_geo.update_yaxes(title_text="GeoFactor (σ)", secondary_y=True)
-        st.plotly_chart(fig_geo, use_container_width=True)
-    else:
-        st.warning("Dados geopolíticos insuficientes.")
-    
-    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="sec-title">Agricultural Commodities — Indexed from War Start</div>', unsafe_allow_html=True)
-    fig_ag = quant_fig(height=450)
-    for asset, color, label in [("wheat", C["blue"], "Wheat"), ("corn", C["teal"], "Corn"), ("soy", C["gray"], "Soy")]:
-        bv = float(prices[asset].iloc[0])
-        rel = (prices[asset] / bv * 100).dropna()
-        fig_ag.add_trace(go.Scatter(x=rel.index, y=rel.values, name=f"{label} (base ${bv:.0f})", line=dict(color=color, width=2)))
-    fig_ag.add_hline(y=100, line_dash="dot", line_color="#9CA3AF")
-    fig_ag.update_layout(yaxis_title="Price Index (base = 100)")
-    st.plotly_chart(fig_ag, use_container_width=True)
+        st.divider()
+        st.subheader("Stress Indices")
+        col_a, col_b = st.columns(2)
+        with col_a:
+            if fi is not None and len(fi) > 5:
+                ng_vol = returns["natgas"].rolling(20).std() * np.sqrt(252) * 100
+                fig_f = quant_subplots(secondary=True, height=380)
+                fig_f.add_trace(go.Scatter(x=fi.index, y=fi.values, name="Fert Stress", fill="tozeroy",
+                                           fillcolor="rgba(95,107,71,0.1)", line=dict(color=C["sage"], width=2)), secondary_y=False)
+                fig_f.add_trace(go.Scatter(x=ng_vol.index, y=ng_vol.values, name="NatGas Vol",
+                                           line=dict(color=C["teal"], width=1.8, dash="dash")), secondary_y=True)
+                fig_f.update_yaxes(title_text="Fert Index", secondary_y=False)
+                fig_f.update_yaxes(title_text="NatGas Vol %", secondary_y=True)
+                st.plotly_chart(fig_f, use_container_width=True)
+            bs_str = f" · ⚠ Black Swan ×{bs:.2f}" if bs > 1.2 else ""
+            st.info(f"Urea ${usda['urea_price']:.0f}/t  ·  DAP ${usda['dap_price']:.0f}/t{bs_str}  ·  {usda['source']}")
+        with col_b:
+            if gs is not None and not gs["gold_real"].dropna().empty:
+                gr_b = float(gs["gold_real"].dropna().iloc[0])
+                sg_b = float(gs["silver_gold"].dropna().iloc[0])
+                fig_g = quant_subplots(secondary=True, height=380)
+                fig_g.add_trace(go.Scatter(x=gs["gold_real"].dropna().index, y=(gs["gold_real"].dropna() / gr_b).values,
+                                           name="Gold/Real Yield", line=dict(color=C["gold"], width=2)), secondary_y=False)
+                fig_g.add_trace(go.Scatter(x=gs["silver_gold"].dropna().index, y=(gs["silver_gold"].dropna() / sg_b).values,
+                                           name="Silver/Gold", line=dict(color=C["silver"], width=1.8, dash="dash")), secondary_y=True)
+                fig_g.add_hline(y=1.0, line_dash="dot", line_color="#9CA3AF")
+                fig_g.update_yaxes(title_text="Gold/Real Yield (norm)", secondary_y=False)
+                fig_g.update_yaxes(title_text="Silver/Gold (norm)", secondary_y=True)
+                st.plotly_chart(fig_g, use_container_width=True)
+            else:
+                st.warning("Gold data insufficient.")
 
-with tab3:
-    war_note = " ⚑ War Boost" if war_t else ""
-    bs_note = f" ⚠ Fert BS ×{bs:.2f}" if bs > 1.2 else ""
-    st.markdown(f'<div class="sec-title">Monte Carlo · EVT+DCC · {mc_sims:,} paths × {mc_steps}d{war_note}{bs_note}</div>', unsafe_allow_html=True)
-    if fan is not None and len(fan[50]) > 1:
-        x_ax = list(range(mc_steps + 1))
-        fig_mc = quant_fig(height=550)
-        fig_mc.add_trace(go.Scatter(x=x_ax + x_ax[::-1], y=list(fan[95]) + list(fan[5][::-1]),
-                                    fill="toself", fillcolor="rgba(59,130,246,0.2)", line=dict(width=0), name="WTI 90% CI"))
-        fig_mc.add_trace(go.Scatter(x=x_ax + x_ax[::-1], y=list(fan[75]) + list(fan[25][::-1]),
-                                    fill="toself", fillcolor="rgba(59,130,246,0.4)", line=dict(width=0), name="WTI 50% CI"))
-        fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan_b[50]), name=f"Brent P50 → ${fan_b[50][-1]:.2f}",
-                                    line=dict(color=C["blue"], width=2.5, dash="dash")))
-        fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[50]), name=f"WTI P50 → ${fan[50][-1]:.2f}",
-                                    line=dict(color=C["gold"], width=4)))
-        fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[95]), name=f"P95 → ${fan[95][-1]:.2f}",
-                                    line=dict(color=C["gold_dim"], width=1.5, dash="dot")))
-        fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[5]), name=f"P5 → ${fan[5][-1]:.2f}",
-                                    line=dict(color=C["gold_dim"], width=1.5, dash="dot")))
-        fig_mc.add_hline(y=wti0, line_dash="dash", line_color="#9CA3AF", annotation_text=f"Current ${wti0:.2f}")
-        fig_mc.add_hline(y=40, line_dash="dot", line_color="#F97316", annotation_text="Stress $40")
-        fig_mc.add_hline(y=150, line_dash="dot", line_color="#F97316", annotation_text="Stress $150")
-        fig_mc.update_layout(xaxis_title="Trading Days Ahead", yaxis_title="Price (USD/bbl)", yaxis_tickprefix="$")
-        st.plotly_chart(fig_mc, use_container_width=True)
-        
-        col_a, col_b, col_c = st.columns(3)
-        col_a.metric("Prob Up 10d", f"{M['prob_up']:.1f}%")
-        col_b.metric("VaR 95% 1d", f"${M['var95']:+.2f}", delta=f"CVaR ${M['cvar95']:+.2f}")
-        col_c.metric("Prob WTI < $40", f"{M['prob_40']:.3f}%", delta=f"> $150: {M['prob_150']:.3f}%")
-    else:
-        st.warning("Simulação Monte Carlo não disponível.")
+    with tab2:
+        st.subheader("Geopolitical Intelligence")
+        if zsc is not None and len(zsc) > 5 and gf is not None and len(gf) > 5:
+            fig_geo = quant_subplots(secondary=True, height=500)
+            fig_geo.add_trace(go.Scatter(x=zsc.index, y=zsc.values, name="Z-Score Composite",
+                                         line=dict(color=C["blue"], width=2.5), fill="tozeroy",
+                                         fillcolor="rgba(31,78,121,0.1)"), secondary_y=False)
+            fig_geo.add_trace(go.Scatter(x=gf.index, y=gf.values, name="GeoFactor (normalized)",
+                                         line=dict(color=C["gold"], width=3)), secondary_y=True)
+            fig_geo.add_hline(y=1.5, line_dash="dot", line_color=C["gold_dim"], secondary_y=False)
+            fig_geo.add_hline(y=-1.5, line_dash="dot", line_color=C["gold_dim"], secondary_y=False)
+            fig_geo.update_yaxes(title_text="Z-Score", secondary_y=False)
+            fig_geo.update_yaxes(title_text="GeoFactor (σ)", secondary_y=True)
+            st.plotly_chart(fig_geo, use_container_width=True)
+        else:
+            st.warning("Geopolitical data insufficient.")
 
-with tab4:
-    st.markdown('<div class="sec-title">Risk‑Adjusted Performance & Return Moments</div>', unsafe_allow_html=True)
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("#### WTI")
-        st.metric("Sharpe Ratio (ann.)", f"{sharpe['oil']:.2f}")
-        st.metric("Sortino Ratio (ann.)", f"{sortino['oil']:.2f}")
-        st.metric("Skewness", f"{skew_oil:.3f}", delta="neg = left tail risk" if skew_oil < 0 else "pos = right tail")
-        st.metric("Excess Kurtosis", f"{kurt_oil:.3f}", delta=">0 heavy tails" if kurt_oil > 0 else "<0 thin tails")
-    with col2:
-        st.markdown("#### Brent")
-        st.metric("Sharpe Ratio (ann.)", f"{sharpe['brent']:.2f}")
-        st.metric("Sortino Ratio (ann.)", f"{sortino['brent']:.2f}")
-        st.metric("Skewness", f"{skew_brt:.3f}")
-        st.metric("Excess Kurtosis", f"{kurt_brt:.3f}")
-    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="sec-title">DCC & Correlation Dynamics</div>', unsafe_allow_html=True)
-    st.metric("WTI–Brent Correlation (EWMA)", f"{corr:.4f}")
-    st.metric("DCC α (short‑term shock)", f"{dcc_a:.4f}", delta=f"β (persistence): {dcc_b:.4f}")
-    st.metric("DCC Persistence (α+β)", f"{dcc_a + dcc_b:.4f}", delta=">0.99 highly persistent" if (dcc_a+dcc_b)>0.99 else "moderate persistence")
+        st.divider()
+        st.subheader("Agricultural Commodities — Indexed from War Start")
+        fig_ag = quant_fig(height=450)
+        for asset, color, label in [("wheat", C["blue"], "Wheat"), ("corn", C["teal"], "Corn"), ("soy", C["gray"], "Soy")]:
+            bv = float(prices[asset].iloc[0])
+            rel = (prices[asset] / bv * 100).dropna()
+            fig_ag.add_trace(go.Scatter(x=rel.index, y=rel.values, name=f"{label} (base ${bv:.0f})", line=dict(color=color, width=2)))
+        fig_ag.add_hline(y=100, line_dash="dot", line_color="#9CA3AF")
+        fig_ag.update_layout(yaxis_title="Price Index (base = 100)")
+        st.plotly_chart(fig_ag, use_container_width=True)
 
-with tab5:
-    st.markdown('<div class="sec-title">Risk Metrics & Model Diagnostics</div>', unsafe_allow_html=True)
-    col_l, col_r = st.columns(2)
-    def render_table(rows, col):
-        with col:
-            html = '<table class="data-table"><thead><tr><th>Indicator</th><th>Value</th></tr></thead><tbody>'
-            for lbl, val in rows:
-                html += f"<tr><td>{lbl}</td><td><strong>{val}</strong></td></tr>"
-            html += "</tbody></table>"
-            st.markdown(html, unsafe_allow_html=True)
-    render_table([
-        ("WTI Crude", f"${wti0:.2f}"), ("Brent Crude", f"${brt0:.2f}"), ("WTI–Brent Spread", f"${spread:.2f} ({spread/wti0*100:.1f}%)"),
-        ("GeoFactor (norm)", f"{float(gf.iloc[-1]):.4f}σ"), ("Risk Regime", f"WAR ({rbase:+.3f})"),
-        ("War Signal", f"{ws_val:.5f} · {'ACTIVE ⚑' if war_t else 'subdued'}"),
-        ("DCC α / β", f"{dcc_a:.4f} / {dcc_b:.4f}  persist={(dcc_a+dcc_b):.4f}"),
-    ], col_l)
-    render_table([
-        ("WTI Vol p.a.", f"{M['vol_wti']:.1f}%"), ("Brent Vol p.a.", f"{M['vol_brt']:.1f}%"),
-        ("WTI–Brent ρ", f"{corr:.4f} (EWMA)"), ("Tail df (dynamic)", f"{tdf_d:.2f}"),
-        ("Prob Up 10d", f"{M['prob_up']:.1f}%"), ("VaR 95% 1d", f"${M['var95']:+.2f}"),
-        ("CVaR 95% 1d", f"${M['cvar95']:+.2f}"), ("Z-Composite", f"{float(zsc.iloc[-1]):+.4f}"),
-        ("Prob WTI < $40", f"{M['prob_40']:.2f}%"), ("Prob WTI > $150", f"{M['prob_150']:.2f}%"),
-    ], col_r)
-    st.markdown(f"""
-    <div class="info-block">
-    <strong>Bayes Shrinkage</strong> &nbsp;·&nbsp;
-    WTI {dw_d['vga']:.0f}% → {dw_d['vsa']:.0f}% (w={dw_d['w']:.2f})
-    &nbsp;·&nbsp; Brent {db_d['vga']:.0f}% → {db_d['vsa']:.0f}% (w={db_d['w']:.2f})
-    &nbsp;·&nbsp; Fertilizer: Urea ${usda['urea_price']:.0f}/t · DAP ${usda['dap_price']:.0f}/t · {usda['source']}
-    {f' · ⚠ Black Swan ×{bs:.2f}' if bs>1.2 else ''}
-    </div>
-    """, unsafe_allow_html=True)
+    with tab3:
+        war_note = " ⚑ War Boost" if war_t else ""
+        bs_note = f" ⚠ Fert BS ×{bs:.2f}" if bs > 1.2 else ""
+        st.subheader(f"Monte Carlo · EVT+DCC · {mc_sims:,} paths × {mc_steps}d{war_note}{bs_note}")
+        if fan is not None and len(fan[50]) > 1:
+            x_ax = list(range(mc_steps + 1))
+            fig_mc = quant_fig(height=550)
+            fig_mc.add_trace(go.Scatter(x=x_ax + x_ax[::-1], y=list(fan[95]) + list(fan[5][::-1]),
+                                        fill="toself", fillcolor="rgba(31,78,121,0.2)", line=dict(width=0), name="WTI 90% CI"))
+            fig_mc.add_trace(go.Scatter(x=x_ax + x_ax[::-1], y=list(fan[75]) + list(fan[25][::-1]),
+                                        fill="toself", fillcolor="rgba(31,78,121,0.4)", line=dict(width=0), name="WTI 50% CI"))
+            fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan_b[50]), name=f"Brent P50 → ${fan_b[50][-1]:.2f}",
+                                        line=dict(color=C["blue"], width=2.5, dash="dash")))
+            fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[50]), name=f"WTI P50 → ${fan[50][-1]:.2f}",
+                                        line=dict(color=C["gold"], width=4)))
+            fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[95]), name=f"P95 → ${fan[95][-1]:.2f}",
+                                        line=dict(color=C["gold_dim"], width=1.5, dash="dot")))
+            fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[5]), name=f"P5 → ${fan[5][-1]:.2f}",
+                                        line=dict(color=C["gold_dim"], width=1.5, dash="dot")))
+            fig_mc.add_hline(y=wti0, line_dash="dash", line_color="#6B7280", annotation_text=f"Current ${wti0:.2f}")
+            fig_mc.add_hline(y=40, line_dash="dot", line_color="#7A3F30", annotation_text="Stress $40")
+            fig_mc.add_hline(y=150, line_dash="dot", line_color="#7A3F30", annotation_text="Stress $150")
+            fig_mc.update_layout(xaxis_title="Trading Days Ahead", yaxis_title="Price (USD/bbl)", yaxis_tickprefix="$")
+            st.plotly_chart(fig_mc, use_container_width=True)
 
-# Footer
-st.markdown(f"""
-<div class="footer">
-  <div>◆ GeoQuant · EVT + DCC + GARCH-X · {mc_sims:,} MC paths</div>
-  <div>Eduardo Moraes · Quant Data Scientist & Economics</div>
-  <div>For professional use only · {now_sp.strftime("%d %b %Y")}</div>
-</div>
-""", unsafe_allow_html=True)
+            col_a, col_b, col_c = st.columns(3)
+            col_a.metric("Prob Up 10d", f"{M['prob_up']:.1f}%")
+            col_b.metric("VaR 95% 1d", f"${M['var95']:+.2f}", delta=f"CVaR ${M['cvar95']:+.2f}")
+            col_c.metric("Prob WTI < $40", f"{M['prob_40']:.3f}%", delta=f"> $150: {M['prob_150']:.3f}%")
+        else:
+            st.warning("Monte Carlo results not available. Run simulation first.")
+
+    with tab4:
+        st.subheader("Risk‑Adjusted Performance & Return Moments")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**WTI**")
+            st.metric("Sharpe Ratio (ann.)", f"{sharpe['oil']:.2f}")
+            st.metric("Sortino Ratio (ann.)", f"{sortino['oil']:.2f}")
+            st.metric("Skewness", f"{skew_oil:.3f}", delta="Left tail risk" if skew_oil < 0 else "Right tail")
+            st.metric("Excess Kurtosis", f"{kurt_oil:.3f}", delta="Heavy tails" if kurt_oil > 0 else "Thin tails")
+        with col2:
+            st.markdown("**Brent**")
+            st.metric("Sharpe Ratio (ann.)", f"{sharpe['brent']:.2f}")
+            st.metric("Sortino Ratio (ann.)", f"{sortino['brent']:.2f}")
+            st.metric("Skewness", f"{skew_brt:.3f}")
+            st.metric("Excess Kurtosis", f"{kurt_brt:.3f}")
+        st.divider()
+        st.subheader("DCC & Correlation Dynamics")
+        st.metric("WTI–Brent Correlation (EWMA)", f"{corr:.4f}")
+        st.metric("DCC α (short‑term shock)", f"{dcc_a:.4f}", delta=f"β (persistence): {dcc_b:.4f}")
+        st.metric("DCC Persistence (α+β)", f"{dcc_a + dcc_b:.4f}")
+
+    with tab5:
+        st.subheader("Risk Metrics & Model Diagnostics")
+        col_l, col_r = st.columns(2)
+
+        def render_table(rows, col):
+            with col:
+                html = '<table style="width:100%; border-collapse: collapse;">'
+                for lbl, val in rows:
+                    html += f'<tr><td style="padding: 6px; border-bottom: 1px solid #ddd;"><strong>{lbl}</strong></td><td style="padding: 6px; border-bottom: 1px solid #ddd;">{val}</td></tr>'
+                html += '</table>'
+                st.markdown(html, unsafe_allow_html=True)
+
+        render_table([
+            ("WTI Crude", f"${wti0:.2f}"), ("Brent Crude", f"${brt0:.2f}"), ("WTI–Brent Spread", f"${spread:.2f} ({spread / wti0 * 100:.1f}%)"),
+            ("GeoFactor (norm)", f"{float(gf.iloc[-1]):.4f}σ"), ("Risk Regime", f"WAR ({rbase:+.3f})"),
+            ("War Signal", f"{ws_val:.5f} · {'ACTIVE ⚑' if war_t else 'subdued'}"),
+            ("DCC α / β", f"{dcc_a:.4f} / {dcc_b:.4f}  persist={(dcc_a + dcc_b):.4f}"),
+        ], col_l)
+        render_table([
+            ("WTI Vol p.a.", f"{M['vol_wti']:.1f}%"), ("Brent Vol p.a.", f"{M['vol_brt']:.1f}%"),
+            ("WTI–Brent ρ", f"{corr:.4f} (EWMA)"), ("Tail df (dynamic)", f"{tdf_d:.2f}"),
+            ("Prob Up 10d", f"{M['prob_up']:.1f}%"), ("VaR 95% 1d", f"${M['var95']:+.2f}"),
+            ("CVaR 95% 1d", f"${M['cvar95']:+.2f}"), ("Z-Composite", f"{float(zsc.iloc[-1]):+.4f}"),
+            ("Prob WTI < $40", f"{M['prob_40']:.2f}%"), ("Prob WTI > $150", f"{M['prob_150']:.2f}%"),
+        ], col_r)
+
+        st.info(f"**Bayes Shrinkage** · WTI {dw_d['vga']:.0f}% → {dw_d['vsa']:.0f}% (w={dw_d['w']:.2f}) · Brent {db_d['vga']:.0f}% → {db_d['vsa']:.0f}% (w={db_d['w']:.2f}) · Fertilizer: Urea ${usda['urea_price']:.0f}/t · DAP ${usda['dap_price']:.0f}/t · {usda['source']}")
+
+    st.divider()
+    st.caption(f"GeoQuant · EVT + DCC + GARCH-X · {mc_sims:,} MC paths · Eduardo Moraes · Quant Data Scientist & Economics · {now_sp.strftime('%d %b %Y')}")
+
+else:
+    st.info("👈 Configure parameters on the sidebar and click 'Run Full Analysis' to start.")
