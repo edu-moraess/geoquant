@@ -958,9 +958,22 @@ if run_btn or "results" not in st.session_state:
 # ══════════════════════════════════════════════════════════
 #   INTERFACE LAYOUT & INTERACTIVE TABS
 # ══════════════════════════════════════════════════════════
+
+# --> EXTRAÇÃO SEGURA DO STATE PARA EVITAR NAMEERRORS <--
 S = st.session_state
-mc, fan, fb, M = S["results"], S["results"]["fan"], S["results"]["fan_b"], S["results"]["metrics"]
+mc = S["results"]
+fan = mc["fan"]
+fb = mc["fan_b"]
+M = mc["metrics"]
 moments = mc["moments"]
+
+wti0 = S["wti0"]
+brt0 = S["brt0"]
+vw = S["vw"]
+vb = S["vb"]
+vg = S["vg"]
+zsc = S["zsc"]
+gf = S["gf"]
 
 t_exec, t_vol, t_geo, t_attr, t_mc, t_stat, t_diag, t_ml = st.tabs([
     "Executive Summary", "Market & Volatility", "Geopolitical Intelligence",
@@ -973,7 +986,7 @@ with t_exec:
     st.markdown('<div class="sec-label">Report · Asset Management Grade</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title">Executive Macro & Geopolitical Summary</div>', unsafe_allow_html=True)
     
-    gf_last = float(S["gf"].iloc[-1]) if len(S["gf"]) > 0 else 0.0
+    gf_last = float(gf.iloc[-1]) if len(gf) > 0 else 0.0
     st_last = float(S["stress_idx"].iloc[-1]) if len(S["stress_idx"]) > 0 else 0.0
     regime_curr = ["Normal", "Elevated Risk", "Stress", "Crisis"][int(S["regimes_ts"].iloc[-1])]
     
