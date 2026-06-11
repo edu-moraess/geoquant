@@ -1,6 +1,6 @@
 """
-GeoQuant – Institutional Macro Research Terminal (v9.5)
-EVT + DCC-GARCH-X + GeoFactor + Walk‑Forward + Explainable AI
+GeoQuant – Institutional Macro Research Terminal & Validation Suite (v9.5)
+EVT + DCC-GARCH-X + GeoFactor + Walk‑Forward + Explainable AI + ML Benchmarking
 Eduardo Moraes | Quant Data Scientist & Economics
 """
 
@@ -13,9 +13,11 @@ from plotly.subplots import make_subplots
 import os, csv, logging, warnings, json
 from datetime import datetime, timedelta
 import pytz
+import matplotlib.pyplot as plt
 from scipy.interpolate import PchipInterpolator
 from scipy import stats, optimize
 from sklearn.linear_model import LassoCV
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import precision_recall_fscore_support, mean_squared_error, mean_absolute_error
 from statsmodels.tsa.vector_ar.var_model import VAR
 from statsmodels.discrete.discrete_model import Logit
@@ -23,13 +25,25 @@ from statsmodels.stats.diagnostic import acorr_ljungbox, het_arch
 from scipy.stats import chi2
 import yfinance as yf
 from arch import arch_model
-import warnings
+import shap
+import xgboost as xgb
+import lightgbm as lgb
+
 warnings.filterwarnings("ignore")
 
 # ----------------------------------------------------------------------
-st.set_page_config(page_title="GeoQuant · Research", page_icon="", layout="wide")
+# GLOBAL API CREDENTIALS CONFIGURATION
 # ----------------------------------------------------------------------
-# CONFIGURATION
+EIA_API_KEY = "kVSuPa0tfnUmHzQ2VVSCPC6owKhPQQY2PbEc9hA1"
+FRED_API_KEY = "876c9f95b965eb9d423ef2c7b68ae51b"
+OILPRICE_API_KEY = "e241c0914287d05fcbbeb18669c23d86e9cdf36c63193a95d42854eb53ed354d"
+
+# ----------------------------------------------------------------------
+# STREAMLIT INITIALIZATION & THEME SETUP
+# ----------------------------------------------------------------------
+st.set_page_config(page_title="GeoQuant · Research Terminal", page_icon="📈", layout="wide")
+
+# Parametrisation constants
 TICKERS = {
     "oil": "CL=F", "brent": "BZ=F", "natgas": "NG=F",
     "gold": "GC=F", "silver": "SI=F", "copper": "HG=F",
@@ -52,6 +66,7 @@ SPREAD_MAX = 0.30
 FERT_BS_Z_THR = 1.5
 FERT_EVT_Q = 0.90
 
+# Clean Minimalist Design Framework (White Background Preference)
 PLOTLY_LAYOUT = {
     "paper_bgcolor": "white",
     "plot_bgcolor": "#F8F9FA",
@@ -82,37 +97,8 @@ def quant_subplots(rows, cols, secondary=False, height=450, **kw):
     return fig
 
 # ----------------------------------------------------------------------
-# SIDEBAR
-with st.sidebar:
-    st.markdown("## GeoQuant Terminal")
-    st.caption("Research")
-    st.divider()
-    mc_sims = st.slider("Monte Carlo paths", 1000, 30000, 5000, 1000)
-    mc_steps = st.slider("Horizon (days)", 5, 30, 10, 1)
-    st.divider()
-    jump_up = st.slider("Jump prob up", 0.01, 0.20, 0.07, 0.01)
-    jump_down = st.slider("Jump prob down", 0.01, 0.10, 0.03, 0.01)
-    tail_df = st.slider("Tail df", 2.5, 8.0, 3.0, 0.5)
-    st.divider()
-    prior_wti = st.slider("WTI prior vol (annual)", 0.20, 0.65, 0.35, 0.01)
-    prior_brent = st.slider("Brent prior vol (annual)", 0.20, 0.65, 0.35, 0.01)
-    st.divider()
-    war_start = st.date_input("War start reference", value=datetime(2026, 2, 28))
-    run_btn = st.button("Run Full Analysis", type="primary")
-    st.caption("FOR PROFESSIONAL USE ONLY\nNOT INVESTMENT ADVICE")
-
-now_sp = datetime.now(pytz.timezone("America/Sao_Paulo"))
-st.markdown(
-    f"""
-    <div style="border-bottom: 2px solid #1F4E79; margin-bottom: 1.5rem;">
-        <h1 style="color: #1F4E79; font-weight: 400; margin-bottom: 0;">GeoQuant · Research</h1>
-        <p style="color: #6B7280; font-size: 0.8rem;">Geopolitical Intelligence · EVT+DCC+GARCH-X · {now_sp.strftime('%d %B %Y · %H:%M')} (SP)</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-# =============================================================================
-# CORE FUNCTIONS
-# =============================================================================
+# MATHEMATICAL & STATISTICAL OPERATIONS Engine
+# ----------------------------------------------------------------------
 def rolling_zscore(s, w=60):
     return (s - s.rolling(w).mean()) / s.rolling(w).std().replace(0, np.nan)
 
@@ -414,7 +400,7 @@ def run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol,
 @st.cache_data(ttl=900, show_spinner=False)
 def fetch_data(start_date=None):
     if start_date is None:
-        start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
+        start_date = (datetime.now() - timedelta(days=5*365)).strftime("%Y-%m-%d")
     tickers_list = list(TICKERS.values())
     tickers_keys = list(TICKERS.keys())
     def _extract_close(raw):
@@ -423,10 +409,8 @@ def fetch_data(start_date=None):
         if isinstance(raw.columns, pd.MultiIndex):
             lvl0 = raw.columns.get_level_values(0).unique().tolist()
             field = next((f for f in ["Close", "Adj Close", "Price"] if f in lvl0), None)
-            if field:
-                out = raw[field].copy()
-            else:
-                out = raw.iloc[:, :len(tickers_keys)].copy()
+            if field: out = raw[field].copy()
+            else: out = raw.iloc[:, :len(tickers_keys)].copy()
         else:
             out = raw.copy()
         return out
@@ -439,30 +423,6 @@ def fetch_data(start_date=None):
                 return out.ffill().dropna()
         except:
             pass
-    try:
-        raw = yf.download(tickers_list, period="180d", progress=False, auto_adjust=True)
-        out = _extract_close(raw)
-        if not out.empty and len(out) > 5:
-            out.columns = tickers_keys[:len(out.columns)]
-            return out.ffill().dropna()
-    except:
-        pass
-    frames = {}
-    for key, ticker_sym in TICKERS.items():
-        try:
-            t = yf.Ticker(ticker_sym)
-            df = t.history(start=start_date, auto_adjust=True)
-            if df.empty:
-                df = t.history(period="180d", auto_adjust=True)
-            if not df.empty:
-                col = "Close" if "Close" in df.columns else df.columns[0]
-                frames[key] = fill_gaps(df[col])
-        except:
-            pass
-    if frames:
-        out = pd.DataFrame(frames).ffill().dropna()
-        if not out.empty and len(out) > 5:
-            return out
     return pd.DataFrame()
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -472,25 +432,14 @@ def fetch_live(last_wti=65.0, last_brt=68.0):
         b = yf.Ticker("BZ=F").fast_info
         wti = float(w.get("last_price", 0))
         brent = float(b.get("last_price", 0))
-        if wti > 0 and brent > 0:
-            return wti, brent
-    except:
-        pass
-    try:
-        d = yf.download(["CL=F", "BZ=F"], period="5d", progress=False, auto_adjust=True, threads=False)
-        if isinstance(d.columns, pd.MultiIndex):
-            d = d["Close"]
-        wti = float(d["CL=F"].dropna().iloc[-1])
-        brent = float(d["BZ=F"].dropna().iloc[-1])
-        if wti > 0 and brent > 0:
-            return wti, brent
+        if wti > 0 and brent > 0: return wti, brent
     except:
         pass
     return last_wti, last_brt
 
-# =============================================================================
-# INSTITUTIONAL FUNCTIONS
-# =============================================================================
+# ----------------------------------------------------------------------
+# ADVANCED INSTITUTIONAL BACKTESTING & MODEL VALIDATION SUITE
+# ----------------------------------------------------------------------
 def backtest_var(returns, var_forecast, alpha=0.05):
     common_idx = returns.index.intersection(var_forecast.index)
     if len(common_idx) == 0:
@@ -535,20 +484,75 @@ def backtest_var(returns, var_forecast, alpha=0.05):
 
 def backtest_es(returns, cvar_forecast, var_forecast, alpha=0.05):
     common = returns.index.intersection(var_forecast.index)
-    if len(common) == 0:
-        return np.nan
+    if len(common) == 0: return np.nan
     r = returns.loc[common]
     v = var_forecast.loc[common]
     cv = cvar_forecast.loc[common] if isinstance(cvar_forecast, pd.Series) else cvar_forecast
-    if isinstance(cv, pd.Series):
-        cv = cv.iloc[0] if len(cv) > 0 else np.nan
-    if np.isnan(cv):
-        return np.nan
+    if isinstance(cv, pd.Series): cv = cv.iloc[0] if len(cv) > 0 else np.nan
+    if np.isnan(cv): return np.nan
     violations = (r < -v).astype(int)
-    if violations.sum() == 0:
-        return np.nan
+    if violations.sum() == 0: return np.nan
     z = ((r[violations==1] + v[violations==1]).sum() / (violations.sum() * cv)) - 1
     return float(z)
+
+def walk_forward_validation(returns_series, train_years=2, test_months=3):
+    dates = returns_series.index
+    train_size = int(train_years * 252)
+    test_size = int(test_months * 21)
+    results = []
+    start = 0
+    while start + train_size + test_size <= len(dates):
+        train_end = start + train_size
+        test_end = train_end + test_size
+        train_ret = returns_series.iloc[start:train_end]
+        test_ret = returns_series.iloc[train_end:test_end]
+        
+        # Real-world dynamic estimation validation loop
+        mu_train = train_ret.mean()
+        pred_error = np.sqrt(((mu_train - test_ret) ** 2).mean())
+        results.append({
+            "Window Start": dates[start].strftime('%Y-%m-%d'),
+            "Window End": dates[test_end-1].strftime('%Y-%m-%d'),
+            "OOS_RMSE": pred_error
+        })
+        start += test_size
+    return pd.DataFrame(results)
+
+def benchmark_ml_models(returns_df, target_col="oil", split_ratio=0.8):
+    features = returns_df.shift(1).dropna()
+    target = returns_df[target_col].iloc[1:]
+    common = features.index.intersection(target.index)
+    X, y = features.loc[common], target.loc[common]
+    
+    split = int(len(X) * split_ratio)
+    X_train, X_test = X.iloc[:split], X.iloc[split:]
+    y_train, y_test = y.iloc[:split], y.iloc[split:]
+    
+    models = {
+        "RandomForest": RandomForestRegressor(n_estimators=100, random_state=42),
+        "XGBoost": xgb.XGBRegressor(n_estimators=100, random_state=42),
+        "LightGBM": lgb.LGBMRegressor(n_estimators=100, random_state=42, verbose=-1)
+    }
+    results = {}
+    for name, model in models.items():
+        model.fit(X_train, y_train)
+        pred = model.predict(X_test)
+        results[name] = {
+            "RMSE": np.sqrt(mean_squared_error(y_test, pred)),
+            "MAE": mean_absolute_error(y_test, pred)
+        }
+    return results, X, y
+
+def run_shap_analysis(X, y):
+    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    model.fit(X, y)
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(X)
+    
+    fig, ax = plt.subplots(figsize=(6, 4))
+    shap.summary_plot(shap_values, X, show=False)
+    plt.tight_layout()
+    return fig
 
 def rolling_ic(geofactor, returns, window=252, lag=1):
     ic_series = []
@@ -557,8 +561,7 @@ def rolling_ic(geofactor, returns, window=252, lag=1):
         ret_win = returns.iloc[i-window:i]
         common = gf_win.dropna().index.intersection(ret_win.dropna().index)
         if len(common) > 20:
-            ic = gf_win[common].corr(ret_win[common])
-            ic_series.append(ic)
+            ic_series.append(gf_win[common].corr(ret_win[common]))
         else:
             ic_series.append(np.nan)
     return pd.Series(ic_series, index=geofactor.index[window:])
@@ -566,25 +569,21 @@ def rolling_ic(geofactor, returns, window=252, lag=1):
 def hit_ratio(geofactor, returns, lag=1):
     gf_lag = geofactor.shift(lag).dropna()
     common = gf_lag.index.intersection(returns.index)
-    if len(common) < 10:
-        return np.nan
-    direction = np.sign(returns[common])
-    gf_sign = np.sign(gf_lag[common])
-    return (direction == gf_sign).mean()
+    if len(common) < 10: return np.nan
+    return (np.sign(returns[common]) == np.sign(gf_lag[common])).mean()
 
-def fit_evt_tails(returns, threshold_q=0.95):
-    th_up = np.percentile(returns, threshold_q*100)
-    th_lo = np.percentile(returns, (1-threshold_q)*100)
-    exc_up = returns[returns > th_up] - th_up
-    exc_lo = -returns[returns < th_lo] - th_lo
+def fit_evt_tails(returns_vec, threshold_q=0.95):
+    th_up = np.percentile(returns_vec, threshold_q*100)
+    th_lo = np.percentile(returns_vec, (1-threshold_q)*100)
+    exc_up = returns_vec[returns_vec > th_up] - th_up
+    exc_lo = -returns_vec[returns_vec < th_lo] - th_lo
     shape_up, _, scale_up = stats.genpareto.fit(exc_up) if len(exc_up) > 5 else (0.5, 0, 0.1)
     shape_lo, _, scale_lo = stats.genpareto.fit(exc_lo) if len(exc_lo) > 5 else (0.5, 0, 0.1)
     return {"upper": (shape_up, scale_up, th_up), "lower": (shape_lo, scale_lo, th_lo)}
 
 def garch_diagnostics(residuals):
     resid = residuals.dropna()
-    if len(resid) < 20:
-        return {"LjungBox5": np.nan, "LjungBox10": np.nan, "ARCH_LM_p": np.nan}
+    if len(resid) < 20: return {"LjungBox5": np.nan, "LjungBox10": np.nan, "ARCH_LM_p": np.nan}
     lb = acorr_ljungbox(resid, lags=[5,10], return_df=True)
     arch = het_arch(resid**2, nlags=10)
     return {
@@ -593,23 +592,50 @@ def garch_diagnostics(residuals):
         "ARCH_LM_p": arch[1] if len(arch) > 1 else np.nan
     }
 
-# =============================================================================
-# MAIN PIPELINE
-# =============================================================================
+# ----------------------------------------------------------------------
+# SIDEBAR CONTROL COCKPIT
+# ----------------------------------------------------------------------
+with st.sidebar:
+    st.markdown("## GeoQuant Terminal Control")
+    st.caption("Institutional Configurator Engine")
+    st.divider()
+    mc_sims = st.slider("Monte Carlo paths", 1000, 30000, 5000, 1000)
+    mc_steps = st.slider("Horizon (days)", 5, 30, 10, 1)
+    st.divider()
+    jump_up = st.slider("Jump prob up", 0.01, 0.20, 0.07, 0.01)
+    jump_down = st.slider("Jump prob down", 0.01, 0.10, 0.03, 0.01)
+    tail_df = st.slider("Tail df", 2.5, 8.0, 3.0, 0.5)
+    st.divider()
+    prior_wti = st.slider("WTI prior vol (annual)", 0.20, 0.65, 0.35, 0.01)
+    prior_brent = st.slider("Brent prior vol (annual)", 0.20, 0.65, 0.35, 0.01)
+    st.divider()
+    war_start = st.date_input("War start reference", value=datetime(2026, 2, 28))
+    run_btn = st.button("Run Full System Pipeline", type="primary")
+    st.caption("CONFIDENTIALITY NOTICE: Authorized Institutional Use Only.")
+
+now_sp = datetime.now(pytz.timezone("America/Sao_Paulo"))
+st.markdown(
+    f"""
+    <div style="border-bottom: 2px solid #1F4E79; margin-bottom: 1.5rem;">
+        <h1 style="color: #1F4E79; font-weight: 400; margin-bottom: 0;">GeoQuant · Research Terminal</h1>
+        <p style="color: #6B7280; font-size: 0.8rem;">Geopolitical Intelligence Integrated Environment · EVT+DCC+GARCH-X · {now_sp.strftime('%d %B %Y · %H:%M')} (SP)</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# ----------------------------------------------------------------------
+# DATA EXECUÇÃO PIPELINE PIPELINE
+# ----------------------------------------------------------------------
 needs_run = run_btn or "results" not in st.session_state
 
 if needs_run:
-    info_placeholder = st.info("Initialising institutional terminal. Loading market data...")
+    info_placeholder = st.info("Loading high-frequency matrix from global endpoint repositories...")
     prog = st.progress(0)
-    prog.progress(10)
+    
     prices = fetch_data()
     if prices.empty or len(prices) < 5:
-        info_placeholder.empty()
-        st.error("Failed to load market data. Check internet connection.")
+        st.error("Failed to load historical core data arrays.")
         st.stop()
-    for key in TICKERS:
-        if key not in prices.columns:
-            prices[key] = np.nan
+        
     prices = prices.ffill().bfill()
     last_wti = float(prices["oil"].dropna().iloc[-1])
     last_brt = float(prices["brent"].dropna().iloc[-1])
@@ -617,440 +643,200 @@ if needs_run:
     prices.loc[prices.index[-1], "oil"] = wti0
     prices.loc[prices.index[-1], "brent"] = brt0
     returns = np.log(prices / prices.shift(1)).dropna()
-    prog.progress(22)
+    
+    prog.progress(25)
     usda = get_usda()
     bs_mult = fert_black_swan(usda)
     gs = gold_signals(prices)
     sd = silver_demand_proxy(prices)
+    
     weights = GEO_WEIGHTS_DEFAULT.copy()
     weights["silver_demand"] = 0.02
     tot = sum(abs(v) for v in weights.values())
     weights = {k: v / tot for k, v in weights.items()}
+    
     fi = build_fert_index(returns, usda, bs_mult)
-    prog.progress(35)
     dyn_w = calibrate_weights(returns, prices, gs, fi, sd)
-    if dyn_w:
-        weights = dyn_w
+    if dyn_w: weights = dyn_w
+        
     gf_raw = build_geofactor(returns, prices, gs, fi, weights, sd)
     gf = (gf_raw - gf_raw.mean()) / gf_raw.std() if len(gf_raw) > 1 else gf_raw
     zsc = build_zscore(prices, gs)
+    
     prog.progress(50)
     vw = fit_garch(returns["oil"], gf)
     vb = fit_garch(returns["brent"], gf)
     vg = fit_garch(returns["gold"], gf)
+    
     n = len(returns)
-    pw_d = prior_wti / np.sqrt(252)
-    pb_d = prior_brent / np.sqrt(252)
-    pg_d = 0.18 / np.sqrt(252)
-    vw, dw = bayes_shrink(vw, pw_d, n, geofactor=gf, label="WTI")
-    vb, db = bayes_shrink(vb, pb_d, n, geofactor=gf, label="BRT")
+    pw_d, pb_d, pg_d = prior_wti / np.sqrt(252), prior_brent / np.sqrt(252), 0.18 / np.sqrt(252)
+    vw, dw = bayes_shrink(vw, pw_d, n, geofactor=gf)
+    vb, db = bayes_shrink(vb, pb_d, n, geofactor=gf)
     vg, _ = bayes_shrink(vg, pg_d, n)
-    bvw = float(vw.iloc[-1])
-    bvb = float(vb.iloc[-1])
-    prog.progress(65)
+    
+    bvw, bvb = float(vw.iloc[-1]), float(vb.iloc[-1])
     dcc_a, dcc_b = fit_dcc_corrected(returns["oil"], returns["brent"], vw, vb)
+    
     rv = returns.loc[gf.index.intersection(returns.index)]
-    lags = min(5, max(1, len(rv) // 10))
-    vm = VAR(rv).fit(lags)
+    vm = VAR(rv).fit(min(5, max(1, len(rv) // 10)))
     fcast = vm.forecast(rv.values[-vm.k_ar:], steps=mc_steps)
-    cols = list(rv.columns)
-    ocol = cols.index("oil")
-    bcol = cols.index("brent")
-    vr = bvb / (pb_d * 1.5)
-    tdf_d = max(2.5, min(6.0, tail_df / np.sqrt(max(vr, 0.5))))
+    ocol, bcol = list(rv.columns).index("oil"), list(rv.columns).index("brent")
+    
+    tdf_d = max(2.5, min(6.0, tail_df / np.sqrt(max(bvb / (pb_d * 1.5), 0.5))))
     rbase = float(np.tanh(gf.iloc[-1] / 2)) if not gf.empty else 0.0
-    ws = (returns["wheat"].tail(20).mean() + returns["natgas"].tail(20).mean()) / 2
-    war_t = bool(ws > 0.005)
-    jpu_eff = min(jump_up * 1.5, 0.15) if war_t else jump_up
+    jpu_eff = min(jump_up * 1.5, 0.15) if (returns["wheat"].tail(20).mean() > 0.005) else jump_up
+    
     prog.progress(75)
-    mc_note = st.empty()
-    mc_note.markdown("Monte Carlo simulation in progress...")
-    mc_bar = st.progress(0)
-    mc = run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase,
-                returns["oil"], returns["brent"], vw, vb,
-                jpu_eff, tdf_d, bs=bs_mult, dcc_a=dcc_a, dcc_b=dcc_b,
-                sims=mc_sims, steps=mc_steps, bar=mc_bar)
-    mc_note.empty()
-    mc_bar.empty()
-    try:
-        rj = pd.concat([returns["oil"], returns["brent"]], axis=1).dropna()
-        ec = rj.ewm(alpha=0.06).cov(pairwise=True)
-        lc = ec.loc[ec.index.get_level_values(0)[-1]]
-        corr = float(np.clip(lc.loc["oil", "brent"] / np.sqrt(lc.loc["oil", "oil"] * lc.loc["brent", "brent"]), -1, 1))
-    except:
-        corr = 0.95
-    ret_ann = returns[["oil", "brent"]].mean() * 252
-    vol_ann = returns[["oil", "brent"]].std() * np.sqrt(252)
-    sharpe = ret_ann / vol_ann
-    downside = returns[["oil", "brent"]][returns[["oil", "brent"]] < 0].std() * np.sqrt(252)
-    sortino = ret_ann / downside
-    skew_oil = returns["oil"].skew()
-    kurt_oil = returns["oil"].kurtosis()
-    skew_brt = returns["brent"].skew()
-    kurt_brt = returns["brent"].kurtosis()
+    mc = run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase, returns["oil"], returns["brent"], vw, vb, jpu_eff, tdf_d, bs_mult, dcc_a, dcc_b, mc_sims, mc_steps)
+    
+    # Mathematical diagnostics additions
+    ret_ann, vol_ann = returns[["oil", "brent"]].mean() * 252, returns[["oil", "brent"]].std() * np.sqrt(252)
     corr_matrix = returns[["oil", "brent", "gold", "dxy", "tnx"]].dropna().corr()
+    
     stress_comp = pd.DataFrame({
-        "vol_wti": vw.rolling(20).mean() * np.sqrt(252) * 100,
-        "vol_brent": vb.rolling(20).mean() * np.sqrt(252) * 100,
-        "corr_wti_brent": returns["oil"].rolling(20).corr(returns["brent"]),
-        "gold_zscore": rolling_zscore(prices["gold"], 60),
-        "geofactor": gf,
+        "vol_wti": vw.rolling(20).mean() * np.sqrt(252) * 100, "vol_brent": vb.rolling(20).mean() * np.sqrt(252) * 100,
+        "corr_wti_brent": returns["oil"].rolling(20).corr(returns["brent"]), "gold_zscore": rolling_zscore(prices["gold"], 60), "geofactor": gf,
     }).dropna()
-    stress_index = (stress_comp["vol_wti"]/50 + stress_comp["vol_brent"]/50 +
-                    np.abs(stress_comp["corr_wti_brent"]-0.8)*2 +
-                    stress_comp["gold_zscore"].clip(0,3)/3 +
-                    stress_comp["geofactor"].clip(0,2)/2) / 5
-    stress_index = stress_index.clip(0,1)
-    feature_importance = pd.DataFrame({
-        "feature": list(weights.keys()),
-        "importance": np.abs(list(weights.values()))
-    }).sort_values("importance", ascending=False)
+    stress_index = (stress_comp["vol_wti"]/50 + stress_comp["vol_brent"]/50 + np.abs(stress_comp["corr_wti_brent"]-0.8)*2 + stress_comp["gold_zscore"].clip(0,3)/3 + stress_comp["geofactor"].clip(0,2)/2) / 5
+    
+    feature_importance = pd.DataFrame({"feature": list(weights.keys()), "importance": np.abs(list(weights.values()))}).sort_values("importance", ascending=False)
     evt_tails = fit_evt_tails(returns["oil"])
     garch_diag = garch_diagnostics(vw)
-    rolling_ic_series = rolling_ic(gf, returns["oil"], window=252, lag=1)
-    hit = hit_ratio(gf, returns["oil"], lag=1)
+    rolling_ic_series = rolling_ic(gf, returns["oil"])
+    hit = hit_ratio(gf, returns["oil"])
+    
+    # ML Validation Executions
+    ml_metrics, X_ml, y_ml = benchmark_ml_models(returns)
+    wf_df = walk_forward_validation(returns["oil"])
+    shap_fig = run_shap_analysis(X_ml, y_ml)
+    
     prog.progress(100)
     info_placeholder.empty()
     prog.empty()
+    
     st.session_state.update({
-        "results": mc, "gf": gf, "zsc": zsc, "vw": vw, "vb": vb, "vg": vg,
-        "fi": fi, "gs": gs, "prices": prices, "returns": returns,
-        "wti0": wti0, "brt0": brt0, "usda": usda, "bs": bs_mult,
-        "dw": dw, "db": db, "tdf": tdf_d, "corr": corr, "rbase": rbase,
-        "war_t": war_t, "ws": float(ws), "jpu": jpu_eff, "dcc_a": dcc_a,
-        "dcc_b": dcc_b, "weights": weights,
-        "sharpe": sharpe, "sortino": sortino,
-        "skew_oil": skew_oil, "kurt_oil": kurt_oil,
-        "skew_brt": skew_brt, "kurt_brt": kurt_brt,
-        "mc_sims": mc_sims, "mc_steps": mc_steps,
-        "corr_matrix": corr_matrix, "stress_index": stress_index,
-        "feature_importance": feature_importance,
-        "evt_tails": evt_tails, "garch_diag": garch_diag,
-        "rolling_ic": rolling_ic_series, "hit_ratio": hit,
+        "results": mc, "gf": gf, "zsc": zsc, "vw": vw, "vb": vb, "vg": vg, "fi": fi, "gs": gs, "prices": prices, "returns": returns,
+        "wti0": wti0, "brt0": brt0, "usda": usda, "bs": bs_mult, "dw": dw, "db": db, "tdf": tdf_d, "dcc_a": dcc_a, "dcc_b": dcc_b, "weights": weights,
+        "sharpe": ret_ann / vol_ann, "sortino": ret_ann / (returns[["oil", "brent"]][returns[["oil", "brent"]] < 0].std() * np.sqrt(252)),
+        "skew_oil": returns["oil"].skew(), "kurt_oil": returns["oil"].kurtosis(), "skew_brt": returns["brent"].skew(), "kurt_brt": returns["brent"].kurtosis(),
+        "corr_matrix": corr_matrix, "stress_index": stress_index, "feature_importance": feature_importance, "evt_tails": evt_tails, "garch_diag": garch_diag,
+        "rolling_ic": rolling_ic_series, "hit_ratio": hit, "ml_metrics": ml_metrics, "wf_df": wf_df, "shap_fig": shap_fig
     })
 
-# =============================================================================
-# DISPLAY
-# =============================================================================
+# ----------------------------------------------------------------------
+# OUTPUT TERMINAL RENDER ENGINE
+# ----------------------------------------------------------------------
 if "results" in st.session_state:
-    mc = st.session_state["results"]
-    gf = st.session_state["gf"]
-    zsc = st.session_state["zsc"]
-    vw = st.session_state["vw"]
-    vb = st.session_state["vb"]
-    vg = st.session_state["vg"]
-    fi = st.session_state["fi"]
-    gs = st.session_state["gs"]
-    prices = st.session_state["prices"]
-    returns = st.session_state["returns"]
-    wti0 = st.session_state["wti0"]
-    brt0 = st.session_state["brt0"]
-    usda = st.session_state["usda"]
-    bs = st.session_state["bs"]
-    dw_d = st.session_state["dw"]
-    db_d = st.session_state["db"]
-    tdf_d = st.session_state["tdf"]
-    corr = st.session_state["corr"]
-    rbase = st.session_state["rbase"]
-    war_t = st.session_state["war_t"]
-    ws_val = st.session_state["ws"]
-    dcc_a = st.session_state["dcc_a"]
-    dcc_b = st.session_state["dcc_b"]
-    fan = mc["fan"]
-    fan_b = mc["fan_b"]
-    M = mc["metrics"]
-    sharpe = st.session_state.get("sharpe", pd.Series([0,0], index=["oil","brent"]))
-    sortino = st.session_state.get("sortino", pd.Series([0,0], index=["oil","brent"]))
-    skew_oil = st.session_state.get("skew_oil", 0)
-    kurt_oil = st.session_state.get("kurt_oil", 0)
-    skew_brt = st.session_state.get("skew_brt", 0)
-    kurt_brt = st.session_state.get("kurt_brt", 0)
-    mc_sims = st.session_state.get("mc_sims", 5000)
-    mc_steps = st.session_state.get("mc_steps", 10)
-    corr_matrix = st.session_state.get("corr_matrix")
-    stress_index = st.session_state.get("stress_index")
-    feature_importance = st.session_state.get("feature_importance")
-    evt_tails = st.session_state.get("evt_tails", {"upper":(0,0,0), "lower":(0,0,0)})
-    garch_diag = st.session_state.get("garch_diag", {})
-    rolling_ic_series = st.session_state.get("rolling_ic")
-    hit = st.session_state.get("hit_ratio", np.nan)
-    spread = brt0 - wti0
-
+    r_st = st.session_state
+    spread = r_st["brt0"] - r_st["wti0"]
+    
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
-        "Market & Risk", "Geopolitical", "Monte Carlo", "Quant Stats",
-        "Macro & Corr", "Institutional Backtest", "Advanced Analytics", "Executive Dashboard"
+        "Market Snapshot & Volatility", "Geopolitical Intelligence", "Monte Carlo Simulations", 
+        "Descriptive Quant Stats", "Macro Stress Factors", "VaR/ES Backtesting", 
+        "Machine Learning Benchmarks", "Walk-Forward Validation"
     ])
-
-    # ----- TAB 1: MARKET & RISK -----
+    
     with tab1:
         st.subheader("Live Commodity Snapshot")
-        c1,c2,c3,c4 = st.columns(4)
-        c1.metric("WTI Crude", f"${wti0:.2f}", f"P50 10d ${fan.get(50,[wti0])[-1]:.2f}")
-        c2.metric("Brent Crude", f"${brt0:.2f}", f"Spread ${spread:.2f} ({spread/wti0*100:.1f}%)")
-        c3.metric("WTI Vol (ann.)", f"{M.get('vol_wti',0):.1f}%", f"shrunk {dw_d.get('vsa',0):.1f}%")
-        c4.metric("Brent Vol (ann.)", f"{M.get('vol_brt',0):.1f}%", f"shrunk {db_d.get('vsa',0):.1f}%")
-        st.divider()
-        st.subheader("Volatility Surface")
-        if vw is not None and len(vw) > 5:
-            fig_vol = quant_fig(480)
-            fig_vol.add_trace(go.Scatter(x=vw.index, y=vw*np.sqrt(252)*100, name="WTI", line=dict(color=COLORS["wti"], width=2.5)))
-            fig_vol.add_trace(go.Scatter(x=vb.index, y=vb*np.sqrt(252)*100, name="Brent", line=dict(color=COLORS["brent"], width=2.5, dash="dash")))
-            fig_vol.add_trace(go.Scatter(x=vg.index, y=vg*np.sqrt(252)*100, name="Gold", line=dict(color=COLORS["gold"], width=2, dash="dot")))
-            fig_vol.add_hrect(y0=25, y1=45, fillcolor="rgba(45,107,107,0.05)", line_width=0, annotation_text="Normal band 25–45%")
-            fig_vol.update_layout(yaxis=dict(ticksuffix="%", title="Annualised Volatility"))
-            st.plotly_chart(fig_vol, use_container_width=True)
-        else:
-            st.info("Volatility data not available.")
-        st.divider()
-        st.subheader("Stress Indices")
-        col_a, col_b = st.columns(2)
-        with col_a:
-            st.markdown("**Fertilizer Stress & Natural Gas Volatility**")
-            if fi is not None and len(fi) > 5:
-                ng_vol = returns["natgas"].rolling(20).std() * np.sqrt(252) * 100
-                fig_f = quant_subplots(1,1, secondary=True, height=450)
-                fig_f.add_trace(go.Scatter(x=fi.index, y=fi.values, name="Fertilizer Stress", fill="tozeroy",
-                                           fillcolor="rgba(95,107,71,0.1)", line=dict(color=COLORS["fertilizer"], width=2.5)), secondary_y=False)
-                fig_f.add_trace(go.Scatter(x=ng_vol.index, y=ng_vol.values, name="NatGas Volatility",
-                                           line=dict(color=COLORS["natgas"], width=2, dash="dash")), secondary_y=True)
-                fig_f.update_yaxes(title_text="Fertilizer Index", secondary_y=False)
-                fig_f.update_yaxes(title_text="NatGas Vol %", secondary_y=True)
-                fig_f.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
-                st.plotly_chart(fig_f, use_container_width=True)
-            else:
-                st.info("Fertilizer data not available.")
-            bs_str = f" · Black Swan x{bs:.2f}" if bs > 1.2 else (" · Deflation" if bs < 0.8 else "")
-            st.caption(f"Urea ${usda.get('urea_price',0):.1f}/t  ·  DAP ${usda.get('dap_price',0):.0f}/t  ·  {usda.get('source','')}{bs_str}")
-        with col_b:
-            st.markdown("**Gold / Real Yield & Silver / Gold Ratio**")
-            if gs is not None and not gs["gold_real"].dropna().empty:
-                gr_b = float(gs["gold_real"].dropna().iloc[0])
-                sg_b = float(gs["silver_gold"].dropna().iloc[0])
-                fig_g = quant_subplots(1,1, secondary=True, height=450)
-                fig_g.add_trace(go.Scatter(x=gs["gold_real"].dropna().index, y=(gs["gold_real"].dropna()/gr_b).values,
-                                           name="Gold / Real Yield", line=dict(color=COLORS["gold"], width=2.5)), secondary_y=False)
-                fig_g.add_trace(go.Scatter(x=gs["silver_gold"].dropna().index, y=(gs["silver_gold"].dropna()/sg_b).values,
-                                           name="Silver / Gold", line=dict(color=COLORS["silver"], width=2, dash="dash")), secondary_y=True)
-                fig_g.add_hline(y=1.0, line_dash="dot", line_color="#9CA3AF", line_width=1.5)
-                fig_g.update_yaxes(title_text="Gold/Real Yield (norm)", secondary_y=False)
-                fig_g.update_yaxes(title_text="Silver/Gold (norm)", secondary_y=True)
-                fig_g.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
-                st.plotly_chart(fig_g, use_container_width=True)
-            else:
-                st.info("Gold signals not available.")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("WTI Crude Future", f"${r_st['wti0']:.2f}", f"P50 10d Horizon: ${r_st['results']['fan'][50][-1]:.2f}")
+        c2.metric("Brent Crude Future", f"${r_st['brt0']:.2f}", f"Spread: ${spread:.2f} ({spread/r_st['wti0']*100:.2f}%)")
+        c3.metric("WTI Vol (Ann.)", f"{r_st['results']['metrics']['vol_wti']:.2f}%", f"Shrunk Prior: {r_st['dw']['vsa']:.2f}%")
+        c4.metric("Brent Vol (Ann.)", f"{r_st['results']['metrics']['vol_brt']:.2f}%", f"Shrunk Prior: {r_st['db']['vsa']:.2f}%")
+        
+        st.subheader("Dynamic Variance Surface (Conditional GARCH-X paths)")
+        fig_vol = quant_fig(400)
+        fig_vol.add_trace(go.Scatter(x=r_st["vw"].index, y=r_st["vw"]*np.sqrt(252)*100, name="WTI Vol", line=dict(color=COLORS["wti"], width=2)))
+        fig_vol.add_trace(go.Scatter(x=r_st["vb"].index, y=r_st["vb"]*np.sqrt(252)*100, name="Brent Vol", line=dict(color=COLORS["brent"], width=2, dash="dash")))
+        fig_vol.update_layout(yaxis=dict(ticksuffix="%", title="Annualised Parameter Volatility"))
+        st.plotly_chart(fig_vol, use_container_width=True)
 
-    # ----- TAB 2: GEOPOLITICAL -----
     with tab2:
-        st.subheader("Geopolitical Risk Indicators")
-        if zsc is not None and len(zsc) > 5 and gf is not None and len(gf) > 5:
-            fig_geo = quant_subplots(1,1, secondary=True, height=500)
-            fig_geo.add_trace(go.Scatter(x=zsc.index, y=zsc.values, name="Z-Score Composite",
-                                         line=dict(color=COLORS["wti"], width=2.5), fill="tozeroy",
-                                         fillcolor="rgba(31,78,121,0.1)"), secondary_y=False)
-            fig_geo.add_trace(go.Scatter(x=gf.index, y=gf.values, name="GeoFactor (norm)",
-                                         line=dict(color=COLORS["gold"], width=3)), secondary_y=True)
-            fig_geo.update_yaxes(title_text="Z-Score (σ)", secondary_y=False)
-            fig_geo.update_yaxes(title_text="GeoFactor (σ)", secondary_y=True)
-            st.plotly_chart(fig_geo, use_container_width=True)
-        else:
-            st.info("Geopolitical data insufficient.")
-        st.divider()
-        st.subheader("Agricultural Commodities – Indexed from War Start")
-        fig_ag = quant_fig(450)
-        for asset, color, label in [("wheat", COLORS["wheat"], "Wheat"), ("corn", COLORS["corn"], "Corn"), ("soy", COLORS["soy"], "Soy")]:
-            if asset in prices.columns:
-                bv = float(prices[asset].iloc[0])
-                rel = (prices[asset] / bv * 100).dropna()
-                if len(rel) > 0:
-                    fig_ag.add_trace(go.Scatter(x=rel.index, y=rel.values, name=f"{label} (base ${bv:.0f})", line=dict(color=color, width=2)))
-        fig_ag.add_hline(y=100, line_dash="dot", line_color="#9CA3AF")
-        fig_ag.update_layout(yaxis=dict(title="Price Index (base = 100)"))
-        st.plotly_chart(fig_ag, use_container_width=True)
+        st.subheader("Macro Geopolitical Quant System Factors")
+        fig_geo = quant_subplots(1, 1, secondary_y=True)
+        fig_geo.add_trace(go.Scatter(x=r_st["zsc"].index, y=r_st["zsc"].values, name="Z-Score Composite", line=dict(color=COLORS["wti"])), secondary_y=False)
+        fig_geo.add_trace(go.Scatter(x=r_st["gf"].index, y=r_st["gf"].values, name="GeoFactor Vector (σ)", line=dict(color=COLORS["gold"], width=2)), secondary_y=True)
+        st.plotly_chart(fig_geo, use_container_width=True)
 
-    # ----- TAB 3: MONTE CARLO -----
     with tab3:
-        war_note = " | War boost active" if war_t else ""
-        bs_note = f" | Black Swan x{bs:.2f}" if bs > 1.2 else (" | Deflation" if bs < 0.8 else "")
-        st.subheader(f"Probabilistic Forecast – {mc_sims:,} paths, {mc_steps}d{war_note}{bs_note}")
-        if fan and len(fan.get(50, [])) > 1:
-            x_ax = list(range(mc_steps+1))
-            fig_mc = quant_fig(550)
-            if 95 in fan and 5 in fan:
-                fig_mc.add_trace(go.Scatter(x=x_ax+x_ax[::-1], y=list(fan[95])+list(fan[5][::-1]),
-                                            fill="toself", fillcolor=COLORS["ci_light"], line=dict(width=0), name="WTI 90% CI"))
-            if 75 in fan and 25 in fan:
-                fig_mc.add_trace(go.Scatter(x=x_ax+x_ax[::-1], y=list(fan[75])+list(fan[25][::-1]),
-                                            fill="toself", fillcolor=COLORS["ci_medium"], line=dict(width=0), name="WTI 50% CI"))
-            if fan_b and 50 in fan_b:
-                fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan_b[50]), name=f"Brent P50 → ${fan_b[50][-1]:.2f}",
-                                            line=dict(color=COLORS["brent"], width=2.5, dash="dash")))
-            if 50 in fan:
-                fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[50]), name=f"WTI P50 → ${fan[50][-1]:.2f}",
-                                            line=dict(color=COLORS["wti"], width=4)))
-            if 95 in fan:
-                fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[95]), name=f"P95 → ${fan[95][-1]:.2f}",
-                                            line=dict(color=COLORS["gold"], width=1.5, dash="dot")))
-            if 5 in fan:
-                fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[5]), name=f"P5 → ${fan[5][-1]:.2f}",
-                                            line=dict(color=COLORS["gold"], width=1.5, dash="dot")))
-            fig_mc.add_hline(y=wti0, line_dash="dash", line_color="#6B7280", annotation_text=f"Current ${wti0:.2f}")
-            fig_mc.add_hline(y=40, line_dash="dot", line_color=COLORS["stress"], annotation_text="Stress $40")
-            fig_mc.add_hline(y=150, line_dash="dot", line_color=COLORS["stress"], annotation_text="Stress $150")
-            fig_mc.update_layout(xaxis=dict(title="Trading Days Ahead"), yaxis=dict(title="Price (USD/bbl)", tickprefix="$"))
-            st.plotly_chart(fig_mc, use_container_width=True)
-            c1,c2,c3 = st.columns(3)
-            c1.metric("Prob Up 10d", f"{M.get('prob_up',0):.1f}%")
-            c2.metric("VaR 95% 1d", f"${M.get('var95',0):+.2f}", delta=f"CVaR ${M.get('cvar95',0):+.2f}")
-            c3.metric("Extreme Probabilities", f"< $40: {M.get('prob_40',0):.2f}%", delta=f"> $150: {M.get('prob_150',0):.2f}%")
-        else:
-            st.info("Monte Carlo not available. Run simulation first.")
+        st.subheader("Probabilistic Asset Distribution Projections")
+        x_ax = list(range(mc_steps+1))
+        fig_mc = quant_fig(500)
+        fig_mc.add_trace(go.Scatter(x=x_ax+x_ax[::-1], y=list(r_st["results"]["fan"][95])+list(r_st["results"]["fan"][5][::-1]), fill="toself", fillcolor=COLORS["ci_light"], line=dict(width=0), name="90% Confidence Interval"))
+        fig_mc.add_trace(go.Scatter(x=x_ax, y=list(r_st["results"]["fan"][50]), name="WTI Target Vector (P50)", line=dict(color=COLORS["wti"], width=3)))
+        fig_mc.update_layout(xaxis=dict(title="Forward Trading Steps (Days)"), yaxis=dict(title="Price Level (USD/bbl)", tickprefix="$"))
+        st.plotly_chart(fig_mc, use_container_width=True)
+        
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Upside Probability Target", f"{r_st['results']['metrics']['prob_up']:.2f}%")
+        c2.metric("Value-At-Risk (1d 95%)", f"${r_st['results']['metrics']['var95']:.2f}", f"Expected Shortfall: ${r_st['results']['metrics']['cvar95']:.2f}")
+        c3.metric("Tail Trailing Limits", f"< $40: {r_st['results']['metrics']['prob_40']:.2f}%", f"> $150: {r_st['results']['metrics']['prob_150']:.2f}%")
 
-    # ----- TAB 4: QUANT STATS -----
     with tab4:
-        st.subheader("Risk‑Adjusted Performance")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("**WTI**")
-            st.metric("Sharpe (ann.)", f"{sharpe['oil']:.2f}")
-            st.metric("Sortino (ann.)", f"{sortino['oil']:.2f}")
-            st.metric("Skewness", f"{skew_oil:.3f}", delta="left tail" if skew_oil<0 else "right tail")
-            st.metric("Excess Kurtosis", f"{kurt_oil:.3f}")
-        with col2:
-            st.markdown("**Brent**")
-            st.metric("Sharpe (ann.)", f"{sharpe['brent']:.2f}")
-            st.metric("Sortino (ann.)", f"{sortino['brent']:.2f}")
-            st.metric("Skewness", f"{skew_brt:.3f}")
-            st.metric("Excess Kurtosis", f"{kurt_brt:.3f}")
-        st.divider()
-        st.subheader("DCC Correlation Dynamics")
-        st.metric("WTI–Brent ρ (EWMA)", f"{corr:.4f}")
-        st.metric("DCC α", f"{dcc_a:.4f}", delta=f"β (persistence): {dcc_b:.4f}")
-        st.metric("DCC Persistence", f"{dcc_a+dcc_b:.4f}")
+        st.subheader("Mathematical Higher-Order Moments & DCC Engine Metrics")
+        co1, co2 = st.columns(2)
+        co1.markdown("**WTI Empirical Distribution**")
+        co1.write(f"Sharpe Ratio (Ann.): {r_st['sharpe']['oil']:.3f}")
+        co1.write(f"Sortino Ratio (Ann.): {r_st['sortino']['oil']:.3f}")
+        co1.write(f"Skewness Parameter: {r_st['skew_oil']:.4f}")
+        co1.write(f"Excess Kurtosis Point: {r_st['kurt_oil']:.4f}")
+        
+        co2.markdown("**Dynamic Conditional Correlation Parameters**")
+        co2.write(f"DCC Shock Alpha (α): {r_st['dcc_a']:.4f}")
+        co2.write(f"DCC Persistence Beta (β): {r_st['dcc_b']:.4f}")
+        co2.write(f"Total Combined Persistence: {r_st['dcc_a'] + r_st['dcc_b']:.4f}")
 
-    # ----- TAB 5: MACRO & CORR -----
     with tab5:
-        st.subheader("Global Market Correlations")
-        if corr_matrix is not None:
-            fig_heat = go.Figure(data=go.Heatmap(z=corr_matrix.values, x=corr_matrix.columns, y=corr_matrix.index,
-                                                 colorscale="Blues", zmin=-1, zmax=1, text=np.round(corr_matrix.values,2),
-                                                 texttemplate="%{text}", textfont={"size":10}))
-            fig_heat.update_layout(height=450, title="Correlation Matrix (Oil, Brent, Gold, DXY, 10Y)")
-            st.plotly_chart(fig_heat, use_container_width=True)
-        else:
-            st.info("Correlation matrix not available.")
-        st.divider()
-        st.subheader("Risk‑Return Profile")
-        risk_return = pd.DataFrame({"Asset": ["WTI","Brent"], "Sharpe": [sharpe["oil"], sharpe["brent"]],
-                                    "Volatility": [M.get("vol_wti",0), M.get("vol_brt",0)]})
-        fig_scatter = go.Figure()
-        fig_scatter.add_trace(go.Scatter(x=risk_return["Volatility"], y=risk_return["Sharpe"],
-                                         mode="markers+text", text=risk_return["Asset"], textposition="top center",
-                                         marker=dict(size=20, color=[COLORS["wti"], COLORS["brent"]]), showlegend=False))
-        fig_scatter.add_shape(type="line", x0=0, y0=0, x1=100, y1=2, line=dict(dash="dot", color="gray"))
-        fig_scatter.update_layout(xaxis=dict(title="Annualised Volatility (%)"), yaxis=dict(title="Sharpe Ratio"), height=450)
-        st.plotly_chart(fig_scatter, use_container_width=True)
-        st.divider()
-        st.subheader("Global Stress Indicator")
-        if stress_index is not None and len(stress_index) > 0:
-            fig_stress = quant_fig(350)
-            fig_stress.add_trace(go.Scatter(x=stress_index.index, y=stress_index.values, fill="tozeroy",
-                                            line=dict(color=COLORS["stress"], width=2), name="Stress Index"))
-            fig_stress.add_hline(y=0.3, line_dash="dash", line_color="green", annotation_text="Low")
-            fig_stress.add_hline(y=0.6, line_dash="dash", line_color="orange", annotation_text="Elevated")
-            fig_stress.add_hline(y=0.8, line_dash="dash", line_color="red", annotation_text="Crisis")
-            fig_stress.update_layout(yaxis=dict(title="Composite Stress (0-1)"), title="Market Stress Indicator")
-            st.plotly_chart(fig_stress, use_container_width=True)
-            latest = stress_index.iloc[-1]
-            color = "green" if latest<0.3 else ("orange" if latest<0.6 else "red")
-            st.markdown(f"**Current Stress Level:** <span style='color:{color}; font-weight:bold;'>{latest:.2f}</span>", unsafe_allow_html=True)
-        else:
-            st.info("Stress index not available.")
+        st.subheader("Global Stress Metrics Matrices")
+        if r_st["stress_index"] is not None and len(r_st["stress_index"]) > 0:
+            fig_st = quant_fig(350)
+            fig_st.add_trace(go.Scatter(x=r_st["stress_index"].index, y=r_st["stress_index"].values, fill="tozeroy", line=dict(color=COLORS["stress"])))
+            st.plotly_chart(fig_st, use_container_width=True)
 
-    # ----- TAB 6: INSTITUTIONAL BACKTEST -----
     with tab6:
-        st.subheader("VaR and Expected Shortfall Backtesting")
-        if 'returns' in st.session_state and 'vw' in st.session_state:
-            ret_series = returns['oil'].iloc[-252:]
-            var_series = vw.iloc[-252:] * 1.645
-            cvar_series = vw.iloc[-252:] * 2.326
-            common_idx = ret_series.index.intersection(var_series.index)
-            if len(common_idx) < 50:
-                st.warning("Insufficient data for backtest (minimum 50 observations).")
-            else:
-                bt_res = backtest_var(ret_series, var_series, alpha=0.05)
-                st.metric("Model Calibration Score", f"{bt_res['calibration_score']:.3f}", 
-                          delta=">0.9 good" if bt_res['calibration_score']>0.9 else "needs improvement")
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    st.write("**VaR Tests**")
-                    st.write(f"Kupiec p-value: {bt_res['Kupiec_p']:.3f}")
-                    st.write(f"Christoffersen p-value: {bt_res['Christoffersen_p']:.3f}")
-                    st.write(f"Dynamic Quantile p-value: {bt_res['DQ_p']:.3f}")
-                with col_b:
-                    st.write("**Expected Shortfall**")
-                    es_z = backtest_es(ret_series, cvar_series, var_series)
-                    if np.isscalar(es_z) and not np.isnan(es_z):
-                        st.write(f"Acerbi Z-statistic: {es_z:.3f}")
-                    else:
-                        st.write("ES test: N/A (no violations or invalid data)")
-                st.write(f"Violations: {bt_res['n_violations']} / {len(common_idx)} (obs. freq {bt_res['obs_freq']:.3f})")
-                fig_viol = quant_fig(300)
-                r_aligned = ret_series.loc[common_idx]
-                v_aligned = var_series.loc[common_idx]
-                viol = (r_aligned < -v_aligned).astype(int)
-                fig_viol.add_trace(go.Scatter(x=common_idx, y=viol, mode='markers', name='VaR Violations'))
-                fig_viol.update_layout(xaxis=dict(title=""), yaxis=dict(title="Violation Event"))
-                st.plotly_chart(fig_viol, use_container_width=True)
-        else:
-            st.info("Run full analysis first.")
+        st.subheader("Institutional Risk Management Backtesting Verifications")
+        ret_series = r_st['returns']['oil'].iloc[-252:]
+        var_series = r_st['vw'].iloc[-252:] * 1.645
+        cvar_series = r_st['vw'].iloc[-252:] * 2.326
+        
+        bt_res = backtest_var(ret_series, var_series, alpha=0.05)
+        st.metric("Model Empirical Calibration Score", f"{bt_res['calibration_score']:.4f}")
+        
+        cx1, cx2 = st.columns(2)
+        cx1.markdown("**Statistical Backtest Significance Tests**")
+        cx1.write(f"Kupiec Proportion-of-Failures Test (p-value): {bt_res['Kupiec_p']:.4f}")
+        cx1.write(f"Christoffersen Independence Test (p-value): {bt_res['Christoffersen_p']:.4f}")
+        cx1.write(f"Dynamic Quantile Joint Violation Test (p-value): {bt_res['DQ_p']:.4f}")
+        
+        es_z = backtest_es(ret_series, cvar_series, var_series)
+        cx2.markdown("**Expected Shortfall Structural Alignment**")
+        cx2.write(f"Acerbi Multi-Quantile Z-Statistic Score: {es_z:.4f}" if not np.isnan(es_z) else "Acerbi Z-Statistic: Structural Violations Null")
 
-    # ----- TAB 7: ADVANCED ANALYTICS -----
     with tab7:
-        st.subheader("Advanced Analytics (EVT, GARCH Diagnostics, Rolling IC)")
-        st.markdown("**Extreme Value Theory – Oil Returns Tails**")
-        st.write(f"Upper tail (95%): shape={evt_tails['upper'][0]:.3f}, scale={evt_tails['upper'][1]:.3f}, threshold={evt_tails['upper'][2]:.3f}")
-        st.write(f"Lower tail (5%):  shape={evt_tails['lower'][0]:.3f}, scale={evt_tails['lower'][1]:.3f}, threshold={evt_tails['lower'][2]:.3f}")
-        st.markdown("**GARCH Residual Diagnostics**")
-        st.write(f"Ljung‑Box (5 lags) p-value: {garch_diag.get('LjungBox5', np.nan):.3f}")
-        st.write(f"Ljung‑Box (10 lags) p-value: {garch_diag.get('LjungBox10', np.nan):.3f}")
-        st.write(f"ARCH LM test p-value: {garch_diag.get('ARCH_LM_p', np.nan):.3f}")
-        st.markdown("**GeoFactor Predictive Power**")
-        st.metric("Hit Ratio (direction, lag=1)", f"{hit:.3f}" if not np.isnan(hit) else "N/A")
-        if rolling_ic_series is not None and len(rolling_ic_series) > 10:
-            fig_ic = quant_fig(400)
-            fig_ic.add_trace(go.Scatter(x=rolling_ic_series.index, y=rolling_ic_series.values, name="Rolling IC (1y)"))
-            fig_ic.add_hline(y=0, line_dash="dash", line_color="gray")
-            fig_ic.update_layout(title="Information Coefficient – GeoFactor vs Future Returns", xaxis=dict(title=""), yaxis=dict(title="IC Corr"))
-            st.plotly_chart(fig_ic, use_container_width=True)
-        else:
-            st.info("Not enough data for rolling IC.")
+        st.subheader("Machine Learning Model Benchmarking Engine")
+        bm = r_st["ml_metrics"]
+        
+        mx1, mx2 = st.columns([1, 1])
+        with mx1:
+            st.markdown("**Out-of-Sample Predictive Model Error Framework**")
+            for model_name, path_metrics in bm.items():
+                st.write(f"**{model_name} Model Algorithm**")
+                st.write(f" Root Mean Squared Error (RMSE): `{path_metrics['RMSE']:.6f}`")
+                st.write(f" Mean Absolute Error (MAE): `{path_metrics['MAE']:.6f}`")
+        with mx2:
+            st.markdown("**SHAP Global Explanations Graph (Marginal Factor Weights)**")
+            st.pyplot(r_st["shap_fig"])
 
-    # ----- TAB 8: EXECUTIVE DASHBOARD -----
     with tab8:
-        st.subheader("Institutional Executive Dashboard")
-        if rolling_ic_series is not None and len(rolling_ic_series) > 0:
-            last_ic = rolling_ic_series.dropna().iloc[-1] if not rolling_ic_series.dropna().empty else np.nan
-            st.metric("GeoFactor IC (lag1, 1y rolling)", f"{last_ic:.3f}" if not np.isnan(last_ic) else "N/A")
-        st.metric("Regime Detection (F1 score)", "0.76 (placeholder)", help="In a full implementation, this would be computed from regime switching model.")
-        if feature_importance is not None:
-            st.subheader("Feature Importance (LASSO weights)")
-            fig_imp = go.Figure(go.Bar(x=feature_importance['importance'], y=feature_importance['feature'], orientation='h'))
-            fig_imp.update_layout(height=400, title="Marginal Contribution to GeoFactor", xaxis=dict(title="Weight Absolute Value"), yaxis=dict(title="Feature"))
-            st.plotly_chart(fig_imp, use_container_width=True)
-        if 'returns' in st.session_state and 'vw' in st.session_state:
-            ret_series = returns['oil'].iloc[-252:]
-            var_series = vw.iloc[-252:] * 1.645
-            common_idx = ret_series.index.intersection(var_series.index)
-            if len(common_idx) > 50:
-                bt_res = backtest_var(ret_series, var_series, alpha=0.05)
-                confidence = bt_res['calibration_score']
-            else:
-                confidence = 0.5
-            st.progress(confidence, text=f"Overall Model Confidence: {confidence:.0%}")
-            st.caption("Confidence derived from VaR backtesting p‑values (Kupiec, Christoffersen, DQ).")
-        st.success("GeoQuant v9.5 – ready for institutional use. For walk‑forward validation, refer to the Colab script.")
+        st.subheader("Walk-Forward Cross-Validation Matrix Analysis")
+        st.dataframe(r_st["wf_df"], use_container_width=True)
+        
+        fig_wf = quant_fig(300)
+        fig_wf.add_trace(go.Bar(x=r_st["wf_df"]["Window End"], y=r_st["wf_df"]["OOS_RMSE"], marker_color=COLORS["wti"], name="OOS Error Distribution"))
+        fig_wf.update_layout(title="Rolling Window Out-of-Sample Absolute Error Structure Bounds")
+        st.plotly_chart(fig_wf, use_container_width=True)
 
     st.divider()
-    st.caption(f"GeoQuant · EVT + DCC + GARCH-X · {mc_sims:,} MC paths · Eduardo Moraes · Quant Data Scientist & Economics · {now_sp.strftime('%d %b %Y')}")
+    st.caption(f"GeoQuant Integrated Verification Platform • Execution Success Flag. Engine Framework v9.5.")
 else:
-    st.info("Configure parameters in the sidebar and press 'Run Full Analysis'.")
+    st.info("Execute control dashboard metrics to compute statistical parameter arrays.")
