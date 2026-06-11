@@ -565,15 +565,15 @@ def run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol,
         "p5":(fan[5][-1]/wti0-1)*100,"p95":(fan[95][-1]/wti0-1)*100,
     }}
 
-# ── Data fetch (CORRIGIDA: usa data dinâmica e fallback robusto) ──
+# ── Data fetch (CORRIGIDA: 365 dias dinâmicos) ──
 @st.cache_data(ttl=900, show_spinner=False)
 def fetch_data(start_date=None):
     """
     Baixa dados de mercado reais usando Yahoo Finance.
-    Se start_date for None, usa 180 dias atrás (garante dados atuais).
+    Se start_date for None, usa 365 dias atrás (garante dados suficientes).
     """
     if start_date is None:
-        start_date = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d")
+        start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
     tickers_list = list(TICKERS.values())
     tickers_keys = list(TICKERS.keys())
     errors = []
@@ -690,9 +690,9 @@ if needs_run:
 
     prog = st.progress(0)
 
-    # 1 · Data (CORRIGIDO: não passa data fixa, usa 180 dias dinâmicos)
+    # 1 · Data (365 dias dinâmicos)
     prog.progress(10)
-    prices = fetch_data()   # <--- CORREÇÃO PRINCIPAL
+    prices = fetch_data()
 
     if prices.empty or len(prices) < 5:
         loading.empty()
@@ -843,47 +843,52 @@ with c6: st.metric("Z-Composite",    f"{float(zsc.iloc[-1]):+.3f}", "War ACTIVE"
 st.markdown('<div class="swiss-divider"></div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════
-#   § 2 · GEO SIGNALS
+#   § 2 · GEO SIGNALS (COM VERIFICAÇÃO)
 # ══════════════════════════════════════════════════════════
 st.markdown('<div class="sec-label">02 · Geopolitical Intelligence</div>', unsafe_allow_html=True)
 st.markdown('<div class="sec-title">Z-Score Composite & GeoFactor v4.0</div>', unsafe_allow_html=True)
 
-fig_geo = sw_subplots(secondary=True, height=340)
-fig_geo.add_trace(go.Scatter(
-    x=zsc.index, y=zsc.values, name="Z-Score",
-    line=dict(color=C["blue"], width=2.2),
-    fill="tozeroy", fillcolor="rgba(58,95,138,0.07)",
-), secondary_y=False)
-fig_geo.add_trace(go.Scatter(
-    x=gf.index, y=gf.values, name="GeoFactor v4.0",
-    line=dict(color=C["navy"], width=2.8),
-), secondary_y=True)
-fig_geo.add_hline(y=1.5,  line_dash="dot", line_color=C["gold_dim"], line_width=1.3, secondary_y=False)
-fig_geo.add_hline(y=-1.5, line_dash="dot", line_color=C["gold_dim"], line_width=1.3, secondary_y=False)
-fig_geo.add_hline(y=0,    line_dash="solid", line_color="#C4BDAF",   line_width=0.8, secondary_y=False)
-fig_geo.update_yaxes(title_text="Z-Score",    secondary_y=False, **SWISS_LAYOUT["yaxis"])
-fig_geo.update_yaxes(title_text="GeoFactor",  secondary_y=True,  **SWISS_LAYOUT["yaxis"])
-st.plotly_chart(fig_geo, use_container_width=True)
-
+if zsc is None or len(zsc) < 5 or gf is None or len(gf) < 5:
+    st.warning(f"Dados insuficientes para gerar o gráfico. Z-Score: {len(zsc) if zsc is not None else 0} pontos, GeoFactor: {len(gf) if gf is not None else 0} pontos.")
+    st.info("Isso pode ocorrer no primeiro carregamento ou se a janela de dados for muito curta. Tente rodar novamente em alguns segundos.")
+else:
+    fig_geo = sw_subplots(secondary=True, height=340)
+    fig_geo.add_trace(go.Scatter(
+        x=zsc.index, y=zsc.values, name="Z-Score",
+        line=dict(color=C["blue"], width=2.2),
+        fill="tozeroy", fillcolor="rgba(58,95,138,0.07)",
+    ), secondary_y=False)
+    fig_geo.add_trace(go.Scatter(
+        x=gf.index, y=gf.values, name="GeoFactor v4.0",
+        line=dict(color=C["navy"], width=2.8),
+    ), secondary_y=True)
+    fig_geo.add_hline(y=1.5,  line_dash="dot", line_color=C["gold_dim"], line_width=1.3, secondary_y=False)
+    fig_geo.add_hline(y=-1.5, line_dash="dot", line_color=C["gold_dim"], line_width=1.3, secondary_y=False)
+    fig_geo.add_hline(y=0,    line_dash="solid", line_color="#C4BDAF",   line_width=0.8, secondary_y=False)
+    fig_geo.update_yaxes(title_text="Z-Score",    secondary_y=False, **SWISS_LAYOUT["yaxis"])
+    fig_geo.update_yaxes(title_text="GeoFactor",  secondary_y=True,  **SWISS_LAYOUT["yaxis"])
+    st.plotly_chart(fig_geo, use_container_width=True)
 st.markdown('<div class="swiss-divider"></div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════
-#   § 3 · VOLATILITY
+#   § 3 · VOLATILITY (COM VERIFICAÇÃO)
 # ══════════════════════════════════════════════════════════
 st.markdown('<div class="sec-label">03 · Volatility Surface</div>', unsafe_allow_html=True)
 st.markdown('<div class="sec-title">GARCH-X + Adaptive Bayesian Shrinkage</div>', unsafe_allow_html=True)
 
-fig_vol = sw_fig(height=320)
-fig_vol.add_trace(go.Scatter(x=vw.index, y=vw*np.sqrt(252)*100, name="WTI",   line=dict(color=C["navy"],     width=2.2)))
-fig_vol.add_trace(go.Scatter(x=vb.index, y=vb*np.sqrt(252)*100, name="Brent", line=dict(color=C["blue"],     width=2.2, dash="dash")))
-fig_vol.add_trace(go.Scatter(x=vg.index, y=vg*np.sqrt(252)*100, name="Gold",  line=dict(color=C["gold"],     width=2.0, dash="dot")))
-fig_vol.add_hrect(y0=25, y1=45, fillcolor="rgba(61,107,79,0.05)", line_width=0,
-    annotation_text="Normal band 25–45%", annotation_position="top left",
-    annotation_font=dict(size=10, color=C["gray"], family="DM Mono, monospace"))
-fig_vol.update_layout(yaxis_ticksuffix="%")
-st.plotly_chart(fig_vol, use_container_width=True)
+if vw is None or len(vw) < 5:
+    st.warning("Dados de volatilidade insuficientes para gerar o gráfico.")
+else:
+    fig_vol = sw_fig(height=320)
+    fig_vol.add_trace(go.Scatter(x=vw.index, y=vw*np.sqrt(252)*100, name="WTI",   line=dict(color=C["navy"],     width=2.2)))
+    fig_vol.add_trace(go.Scatter(x=vb.index, y=vb*np.sqrt(252)*100, name="Brent", line=dict(color=C["blue"],     width=2.2, dash="dash")))
+    fig_vol.add_trace(go.Scatter(x=vg.index, y=vg*np.sqrt(252)*100, name="Gold",  line=dict(color=C["gold"],     width=2.0, dash="dot")))
+    fig_vol.add_hrect(y0=25, y1=45, fillcolor="rgba(61,107,79,0.05)", line_width=0,
+        annotation_text="Normal band 25–45%", annotation_position="top left",
+        annotation_font=dict(size=10, color=C["gray"], family="DM Mono, monospace"))
+    fig_vol.update_layout(yaxis_ticksuffix="%")
+    st.plotly_chart(fig_vol, use_container_width=True)
 
-# Shrinkage note
 st.markdown(f"""
 <div class="info-block">
 <strong>Bayesian Shrinkage</strong> &nbsp;·&nbsp;
@@ -891,7 +896,6 @@ WTI {dw_d['vga']:.0f}% → <strong>{dw_d['vsa']:.0f}%</strong> (w={dw_d['w']:.2f
 Brent {db_d['vga']:.0f}% → <strong>{db_d['vsa']:.0f}%</strong> (w={db_d['w']:.2f}) &nbsp;·&nbsp;
 DCC α={dcc_a:.4f} β={dcc_b:.4f} · persist={(dcc_a+dcc_b):.4f}
 </div>""", unsafe_allow_html=True)
-
 st.markdown('<div class="swiss-divider"></div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════
@@ -903,41 +907,47 @@ st.markdown('<div class="sec-title">Fertilizer Pressure · Gold Signals</div>', 
 col_a, col_b = st.columns(2)
 
 with col_a:
-    ng_vol = returns["natgas"].rolling(20).std()*np.sqrt(252)*100
-    fig_f  = sw_subplots(secondary=True, height=310)
-    fig_f.add_trace(go.Scatter(
-        x=fi.index, y=fi.values, name="Fert Stress",
-        fill="tozeroy", fillcolor="rgba(95,107,71,0.1)",
-        line=dict(color=C["sage"], width=2.2)
-    ), secondary_y=False)
-    fig_f.add_trace(go.Scatter(
-        x=ng_vol.index, y=ng_vol.values, name="NatGas Vol",
-        line=dict(color=C["teal"], width=1.8, dash="dash")
-    ), secondary_y=True)
-    fig_f.update_yaxes(title_text="Fert Index",    secondary_y=False, **SWISS_LAYOUT["yaxis"])
-    fig_f.update_yaxes(title_text="NatGas Vol %",  secondary_y=True,  **SWISS_LAYOUT["yaxis"])
-    st.plotly_chart(fig_f, use_container_width=True)
+    if fi is None or len(fi) < 5:
+        st.warning("Dados do índice de fertilizantes insuficientes.")
+    else:
+        ng_vol = returns["natgas"].rolling(20).std()*np.sqrt(252)*100
+        fig_f  = sw_subplots(secondary=True, height=310)
+        fig_f.add_trace(go.Scatter(
+            x=fi.index, y=fi.values, name="Fert Stress",
+            fill="tozeroy", fillcolor="rgba(95,107,71,0.1)",
+            line=dict(color=C["sage"], width=2.2)
+        ), secondary_y=False)
+        fig_f.add_trace(go.Scatter(
+            x=ng_vol.index, y=ng_vol.values, name="NatGas Vol",
+            line=dict(color=C["teal"], width=1.8, dash="dash")
+        ), secondary_y=True)
+        fig_f.update_yaxes(title_text="Fert Index",    secondary_y=False, **SWISS_LAYOUT["yaxis"])
+        fig_f.update_yaxes(title_text="NatGas Vol %",  secondary_y=True,  **SWISS_LAYOUT["yaxis"])
+        st.plotly_chart(fig_f, use_container_width=True)
     bs_str = f" · ⚠ Black Swan ×{bs:.2f}" if bs>1.2 else ""
     st.markdown(f'<div class="info-block">Urea ${usda["urea_price"]:.0f}/t &nbsp;·&nbsp; DAP ${usda["dap_price"]:.0f}/t{bs_str}<br><span style="font-size:0.62rem;font-family:\'DM Mono\',monospace;">{usda["source"]}</span></div>', unsafe_allow_html=True)
 
 with col_b:
-    gr_b = float(gs["gold_real"].dropna().iloc[0])
-    sg_b = float(gs["silver_gold"].dropna().iloc[0])
-    fig_g = sw_subplots(secondary=True, height=310)
-    fig_g.add_trace(go.Scatter(
-        x=gs["gold_real"].dropna().index,
-        y=(gs["gold_real"].dropna()/gr_b).values,
-        name="Gold/Real Yield", line=dict(color=C["gold"], width=2.2)
-    ), secondary_y=False)
-    fig_g.add_trace(go.Scatter(
-        x=gs["silver_gold"].dropna().index,
-        y=(gs["silver_gold"].dropna()/sg_b).values,
-        name="Silver/Gold", line=dict(color=C["silver"], width=1.8, dash="dash")
-    ), secondary_y=True)
-    fig_g.add_hline(y=1.0, line_dash="dot", line_color="#C4BDAF", line_width=1.2, secondary_y=False)
-    fig_g.update_yaxes(title_text="Gold/Real Yield (norm)", secondary_y=False, **SWISS_LAYOUT["yaxis"])
-    fig_g.update_yaxes(title_text="Silver/Gold (norm)",     secondary_y=True,  **SWISS_LAYOUT["yaxis"])
-    st.plotly_chart(fig_g, use_container_width=True)
+    if gs is None or gs["gold_real"].dropna().empty:
+        st.warning("Dados de ouro insuficientes.")
+    else:
+        gr_b = float(gs["gold_real"].dropna().iloc[0])
+        sg_b = float(gs["silver_gold"].dropna().iloc[0])
+        fig_g = sw_subplots(secondary=True, height=310)
+        fig_g.add_trace(go.Scatter(
+            x=gs["gold_real"].dropna().index,
+            y=(gs["gold_real"].dropna()/gr_b).values,
+            name="Gold/Real Yield", line=dict(color=C["gold"], width=2.2)
+        ), secondary_y=False)
+        fig_g.add_trace(go.Scatter(
+            x=gs["silver_gold"].dropna().index,
+            y=(gs["silver_gold"].dropna()/sg_b).values,
+            name="Silver/Gold", line=dict(color=C["silver"], width=1.8, dash="dash")
+        ), secondary_y=True)
+        fig_g.add_hline(y=1.0, line_dash="dot", line_color="#C4BDAF", line_width=1.2, secondary_y=False)
+        fig_g.update_yaxes(title_text="Gold/Real Yield (norm)", secondary_y=False, **SWISS_LAYOUT["yaxis"])
+        fig_g.update_yaxes(title_text="Silver/Gold (norm)",     secondary_y=True,  **SWISS_LAYOUT["yaxis"])
+        st.plotly_chart(fig_g, use_container_width=True)
 
 st.markdown('<div class="swiss-divider"></div>', unsafe_allow_html=True)
 
@@ -960,51 +970,53 @@ st.plotly_chart(fig_ag, use_container_width=True)
 st.markdown('<div class="swiss-divider"></div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════
-#   § 6 · MONTE CARLO FAN
+#   § 6 · MONTE CARLO FAN (COM VERIFICAÇÃO)
 # ══════════════════════════════════════════════════════════
 war_note = "  ⚑ War Boost" if war_t else ""
 bs_note  = f"  ⚠ Fert BS ×{bs:.2f}" if bs>1.2 else ""
 st.markdown('<div class="sec-label">06 · Probabilistic Forecast</div>', unsafe_allow_html=True)
 st.markdown(f'<div class="sec-title">Monte Carlo · EVT+DCC · {mc_sims:,} paths × {mc_steps}d{war_note}{bs_note}</div>', unsafe_allow_html=True)
 
-x_ax = list(range(mc_steps+1))
-fig_mc = sw_fig(height=500)
-fig_mc.add_trace(go.Scatter(
-    x=x_ax+x_ax[::-1], y=list(fan[95])+list(fan[5][::-1]),
-    fill="toself", fillcolor="rgba(196,189,175,0.20)",
-    line=dict(width=0), name="WTI 90% CI"))
-fig_mc.add_trace(go.Scatter(
-    x=x_ax+x_ax[::-1], y=list(fan[75])+list(fan[25][::-1]),
-    fill="toself", fillcolor="rgba(158,148,136,0.30)",
-    line=dict(width=0), name="WTI 50% CI"))
-fig_mc.add_trace(go.Scatter(
-    x=x_ax, y=list(fan_b[50]),
-    name=f"Brent P50 → ${fan_b[50][-1]:.2f}",
-    line=dict(color=C["blue"], width=2.2, dash="dash")))
-fig_mc.add_trace(go.Scatter(
-    x=x_ax, y=list(fan[50]),
-    name=f"WTI P50 → ${fan[50][-1]:.2f}",
-    line=dict(color=C["navy"], width=3.5)))
-fig_mc.add_trace(go.Scatter(
-    x=x_ax, y=list(fan[95]),
-    name=f"P95 → ${fan[95][-1]:.2f}",
-    line=dict(color=C["gold_dim"], width=1.4, dash="dot")))
-fig_mc.add_trace(go.Scatter(
-    x=x_ax, y=list(fan[5]),
-    name=f"P5 → ${fan[5][-1]:.2f}",
-    line=dict(color=C["gold_dim"], width=1.4, dash="dot")))
-fig_mc.add_hline(y=wti0,  line_dash="dash",  line_color="#8C8377", line_width=1.4,
-    annotation_text=f"Current ${wti0:.2f}", annotation_font=dict(family="DM Mono",size=10,color="#8C8377"))
-fig_mc.add_hline(y=40,   line_dash="dot",   line_color=C["rust"],  line_width=1.4,
-    annotation_text="Stress $40",  annotation_font=dict(family="DM Mono",size=10,color=C["rust"]))
-fig_mc.add_hline(y=150,  line_dash="dot",   line_color=C["rust"],  line_width=1.4,
-    annotation_text="Stress $150", annotation_font=dict(family="DM Mono",size=10,color=C["rust"]))
-fig_mc.update_layout(
-    xaxis=dict(title="Trading Days Ahead", **SWISS_LAYOUT["xaxis"]),
-    yaxis=dict(title="Price (USD/bbl)", tickprefix="$", **SWISS_LAYOUT["yaxis"]),
-)
-st.plotly_chart(fig_mc, use_container_width=True)
-
+if fan is None or len(fan[50]) < 2:
+    st.warning("Resultados do Monte Carlo não disponíveis para exibição. Tente rodar novamente com mais paths ou horizonte menor.")
+else:
+    x_ax = list(range(mc_steps+1))
+    fig_mc = sw_fig(height=500)
+    fig_mc.add_trace(go.Scatter(
+        x=x_ax+x_ax[::-1], y=list(fan[95])+list(fan[5][::-1]),
+        fill="toself", fillcolor="rgba(196,189,175,0.20)",
+        line=dict(width=0), name="WTI 90% CI"))
+    fig_mc.add_trace(go.Scatter(
+        x=x_ax+x_ax[::-1], y=list(fan[75])+list(fan[25][::-1]),
+        fill="toself", fillcolor="rgba(158,148,136,0.30)",
+        line=dict(width=0), name="WTI 50% CI"))
+    fig_mc.add_trace(go.Scatter(
+        x=x_ax, y=list(fan_b[50]),
+        name=f"Brent P50 → ${fan_b[50][-1]:.2f}",
+        line=dict(color=C["blue"], width=2.2, dash="dash")))
+    fig_mc.add_trace(go.Scatter(
+        x=x_ax, y=list(fan[50]),
+        name=f"WTI P50 → ${fan[50][-1]:.2f}",
+        line=dict(color=C["navy"], width=3.5)))
+    fig_mc.add_trace(go.Scatter(
+        x=x_ax, y=list(fan[95]),
+        name=f"P95 → ${fan[95][-1]:.2f}",
+        line=dict(color=C["gold_dim"], width=1.4, dash="dot")))
+    fig_mc.add_trace(go.Scatter(
+        x=x_ax, y=list(fan[5]),
+        name=f"P5 → ${fan[5][-1]:.2f}",
+        line=dict(color=C["gold_dim"], width=1.4, dash="dot")))
+    fig_mc.add_hline(y=wti0,  line_dash="dash",  line_color="#8C8377", line_width=1.4,
+        annotation_text=f"Current ${wti0:.2f}", annotation_font=dict(family="DM Mono",size=10,color="#8C8377"))
+    fig_mc.add_hline(y=40,   line_dash="dot",   line_color=C["rust"],  line_width=1.4,
+        annotation_text="Stress $40",  annotation_font=dict(family="DM Mono",size=10,color=C["rust"]))
+    fig_mc.add_hline(y=150,  line_dash="dot",   line_color=C["rust"],  line_width=1.4,
+        annotation_text="Stress $150", annotation_font=dict(family="DM Mono",size=10,color=C["rust"]))
+    fig_mc.update_layout(
+        xaxis=dict(title="Trading Days Ahead", **SWISS_LAYOUT["xaxis"]),
+        yaxis=dict(title="Price (USD/bbl)", tickprefix="$", **SWISS_LAYOUT["yaxis"]),
+    )
+    st.plotly_chart(fig_mc, use_container_width=True)
 st.markdown('<div class="swiss-divider"></div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════
