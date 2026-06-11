@@ -21,7 +21,7 @@ from scipy.stats import chi2, skew, kurtosis
 from sklearn.linear_model import LassoCV
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error
-from sklearn.model_selection import TimeSeriesSplit
+from sklearn.model_selection import TimeSeriesSplit, train_test_split
 from statsmodels.tsa.vector_ar.var_model import VAR
 from statsmodels.discrete.discrete_model import Logit
 from statsmodels.stats.diagnostic import acorr_ljungbox, het_arch
@@ -236,7 +236,7 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
 """, unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════
-#   SANITIZATION FUNCTIONS (eliminate undefined/NaN/None)
+#   SANITIZATION FUNCTIONS
 # ══════════════════════════════════════════════════════════
 def safe_text(value):
     if value is None or (isinstance(value, float) and np.isnan(value)):
@@ -717,7 +717,18 @@ def benchmark_ml(returns_df, target_col="oil"):
     ci = features.index.intersection(target.index)
     X, y = features.loc[ci], target.loc[ci]
     
-    tscv = TimeSeriesSplit(n_splits=5)
+    # Proteção contra datasets muito pequenos
+    if len(X) < 10:
+        return {
+            "RandomForest": {"RMSE": np.nan, "MAE": np.nan, "MAPE": np.nan, "Directional Accuracy": "—"},
+            "XGBoost": {"RMSE": np.nan, "MAE": np.nan, "MAPE": np.nan, "Directional Accuracy": "—"},
+            "LightGBM": {"RMSE": np.nan, "MAE": np.nan, "MAPE": np.nan, "Directional Accuracy": "—"}
+        }, X, y
+    
+    n_splits = min(5, len(X) // 3)  # Garantir splits adequados
+    n_splits = max(2, n_splits)  # Mínimo de 2 splits
+    tscv = TimeSeriesSplit(n_splits=n_splits)
+    
     models = {
         "RandomForest": RandomForestRegressor(n_estimators=100, random_state=42),
         "XGBoost": xgb.XGBRegressor(n_estimators=100, random_state=42, verbosity=0),
