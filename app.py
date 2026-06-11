@@ -455,16 +455,10 @@ def fill_gaps(s):
 # ============================================================
 @st.cache_data(ttl=86400, show_spinner=False)
 def fetch_wb_fertilizer(series_id):
-    """
-    Busca preços mensais de fertilizantes do World Bank Pink Sheet.
-    series_id: 'UREA' ou 'DAP'.
-    Retorna pd.Series com índice datetime e valores em USD/ton.
-    """
     try:
         url = f"https://api.worldbank.org/v2/en/indicator/{series_id}?format=json"
         resp = requests.get(url, timeout=10)
         data = resp.json()
-        # A estrutura é [metadata, [{countryiso, date, value, ...}, ...]]
         if len(data) < 2 or data[1] is None:
             return pd.Series(dtype=float)
         records = data[1]
@@ -480,7 +474,6 @@ def fetch_wb_fertilizer(series_id):
         return pd.Series(dtype=float)
 
 def _force_update_fert_csv(path="fertilizer_backup.csv"):
-    # Mantido como fallback caso a API falhe
     with open(path, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["date","urea_price","dap_price"])
@@ -489,22 +482,15 @@ def _force_update_fert_csv(path="fertilizer_backup.csv"):
                      ["2026-05-12",857,920],["2026-06-01",860,925],["2026-06-10",453.5,920]])
 
 def get_usda():
-    """Obtém preços atuais de ureia e DAP, preferencialmente via World Bank, com fallback para CSV."""
-    # Tenta World Bank primeiro
     urea_wb = fetch_wb_fertilizer("UREA")
     dap_wb = fetch_wb_fertilizer("DAP")
-
     urea_val = None
     dap_val = None
     source = "World Bank"
-
     if len(urea_wb) > 0:
-        # Pega o último valor disponível (que pode ter defasagem de ~1 mês)
         urea_val = urea_wb.iloc[-1]
     if len(dap_wb) > 0:
         dap_val = dap_wb.iloc[-1]
-
-    # Se ambos foram obtidos, retorna
     if urea_val is not None and dap_val is not None:
         return {
             "urea_price": urea_val,
@@ -513,8 +499,6 @@ def get_usda():
             "dap_period": str(dap_wb.index[-1].date()),
             "source": source
         }
-
-    # Fallback para CSV local
     _force_update_fert_csv()
     try:
         df = pd.read_csv("fertilizer_backup.csv", parse_dates=["date"], index_col="date").sort_index()
@@ -532,7 +516,6 @@ def get_usda():
         return {"urea_price":453.5,"urea_period":"2026-06-10","dap_price":920,"dap_period":"2026-06-10","source":"fallback"}
 
 def fert_black_swan(usda):
-    # A função continua usando o backup CSV como base histórica para EVT
     _force_update_fert_csv()
     try:
         df = pd.read_csv("fertilizer_backup.csv", parse_dates=["date"], index_col="date")
@@ -639,9 +622,23 @@ def build_zscore(prices, gs, window=60):
     z3 = rolling_zscore(gs["gold_real"], w)
     return (ZSC_W["oil_gold"]*z1 + ZSC_W["oil_natgas"]*z2 + ZSC_W["gold_real"]*z3).dropna()
 
-def fit_egarch(ret, exog=None):
+# ============================================================
+#   NOVA FUNÇÃO DE VOLATILIDADE ADAPTATIVA (EGARCH ou EWMA)
+# ============================================================
+def fit_volatility(ret, exog=None, min_obs_egarch=100):
+    """
+    Retorna volatilidade condicional anualizada.
+    Se len(ret.dropna()) < min_obs_egarch, usa EWMA (span=20), senão EGARCH(1,1) normal.
+    """
     r = ret.dropna()
-    if len(r) < 50: return pd.Series(r.std(), index=ret.index).ffill().bfill()
+    if len(r) < 5:
+        return pd.Series(r.std(), index=ret.index).ffill().bfill(), "EWMA (fallback)"
+
+    if len(r) < min_obs_egarch:
+        # EWMA com span=20 (~lambda=0.94)
+        vol_ewma = r.ewm(span=20, min_periods=5).std()
+        vol_series = vol_ewma.reindex(ret.index).ffill().bfill()
+        return vol_series, "EWMA (janela curta)"
     try:
         rc = r * 100
         if exog is not None and not exog.empty:
@@ -651,11 +648,18 @@ def fit_egarch(ret, exog=None):
                 xc = exog.loc[common].to_frame() if isinstance(exog, pd.Series) else exog.loc[common]
                 model = arch_model(rc, x=xc, mean="Constant", vol="EGARCH", p=1, q=1, dist="skewt")
                 res = model.fit(disp="off")
-                return (res.conditional_volatility / 100).reindex(ret.index).ffill().bfill()
+                return (res.conditional_volatility / 100).reindex(ret.index).ffill().bfill(), "EGARCH"
         model = arch_model(rc, mean="Constant", vol="EGARCH", p=1, q=1, dist="skewt")
         res = model.fit(disp="off")
-        return (res.conditional_volatility / 100).reindex(ret.index).ffill().bfill()
-    except: return pd.Series(r.rolling(20).std().mean(), index=ret.index).ffill().bfill()
+        return (res.conditional_volatility / 100).reindex(ret.index).ffill().bfill(), "EGARCH"
+    except:
+        # fallback para EWMA se EGARCH falhar
+        vol_ewma = r.ewm(span=20, min_periods=5).std()
+        return vol_ewma.reindex(ret.index).ffill().bfill(), "EWMA (fallback EGARCH)"
+
+# Mantida para compatibilidade, mas não mais usada diretamente
+def fit_egarch(ret, exog=None):
+    return fit_volatility(ret, exog)[0]
 
 def conditional_evt(returns, vol, q=0.95, min_obs=30):
     common = returns.dropna().index.intersection(vol.dropna().index)
@@ -827,13 +831,24 @@ def run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase, rw, rb, vws, vbs, jpu
         }
     }
 
+# ============================================================
+#   BACKTESTING E DIAGNÓSTICOS ADAPTATIVOS
+# ============================================================
 def backtest_var(returns, var_forecast, alpha=0.05):
     ci = returns.index.intersection(var_forecast.index)
-    if len(ci) == 0: return {"calibration_score": 0, "Kupiec_p": 1, "Christoffersen_p": 1, "DQ_p": 1, "n_violations": 0, "obs_freq": 0}
+    n = len(ci)
+    if n == 0:
+        return {"n_violations": 0, "obs_freq": 0, "exp_freq": alpha, "Kupiec_p": 1, "Christoffersen_p": 1, "DQ_p": 1, "calibration_score": 0, "insufficient_data": True}
     r, v = returns.loc[ci], var_forecast.loc[ci]
     violations = (r < -v).astype(int)
-    n, nv = len(violations), violations.sum()
-    po, pe = nv / n, alpha
+    nv = violations.sum()
+    po = nv / n
+    pe = alpha
+    if n < 100:
+        # Dados insuficientes para testes de hipótese – retornar apenas violações
+        return {"n_violations": int(nv), "obs_freq": po, "exp_freq": pe,
+                "Kupiec_p": None, "Christoffersen_p": None, "DQ_p": None,
+                "calibration_score": None, "insufficient_data": True}
     kp = 1 - chi2.cdf(-2 * np.log(((1-pe)**(n-nv) * pe**nv) / ((1-po)**(n-nv) * po**nv)), 1) if 0 < nv < n else 0.5
     if n > 1:
         n00 = ((violations[:-1]==0) & (violations[1:]==0)).sum()
@@ -846,7 +861,9 @@ def backtest_var(returns, var_forecast, alpha=0.05):
     else: cp = 0.5
     try: dq = 1 - chi2.cdf(Logit(violations, pd.DataFrame({"const": 1, "lag": violations.shift(1).fillna(0)})).fit(disp=0).llr, 2)
     except: dq = 1.0
-    return {"n_violations": int(nv), "obs_freq": po, "exp_freq": pe, "Kupiec_p": kp, "Christoffersen_p": cp, "DQ_p": dq, "calibration_score": 1 - np.mean([kp, cp, dq])}
+    return {"n_violations": int(nv), "obs_freq": po, "exp_freq": pe,
+            "Kupiec_p": kp, "Christoffersen_p": cp, "DQ_p": dq,
+            "calibration_score": 1 - np.mean([kp, cp, dq]), "insufficient_data": False}
 
 def backtest_es(returns, cvar_val, var_forecast):
     ci = returns.index.intersection(var_forecast.index)
@@ -857,6 +874,18 @@ def backtest_es(returns, cvar_val, var_forecast):
     if viol.sum() == 0 or np.isnan(cv): return np.nan
     return float(((r[viol==1] + v[viol==1]).sum() / (viol.sum() * cv)) - 1)
 
+def garch_diagnostics(resid):
+    r = resid.dropna()
+    if len(r) < 20: return {"LB5": np.nan, "LB10": np.nan, "ARCH_p": np.nan}
+    lb = acorr_ljungbox(r, lags=[5,10], return_df=True)
+    arch = het_arch(r**2, nlags=10)
+    return {"LB5": lb.loc[5, "lb_pvalue"] if 5 in lb.index else np.nan,
+            "LB10": lb.loc[10, "lb_pvalue"] if 10 in lb.index else np.nan,
+            "ARCH_p": arch[1] if len(arch) > 1 else np.nan}
+
+# ============================================================
+#   DEMAIS FUNÇÕES (ML, SHAP, etc.)
+# ============================================================
 def walk_forward_validation(returns_series, train_years=2, test_months=3):
     dates = returns_series.index
     ts, qs = int(train_years * 252), int(test_months * 21)
@@ -920,15 +949,6 @@ def run_shap(X, y):
     shap.summary_plot(sv, X, show=False, plot_size=None)
     plt.tight_layout()
     return fig, sv, X.columns
-
-def garch_diagnostics(resid):
-    r = resid.dropna()
-    if len(r) < 20: return {"LB5": np.nan, "LB10": np.nan, "ARCH_p": np.nan}
-    lb = acorr_ljungbox(r, lags=[5,10], return_df=True)
-    arch = het_arch(r**2, nlags=10)
-    return {"LB5": lb.loc[5, "lb_pvalue"] if 5 in lb.index else np.nan,
-            "LB10": lb.loc[10, "lb_pvalue"] if 10 in lb.index else np.nan,
-            "ARCH_p": arch[1] if len(arch) > 1 else np.nan}
 
 @st.cache_data(ttl=60, show_spinner=False)
 def fetch_data(start):
@@ -998,12 +1018,10 @@ with st.sidebar:
         <div style='font-family:"Playfair Display",Georgia,serif;font-size:1.3rem;font-weight:300;color:#1E3A5F;letter-spacing:.06em;'>GeoQuant Terminal</div>
         <div style='font-family:"JetBrains Mono",monospace;font-size:.5rem;color:#7A766E;letter-spacing:.14em;margin-top:.3rem;'>Quantitative Research Infrastructure</div>
     </div>""", unsafe_allow_html=True)
-
     def slabel(t):
         st.markdown(f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:.54rem;letter-spacing:.2em;color:#B49450;text-transform:uppercase;margin:.9rem 0 .4rem;">{t}</div>', unsafe_allow_html=True)
     def ssep():
         st.markdown('<div style="height:1px;background:#D9D5CD;margin:.6rem 0;"></div>', unsafe_allow_html=True)
-
     slabel("· Simulation")
     mc_sims  = st.slider("Monte Carlo paths", 1_000, 30_000, 5_000, 1_000)
     mc_steps = st.slider("Horizon (days)", 5, 30, 10, 1)
@@ -1114,15 +1132,20 @@ if run_btn or "results" not in st.session_state:
         zsc = ensure_series(build_zscore(prices, gs))
         prog.progress(45)
         gf_clean = gf.dropna() if not gf.empty else None
-        vw = fit_egarch(returns["oil"], gf_clean)
-        vb_s = fit_egarch(returns["brent"], gf_clean)
-        vg = fit_egarch(returns["gold"], gf_clean)
+
+        # Volatilidade adaptativa (EGARCH ou EWMA)
+        vw, vol_type_wti = fit_volatility(returns["oil"], gf_clean)
+        vb_s, vol_type_brent = fit_volatility(returns["brent"], gf_clean)
+        vg, _ = fit_volatility(returns["gold"], gf_clean)
+
         pwd = prior_wti / np.sqrt(252)
         pbd = prior_brent / np.sqrt(252)
         pgd = 0.18 / np.sqrt(252)
+
         vw, dw = bayes_shrink(vw, pwd, len(returns), gf)
         vb_s, db = bayes_shrink(vb_s, pbd, len(returns), gf)
         vg, _ = bayes_shrink(vg, pgd, len(returns), gf)
+
         if hasattr(vw, 'iloc') and len(vw) > 0:
             bvw = float(vw.iloc[-1])
         else:
@@ -1131,6 +1154,7 @@ if run_btn or "results" not in st.session_state:
             bvb = float(vb_s.iloc[-1])
         else:
             bvb = float(vb_s) if not isinstance(vb_s, float) else vb_s
+
         evt_wti = conditional_evt(returns["oil"], vw)
         regimes_ts = detect_regime(vw)
         dcc_a, dcc_b, dcc_rho = fit_dcc(returns["oil"], returns["brent"], vw, vb_s)
@@ -1171,20 +1195,31 @@ if run_btn or "results" not in st.session_state:
                           np.abs(stress_c["corr"]-0.8)*2 + stress_c["geofactor"].clip(0,2)/2) / 4
         else:
             stress_idx = pd.Series([0.0], index=[prices.index[-1]])
-        gdiag = garch_diagnostics(vw)
+
+        # Backtesting adaptativo
         bt_res = backtest_var(returns["oil"].iloc[-252:], vw.iloc[-252:]*1.645 if hasattr(vw, 'iloc') else vw*1.645)
         es_z = backtest_es(returns["oil"].iloc[-252:], vw.iloc[-252:]*2.326 if hasattr(vw, 'iloc') else vw*2.326, vw.iloc[-252:]*1.645 if hasattr(vw, 'iloc') else vw*1.645)
         es_z = ensure_scalar(es_z)
+
+        gdiag = garch_diagnostics(vw)
+
         ml_metrics, X_ml, y_ml = benchmark_ml(returns)
         shap_fig, sv, feat_names = run_shap(X_ml, y_ml)
         wf_df = walk_forward_validation(returns["oil"])
-        p_vals = [gdiag["LB5"], gdiag["LB10"], gdiag["ARCH_p"],
-                  bt_res["Kupiec_p"], bt_res["Christoffersen_p"], bt_res["DQ_p"]]
-        valid_p = [p for p in p_vals if not np.isnan(p)]
-        model_score = int(np.mean(valid_p) * 100) if valid_p else 85
+
+        # Calcular score de calibração apenas se houver dados suficientes
+        if bt_res.get("insufficient_data", False):
+            model_score = None
+        else:
+            p_vals = [gdiag["LB5"], gdiag["LB10"], gdiag["ARCH_p"],
+                      bt_res["Kupiec_p"], bt_res["Christoffersen_p"], bt_res["DQ_p"]]
+            valid_p = [p for p in p_vals if not np.isnan(p)]
+            model_score = int(np.mean(valid_p) * 100) if valid_p else 85
+
         prog.progress(100)
         loading.empty()
         prog.empty()
+
         last_update = datetime.now(pytz.timezone("America/Sao_Paulo")).strftime("%d %b %Y %H:%M:%S")
         st.session_state.update({
             "results": mc,
@@ -1222,14 +1257,16 @@ if run_btn or "results" not in st.session_state:
             "feat_names": feat_names,
             "wf_df": wf_df,
             "regimes_ts": ensure_series(regimes_ts),
-            "model_score": ensure_scalar(model_score),
+            "model_score": model_score,
             "vix_fred": ensure_scalar(vix_premium),
             "eia_stocks": ensure_scalar(eia_stocks),
             "macro_proxies": {k: ensure_series(v) if isinstance(v, pd.Series) else v for k, v in macro_proxies.items()},
             "gpr": ensure_series(gpr_series),
             "cot": ensure_scalar(cot_value),
             "last_update": last_update,
-            "fert_source": usda.get("source", "fallback")
+            "fert_source": usda.get("source", "fallback"),
+            "vol_type_wti": vol_type_wti,
+            "vol_type_brent": vol_type_brent,
         })
     except Exception as e:
         loading.empty()
@@ -1258,7 +1295,7 @@ gf = S["gf"]
 
 st.markdown(f"""
 <div style="font-family:'JetBrains Mono',monospace; font-size:0.6rem; color:var(--muted); text-align:right; margin-bottom:1rem;">
-Data Freshness: <strong>{S.get('last_update', 'Unknown')}</strong> · Spot Update Interval: 10s · Fert Source: <strong>{S.get('fert_source', 'Unknown')}</strong>
+Data Freshness: <strong>{S.get('last_update', 'Unknown')}</strong> · Spot Update Interval: 10s · Fert Source: <strong>{S.get('fert_source', 'Unknown')}</strong> · Vol Engine: <strong>{S.get('vol_type_wti', 'EGARCH')}</strong>
 </div>""", unsafe_allow_html=True)
 
 csv_data = export_results_to_csv(mc, moments, fan, S["weights"], S["macro_proxies"])
@@ -1385,11 +1422,9 @@ with t_vol:
             st.info("Insufficient gold data for regime bands")
 
     with col_fert:
-        # Gráfico de fertilizantes: usa dados do World Bank (ou CSV) e exibe série temporal
         urea_series = fetch_wb_fertilizer("UREA")
         dap_series = fetch_wb_fertilizer("DAP")
         if len(urea_series) == 0:
-            # Fallback para CSV se API falhar
             _force_update_fert_csv()
             df = pd.read_csv("fertilizer_backup.csv", parse_dates=["date"], index_col="date").sort_index()
             urea_series = df["urea_price"]
@@ -1523,22 +1558,30 @@ with t_stat:
     st.dataframe(S["corr_mx"].style.background_gradient(cmap='Blues'), use_container_width=True)
 
 # ============================================================
-#   MODEL DIAGNOSTICS
+#   MODEL DIAGNOSTICS (com indicador de dados insuficientes)
 # ============================================================
 with t_diag:
     st.markdown('<div class="sec-label">06 · Model Diagnostics</div>', unsafe_allow_html=True)
     bt = S["bt_res"]
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Violations", bt["n_violations"])
-    col2.metric("Kupiec p-value", f"{bt['Kupiec_p']:.3f}")
-    col3.metric("Christoffersen p", f"{bt['Christoffersen_p']:.3f}")
-    col4.metric("DQ p-value", f"{bt['DQ_p']:.3f}")
+    if bt.get("insufficient_data", False):
+        col2.metric("Kupiec p-value", "⚠️ Insuf.")
+        col3.metric("Christoffersen p", "⚠️ Insuf.")
+        col4.metric("DQ p-value", "⚠️ Insuf.")
+    else:
+        col2.metric("Kupiec p-value", f"{bt['Kupiec_p']:.3f}")
+        col3.metric("Christoffersen p", f"{bt['Christoffersen_p']:.3f}")
+        col4.metric("DQ p-value", f"{bt['DQ_p']:.3f}")
     gd = S["gdiag"]
     col5, col6, col7 = st.columns(3)
     col5.metric("LB(5) p-value", f"{gd['LB5']:.3f}" if not np.isnan(gd['LB5']) else "—")
     col6.metric("LB(10) p-value", f"{gd['LB10']:.3f}" if not np.isnan(gd['LB10']) else "—")
     col7.metric("ARCH(10) p", f"{gd['ARCH_p']:.3f}" if not np.isnan(gd['ARCH_p']) else "—")
-    st.markdown(f'<div class="info-block">Calibration Score: {S["model_score"]}%</div>', unsafe_allow_html=True)
+    if S["model_score"] is not None:
+        st.markdown(f'<div class="info-block">Calibration Score: {S["model_score"]}%</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="info-block">⚠️ Dados insuficientes para Score de Calibração (mín. 100 observações)</div>', unsafe_allow_html=True)
 
 # ============================================================
 #   MACHINE LEARNING LEADERBOARD
