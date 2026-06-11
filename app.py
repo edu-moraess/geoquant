@@ -1,6 +1,6 @@
 """
-GeoQuant – Macro Research Terminal
-Quantitative Geopolitical Intelligence | EVT + DCC + GARCH-X
+GeoQuant – Institutional Macro Research Terminal
+Quantitative Geopolitical Intelligence | EVT + DCC + GARCH-X + AI Explainability
 Eduardo Moraes | Quant Data Scientist & Economics
 """
 
@@ -10,29 +10,33 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
-import os, csv, logging, warnings
+import os, csv, logging, warnings, json
 from datetime import datetime, timedelta
 import pytz
 from scipy.interpolate import PchipInterpolator
 from scipy import stats, optimize
 from sklearn.linear_model import LassoCV
+from sklearn.metrics import precision_recall_fscore_support, mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import StandardScaler
 from statsmodels.tsa.vector_ar.var_model import VAR
+from statsmodels.discrete.discrete_model import Logit
+from scipy.stats import chi2
 import yfinance as yf
 from arch import arch_model
-
+import warnings
 warnings.filterwarnings("ignore")
-logging.basicConfig(level=logging.WARNING)
-logger = logging.getLogger(__name__)
 
+# ----------------------------------------------------------------------
 st.set_page_config(
-    page_title="GeoQuant · Macro Research",
+    page_title="GeoQuant · Institutional Research",
     page_icon="",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # ----------------------------------------------------------------------
-# Configuration
+# CONFIGURATION
 # ----------------------------------------------------------------------
 TICKERS = {
     "oil": "CL=F", "brent": "BZ=F", "natgas": "NG=F",
@@ -56,7 +60,6 @@ SPREAD_MAX = 0.30
 FERT_BS_Z_THR = 1.5
 FERT_EVT_Q = 0.90
 
-# Plotly layout – clean, professional
 PLOTLY_LAYOUT = {
     "paper_bgcolor": "white",
     "plot_bgcolor": "#F8F9FA",
@@ -67,19 +70,11 @@ PLOTLY_LAYOUT = {
     "legend": {"bgcolor": "rgba(255,255,255,0.9)", "bordercolor": "#D1D5DB", "borderwidth": 1},
     "margin": {"l": 50, "r": 30, "t": 60, "b": 40},
 }
-
 COLORS = {
-    "wti": "#1F4E79",
-    "brent": "#2D6B6B",
-    "gold": "#C8A96E",
-    "silver": "#9CA3AF",
-    "fertilizer": "#5F6B47",
-    "natgas": "#2D6B6B",
-    "wheat": "#1F4E79",
-    "corn": "#2D6B6B",
-    "soy": "#6B7280",
-    "ci_light": "rgba(31,78,121,0.2)",
-    "ci_medium": "rgba(31,78,121,0.4)",
+    "wti": "#1F4E79", "brent": "#2D6B6B", "gold": "#C8A96E",
+    "silver": "#9CA3AF", "fertilizer": "#5F6B47", "natgas": "#2D6B6B",
+    "wheat": "#1F4E79", "corn": "#2D6B6B", "soy": "#6B7280",
+    "ci_light": "rgba(31,78,121,0.2)", "ci_medium": "rgba(31,78,121,0.4)",
     "stress": "#7A3F30",
 }
 
@@ -95,48 +90,38 @@ def quant_subplots(rows=1, cols=1, secondary=False, height=450, **kw):
     return fig
 
 # ----------------------------------------------------------------------
-# Sidebar
+# SIDEBAR
 # ----------------------------------------------------------------------
 with st.sidebar:
     st.markdown("## GeoQuant Terminal")
-    st.caption("Quantitative Research")
+    st.caption("Institutional Research")
     st.divider()
-
     mc_sims = st.slider("Monte Carlo paths", 1000, 30000, 5000, 1000)
     mc_steps = st.slider("Horizon (days)", 5, 30, 10, 1)
-
     st.divider()
     jump_up = st.slider("Jump prob up", 0.01, 0.20, 0.07, 0.01)
     jump_down = st.slider("Jump prob down", 0.01, 0.10, 0.03, 0.01)
     tail_df = st.slider("Tail df", 2.5, 8.0, 3.0, 0.5)
-
     st.divider()
     prior_wti = st.slider("WTI prior vol (annual)", 0.20, 0.65, 0.35, 0.01)
     prior_brent = st.slider("Brent prior vol (annual)", 0.20, 0.65, 0.35, 0.01)
-
     st.divider()
     war_start = st.date_input("War start reference", value=datetime(2026, 2, 28))
     run_btn = st.button("Run Full Analysis", type="primary")
-
     st.caption("FOR PROFESSIONAL USE ONLY\nNOT INVESTMENT ADVICE")
 
-# ----------------------------------------------------------------------
-# Header
-# ----------------------------------------------------------------------
 now_sp = datetime.now(pytz.timezone("America/Sao_Paulo"))
 st.markdown(
     f"""
     <div style="border-bottom: 2px solid #1F4E79; margin-bottom: 1.5rem;">
-        <h1 style="color: #1F4E79; font-weight: 400; margin-bottom: 0;">GeoQuant · Macro Research</h1>
-        <p style="color: #6B7280; font-size: 0.8rem;">Geopolitical Intelligence · Commodity Markets · EVT+DCC+GARCH-X · {now_sp.strftime('%d %B %Y · %H:%M')} (SP)</p>
+        <h1 style="color: #1F4E79; font-weight: 400; margin-bottom: 0;">GeoQuant · Institutional Research</h1>
+        <p style="color: #6B7280; font-size: 0.8rem;">Geopolitical Intelligence · EVT+DCC+GARCH-X · AI Explainability · {now_sp.strftime('%d %B %Y · %H:%M')} (SP)</p>
     </div>
-    """,
-    unsafe_allow_html=True,
-)
+    """, unsafe_allow_html=True)
 
-# ----------------------------------------------------------------------
-# Core functions (all)
-# ----------------------------------------------------------------------
+# =============================================================================
+# CORE FUNCTIONS (auxiliares)
+# =============================================================================
 def rolling_zscore(s, w=60):
     return (s - s.rolling(w).mean()) / s.rolling(w).std().replace(0, np.nan)
 
@@ -153,10 +138,7 @@ def fill_gaps(s):
     except:
         return s.ffill()
 
-# Fertilizer data with real prices (June 2026)
-def _fert_csv(path="fertilizer_backup.csv"):
-    if os.path.exists(path):
-        return
+def _force_update_fertilizer_csv(path="fertilizer_backup.csv"):
     with open(path, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["date", "urea_price", "dap_price"])
@@ -165,11 +147,11 @@ def _fert_csv(path="fertilizer_backup.csv"):
             ["2026-03-15", 590, 780], ["2026-04-15", 616, 857],
             ["2026-05-01", 720, 900], ["2026-05-06", 810, 920],
             ["2026-05-12", 857, 920], ["2026-06-01", 860, 925],
-            ["2026-06-10", 453.5, 920],  # Real market price drop
+            ["2026-06-10", 453.5, 920],
         ])
 
 def get_usda():
-    _fert_csv()
+    _force_update_fertilizer_csv()
     try:
         df = pd.read_csv("fertilizer_backup.csv", parse_dates=["date"], index_col="date").sort_index()
         last = df.iloc[-1]
@@ -184,7 +166,7 @@ def get_usda():
         return {"urea_price": 453.5, "urea_period": "2026-06-10", "dap_price": 920, "dap_period": "2026-06-10", "source": "fallback"}
 
 def fert_black_swan(usda):
-    _fert_csv()
+    _force_update_fertilizer_csv()
     try:
         df = pd.read_csv("fertilizer_backup.csv", parse_dates=["date"], index_col="date")
         hist = df["urea_price"].dropna().values
@@ -201,7 +183,6 @@ def fert_black_swan(usda):
         if sig == 0:
             return 1.0
         z = (cur - mu) / sig
-        # If price drops > 2 sigma, reduce multiplier (negative black swan)
         if z < -FERT_BS_Z_THR:
             return max(0.5, 1.0 + z * 0.3)
         return min(1.0 + max(0, z - FERT_BS_Z_THR) * 0.8, 3.0)
@@ -209,7 +190,6 @@ def fert_black_swan(usda):
         shape, loc, scale = stats.genpareto.fit(exc)
         cr = np.log(cur / hist[-1])
         if cr <= thr:
-            # Strong negative return (price collapse)
             if cr < -0.1:
                 return 0.6
             return 1.0
@@ -225,8 +205,7 @@ def gold_signals(prices):
     gr = prices["gold"] / (1 + prices["tnx"].replace(0, np.nan) / 100 * 5.0)
     sg = silver / prices["gold"].replace(0, np.nan)
     return {
-        "gold_real": gr,
-        "silver_gold": sg,
+        "gold_real": gr, "silver_gold": sg,
         "gold_real_ret_roll": np.log(gr / gr.shift(1)).rolling(20).mean(),
         "silver_gold_roll": np.log(sg / sg.shift(1)).rolling(20).mean(),
     }
@@ -451,22 +430,15 @@ def fetch_data(start_date=None):
         start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
     tickers_list = list(TICKERS.values())
     tickers_keys = list(TICKERS.keys())
-    errors = []
-
     def _extract_close(raw):
-        if raw is None or raw.empty:
-            return pd.DataFrame()
+        if raw is None or raw.empty: return pd.DataFrame()
         if isinstance(raw.columns, pd.MultiIndex):
             lvl0 = raw.columns.get_level_values(0).unique().tolist()
             field = next((f for f in ["Close", "Adj Close", "Price"] if f in lvl0), None)
-            if field:
-                out = raw[field].copy()
-            else:
-                out = raw.iloc[:, :len(tickers_keys)].copy()
-        else:
-            out = raw.copy()
+            if field: out = raw[field].copy()
+            else: out = raw.iloc[:, :len(tickers_keys)].copy()
+        else: out = raw.copy()
         return out
-
     for auto_adj in [True, False]:
         try:
             raw = yf.download(tickers_list, start=start_date, progress=False, auto_adjust=auto_adj)
@@ -474,34 +446,27 @@ def fetch_data(start_date=None):
             if not out.empty and len(out) > 5:
                 out.columns = tickers_keys[:len(out.columns)]
                 return out.ffill().dropna()
-        except Exception as e:
-            errors.append(str(e))
-
+        except: pass
     try:
         raw = yf.download(tickers_list, period="180d", progress=False, auto_adjust=True)
         out = _extract_close(raw)
         if not out.empty and len(out) > 5:
             out.columns = tickers_keys[:len(out.columns)]
             return out.ffill().dropna()
-    except:
-        pass
-
+    except: pass
     frames = {}
     for key, ticker_sym in TICKERS.items():
         try:
             t = yf.Ticker(ticker_sym)
             df = t.history(start=start_date, auto_adjust=True)
-            if df.empty:
-                df = t.history(period="180d", auto_adjust=True)
+            if df.empty: df = t.history(period="180d", auto_adjust=True)
             if not df.empty:
                 col = "Close" if "Close" in df.columns else df.columns[0]
                 frames[key] = fill_gaps(df[col])
-        except:
-            pass
+        except: pass
     if frames:
         out = pd.DataFrame(frames).ffill().dropna()
-        if not out.empty and len(out) > 5:
-            return out
+        if not out.empty and len(out) > 5: return out
     return pd.DataFrame()
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -511,50 +476,126 @@ def fetch_live(last_wti=65.0, last_brt=68.0):
         b = yf.Ticker("BZ=F").fast_info
         wti = float(w.get("last_price", 0))
         brent = float(b.get("last_price", 0))
-        if wti > 0 and brent > 0:
-            return wti, brent
-    except:
-        pass
+        if wti > 0 and brent > 0: return wti, brent
+    except: pass
     try:
         d = yf.download(["CL=F", "BZ=F"], period="5d", progress=False, auto_adjust=True, threads=False)
-        if isinstance(d.columns, pd.MultiIndex):
-            d = d["Close"]
+        if isinstance(d.columns, pd.MultiIndex): d = d["Close"]
         wti = float(d["CL=F"].dropna().iloc[-1])
         brent = float(d["BZ=F"].dropna().iloc[-1])
-        if wti > 0 and brent > 0:
-            return wti, brent
-    except:
-        pass
+        if wti > 0 and brent > 0: return wti, brent
+    except: pass
     return last_wti, last_brt
 
-# ----------------------------------------------------------------------
-# Main pipeline
-# ----------------------------------------------------------------------
+# =============================================================================
+# INSTITUTIONAL FUNCTIONS (backtest, stress, sensitivity, etc.)
+# =============================================================================
+def backtest_var(returns, var_forecast, alpha=0.05):
+    violations = (returns < -var_forecast).astype(int)
+    n = len(violations)
+    n_viol = violations.sum()
+    p_obs = n_viol / n
+    p_exp = alpha
+    # Kupiec PF
+    if n_viol > 0 and n_viol < n:
+        LR_pf = -2 * np.log(((1-p_exp)**(n - n_viol) * p_exp**n_viol) / 
+                            ((1-p_obs)**(n - n_viol) * p_obs**n_viol))
+        p_pf = 1 - chi2.cdf(LR_pf, df=1)
+    else:
+        LR_pf, p_pf = 0, 0.5
+    # Christoffersen CC
+    if n > 1:
+        n_00 = ((violations[:-1] == 0) & (violations[1:] == 0)).sum()
+        n_01 = ((violations[:-1] == 0) & (violations[1:] == 1)).sum()
+        n_10 = ((violations[:-1] == 1) & (violations[1:] == 0)).sum()
+        n_11 = ((violations[:-1] == 1) & (violations[1:] == 1)).sum()
+        pi_01 = n_01 / (n_00 + n_01) if (n_00 + n_01) > 0 else 0
+        pi_11 = n_11 / (n_10 + n_11) if (n_10 + n_11) > 0 else 0
+        LR_cc = -2 * np.log(((1-p_exp)**(n-1 - (n_01+n_11)) * p_exp**(n_01+n_11)) /
+                           ((1-pi_01)**(n_00) * pi_01**n_01 * (1-pi_11)**(n_10) * pi_11**n_11)) if (n_01+n_11)>0 else 0
+        p_cc = 1 - chi2.cdf(LR_cc, df=1) if LR_cc>0 else 0.5
+    else:
+        LR_cc, p_cc = 0, 0.5
+    # Dynamic Quantile test
+    X = pd.DataFrame({'const': 1, 'hit_lag1': violations.shift(1).fillna(0)})
+    try:
+        model = Logit(violations, X).fit(disp=0)
+        dq_stat = model.llr
+        p_dq = 1 - chi2.cdf(dq_stat, df=X.shape[1])
+    except:
+        dq_stat, p_dq = 0, 1
+    return {
+        "n_violations": int(n_viol), "obs_freq": p_obs, "exp_freq": p_exp,
+        "Kupiec_LR": LR_pf, "Kupiec_p": p_pf,
+        "Christoffersen_LR": LR_cc, "Christoffersen_p": p_cc,
+        "DQ_stat": dq_stat, "DQ_p": p_dq,
+        "calibration_score": 1 - np.mean([p_pf, p_cc, p_dq])
+    }
+
+def geofactor_predictive_power(geofactor, returns, lags=[1,5,22]):
+    results = {}
+    for lag in lags:
+        gf_lagged = geofactor.shift(lag)
+        common = gf_lagged.dropna().index.intersection(returns.dropna().index)
+        if len(common) < 5:
+            results[f"lag_{lag}"] = {"IC": np.nan, "Rank_IC": np.nan}
+            continue
+        x = gf_lagged[common]
+        y = returns[common]
+        results[f"lag_{lag}"] = {
+            "IC": x.corr(y, method='pearson'),
+            "Rank_IC": x.corr(y, method='spearman')
+        }
+    return results
+
+def regime_classification(geofactor, threshold, volatility_series, quantile=0.75):
+    predicted = (geofactor > threshold).astype(int)
+    actual = (volatility_series > volatility_series.quantile(quantile)).astype(int)
+    if predicted.sum() == 0 or actual.sum() == 0:
+        return {"precision": 0, "recall": 0, "f1": 0}
+    precision, recall, f1, _ = precision_recall_fscore_support(actual, predicted, average='binary')
+    return {"precision": precision, "recall": recall, "f1": f1}
+
+def institutional_metrics(returns, max_drawdown):
+    ann_ret = returns.mean() * 252
+    ann_vol = returns.std() * np.sqrt(252)
+    sharpe = ann_ret / ann_vol if ann_vol != 0 else 0
+    downside = returns[returns < 0].std() * np.sqrt(252)
+    sortino = ann_ret / downside if downside != 0 else 0
+    pos = returns[returns > 0].sum() / len(returns)
+    neg = abs(returns[returns < 0].sum()) / len(returns)
+    omega = pos / neg if neg != 0 else np.inf
+    calmar = ann_ret / abs(max_drawdown) if max_drawdown != 0 else 0
+    tail_ratio = abs(np.percentile(returns, 5)) / np.percentile(returns, 95) if np.percentile(returns, 95) != 0 else np.inf
+    return {
+        "Sharpe": sharpe, "Sortino": sortino, "Omega": omega,
+        "Calmar": calmar, "TailRatio": tail_ratio, "MaxDrawdown": max_drawdown
+    }
+
+# =============================================================================
+# MAIN PIPELINE
+# =============================================================================
 needs_run = run_btn or "results" not in st.session_state
 
 if needs_run:
-    info_placeholder = st.info("Initialising quantitative terminal. Loading market data...")
+    info_placeholder = st.info("Initialising institutional terminal. Loading market data...")
     prog = st.progress(0)
-
     prog.progress(10)
     prices = fetch_data()
     if prices.empty or len(prices) < 5:
         info_placeholder.empty()
-        st.error("Failed to load market data. Check internet connection and try again.")
+        st.error("Failed to load market data. Check internet connection.")
         st.stop()
-
     for key in TICKERS:
         if key not in prices.columns:
             prices[key] = np.nan
     prices = prices.ffill().bfill()
-
     last_wti = float(prices["oil"].dropna().iloc[-1])
     last_brt = float(prices["brent"].dropna().iloc[-1])
     wti0, brt0 = fetch_live(last_wti, last_brt)
     prices.loc[prices.index[-1], "oil"] = wti0
     prices.loc[prices.index[-1], "brent"] = brt0
     returns = np.log(prices / prices.shift(1)).dropna()
-
     prog.progress(22)
     usda = get_usda()
     bs_mult = fert_black_swan(usda)
@@ -565,15 +606,12 @@ if needs_run:
     tot = sum(abs(v) for v in weights.values())
     weights = {k: v / tot for k, v in weights.items()}
     fi = build_fert_index(returns, usda, bs_mult)
-
     prog.progress(35)
     dyn_w = calibrate_weights(returns, prices, gs, fi, sd)
-    if dyn_w:
-        weights = dyn_w
+    if dyn_w: weights = dyn_w
     gf_raw = build_geofactor(returns, prices, gs, fi, weights, sd)
     gf = (gf_raw - gf_raw.mean()) / gf_raw.std() if len(gf_raw) > 1 else gf_raw
     zsc = build_zscore(prices, gs)
-
     prog.progress(50)
     vw = fit_garch(returns["oil"], gf)
     vb = fit_garch(returns["brent"], gf)
@@ -587,11 +625,10 @@ if needs_run:
     vg, _ = bayes_shrink(vg, pg_d, n)
     bvw = float(vw.iloc[-1])
     bvb = float(vb.iloc[-1])
-
     prog.progress(65)
     dcc_a, dcc_b = fit_dcc(returns["oil"], returns["brent"], vw, vb)
     rv = returns.loc[gf.index.intersection(returns.index)]
-    lags = min(5, max(1, len(rv) // 10))
+    lags = min(5, max(1, len(rv)//10))
     vm = VAR(rv).fit(lags)
     fcast = vm.forecast(rv.values[-vm.k_ar:], steps=mc_steps)
     cols = list(rv.columns)
@@ -603,7 +640,6 @@ if needs_run:
     ws = (returns["wheat"].tail(20).mean() + returns["natgas"].tail(20).mean()) / 2
     war_t = bool(ws > 0.005)
     jpu_eff = min(jump_up * 1.5, 0.15) if war_t else jump_up
-
     prog.progress(75)
     mc_note = st.empty()
     mc_note.markdown("Monte Carlo simulation in progress...")
@@ -614,7 +650,6 @@ if needs_run:
                 sims=mc_sims, steps=mc_steps, bar=mc_bar)
     mc_note.empty()
     mc_bar.empty()
-
     try:
         rj = pd.concat([returns["oil"], returns["brent"]], axis=1).dropna()
         ec = rj.ewm(alpha=0.06).cov(pairwise=True)
@@ -622,8 +657,7 @@ if needs_run:
         corr = float(np.clip(lc.loc["oil", "brent"] / np.sqrt(lc.loc["oil", "oil"] * lc.loc["brent", "brent"]), -1, 1))
     except:
         corr = 0.95
-
-    # Additional metrics for new visualizations
+    # Additional institutional metrics
     ret_ann = returns[["oil", "brent"]].mean() * 252
     vol_ann = returns[["oil", "brent"]].std() * np.sqrt(252)
     sharpe = ret_ann / vol_ann
@@ -633,29 +667,30 @@ if needs_run:
     kurt_oil = returns["oil"].kurtosis()
     skew_brt = returns["brent"].skew()
     kurt_brt = returns["brent"].kurtosis()
-
-    # Dynamic correlation matrix for heatmap
+    # Correlations matrix for heatmap
     corr_matrix = returns[["oil", "brent", "gold", "dxy", "tnx"]].dropna().corr()
-
-    # Global stress indicator (composite)
-    stress_components = pd.DataFrame({
+    # Stress index
+    stress_comp = pd.DataFrame({
         "vol_wti": vw.rolling(20).mean() * np.sqrt(252) * 100,
         "vol_brent": vb.rolling(20).mean() * np.sqrt(252) * 100,
         "corr_wti_brent": returns["oil"].rolling(20).corr(returns["brent"]),
         "gold_zscore": rolling_zscore(prices["gold"], 60),
         "geofactor": gf,
-    })
-    stress_components = stress_components.dropna()
-    stress_index = (stress_components["vol_wti"] / 50 + stress_components["vol_brent"] / 50 +
-                    np.abs(stress_components["corr_wti_brent"] - 0.8) * 2 +
-                    stress_components["gold_zscore"].clip(0, 3) / 3 +
-                    stress_components["geofactor"].clip(0, 2) / 2) / 5
-    stress_index = stress_index.clip(0, 1)
-
+    }).dropna()
+    stress_index = (stress_comp["vol_wti"]/50 + stress_comp["vol_brent"]/50 +
+                    np.abs(stress_comp["corr_wti_brent"]-0.8)*2 +
+                    stress_comp["gold_zscore"].clip(0,3)/3 +
+                    stress_comp["geofactor"].clip(0,2)/2) / 5
+    stress_index = stress_index.clip(0,1)
+    # Feature importance (from LASSO weights)
+    feature_names = list(weights.keys())
+    feature_importance = pd.DataFrame({
+        "feature": feature_names,
+        "importance": np.abs(list(weights.values()))
+    }).sort_values("importance", ascending=False)
     prog.progress(100)
     info_placeholder.empty()
     prog.empty()
-
     st.session_state.update({
         "results": mc, "gf": gf, "zsc": zsc, "vw": vw, "vb": vb, "vg": vg,
         "fi": fi, "gs": gs, "prices": prices, "returns": returns,
@@ -668,13 +703,13 @@ if needs_run:
         "skew_brt": skew_brt, "kurt_brt": kurt_brt,
         "mc_sims": mc_sims, "mc_steps": mc_steps,
         "corr_matrix": corr_matrix, "stress_index": stress_index,
+        "feature_importance": feature_importance,
     })
 
-# ----------------------------------------------------------------------
-# Display
-# ----------------------------------------------------------------------
+# =============================================================================
+# DISPLAY
+# =============================================================================
 if "results" in st.session_state:
-    # retrieve all variables
     mc = st.session_state["results"]
     gf = st.session_state["gf"]
     zsc = st.session_state["zsc"]
@@ -701,8 +736,8 @@ if "results" in st.session_state:
     fan = mc["fan"]
     fan_b = mc["fan_b"]
     M = mc["metrics"]
-    sharpe = st.session_state.get("sharpe", pd.Series([0, 0], index=["oil", "brent"]))
-    sortino = st.session_state.get("sortino", pd.Series([0, 0], index=["oil", "brent"]))
+    sharpe = st.session_state.get("sharpe", pd.Series([0,0], index=["oil","brent"]))
+    sortino = st.session_state.get("sortino", pd.Series([0,0], index=["oil","brent"]))
     skew_oil = st.session_state.get("skew_oil", 0)
     kurt_oil = st.session_state.get("kurt_oil", 0)
     skew_brt = st.session_state.get("skew_brt", 0)
@@ -711,25 +746,25 @@ if "results" in st.session_state:
     mc_steps = st.session_state.get("mc_steps", 10)
     corr_matrix = st.session_state.get("corr_matrix")
     stress_index = st.session_state.get("stress_index")
+    feature_importance = st.session_state.get("feature_importance")
     spread = brt0 - wti0
 
-    # Tabs: added "Macro & Correlations" as sixth tab
-    tab_market, tab_geo, tab_mc, tab_stats, tab_macro, tab_exec = st.tabs(
-        ["Market & Risk", "Geopolitical", "Monte Carlo", "Quantitative Stats", "Macro & Correlations", "Executive Summary"]
-    )
+    # TABS: including new institutional ones
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+        "Market & Risk", "Geopolitical", "Monte Carlo", "Quant Stats",
+        "Macro & Corr", "Institutional Backtest", "Executive Dashboard"
+    ])
 
-    # ----- Tab 1: Market & Risk -----
-    with tab_market:
+    with tab1:
         st.subheader("Live Commodity Snapshot")
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("WTI Crude", f"${wti0:.2f}", f"P50 10d ${fan[50][-1]:.2f}")
-        col2.metric("Brent Crude", f"${brt0:.2f}", f"Spread ${spread:.2f} ({spread/wti0*100:.1f}%)")
-        col3.metric("WTI Volatility (ann.)", f"{M['vol_wti']:.1f}%", f"shrunk {dw_d['vsa']:.1f}%")
-        col4.metric("Brent Volatility (ann.)", f"{M['vol_brt']:.1f}%", f"shrunk {db_d['vsa']:.1f}%")
-
+        c1,c2,c3,c4 = st.columns(4)
+        c1.metric("WTI Crude", f"${wti0:.2f}", f"P50 10d ${fan.get(50,[wti0])[-1]:.2f}")
+        c2.metric("Brent Crude", f"${brt0:.2f}", f"Spread ${spread:.2f} ({spread/wti0*100:.1f}%)")
+        c3.metric("WTI Vol (ann.)", f"{M.get('vol_wti',0):.1f}%", f"shrunk {dw_d.get('vsa',0):.1f}%")
+        c4.metric("Brent Vol (ann.)", f"{M.get('vol_brt',0):.1f}%", f"shrunk {db_d.get('vsa',0):.1f}%")
         st.divider()
-        st.subheader("Volatility Surface – GARCH-X with Bayesian Shrinkage")
-        if vw is not None and len(vw) > 5:
+        st.subheader("Volatility Surface")
+        if vw is not None and len(vw)>5:
             fig_vol = quant_fig(480)
             fig_vol.add_trace(go.Scatter(x=vw.index, y=vw*np.sqrt(252)*100, name="WTI", line=dict(color=COLORS["wti"], width=2.5)))
             fig_vol.add_trace(go.Scatter(x=vb.index, y=vb*np.sqrt(252)*100, name="Brent", line=dict(color=COLORS["brent"], width=2.5, dash="dash")))
@@ -739,33 +774,31 @@ if "results" in st.session_state:
             st.plotly_chart(fig_vol, use_container_width=True)
         else:
             st.info("Volatility data not available.")
-
         st.divider()
         st.subheader("Stress Indices")
         col_a, col_b = st.columns(2)
         with col_a:
-            if fi is not None and len(fi) > 5:
+            if fi is not None and len(fi)>5:
                 ng_vol = returns["natgas"].rolling(20).std() * np.sqrt(252) * 100
                 fig_f = quant_subplots(secondary=True, height=380)
                 fig_f.add_trace(go.Scatter(x=fi.index, y=fi.values, name="Fertilizer Stress", fill="tozeroy",
                                            fillcolor="rgba(95,107,71,0.1)", line=dict(color=COLORS["fertilizer"], width=2)), secondary_y=False)
-                fig_f.add_trace(go.Scatter(x=ng_vol.index, y=ng_vol.values, name="NatGas Volatility",
+                fig_f.add_trace(go.Scatter(x=ng_vol.index, y=ng_vol.values, name="NatGas Vol",
                                            line=dict(color=COLORS["natgas"], width=1.8, dash="dash")), secondary_y=True)
-                fig_f.update_yaxes(title_text="Fertilizer Index", secondary_y=False)
+                fig_f.update_yaxes(title_text="Fert Index", secondary_y=False)
                 fig_f.update_yaxes(title_text="NatGas Vol %", secondary_y=True)
                 st.plotly_chart(fig_f, use_container_width=True)
-            bs_str = f" · Black Swan x{bs:.2f}" if bs > 1.2 else (" · Deflationary shock" if bs < 0.8 else "")
-            st.caption(f"Urea ${usda['urea_price']:.1f}/t  |  DAP ${usda['dap_price']:.0f}/t  |  {usda['source']}{bs_str}")
-
+            bs_str = f" · Black Swan x{bs:.2f}" if bs > 1.2 else (" · Deflation" if bs < 0.8 else "")
+            st.caption(f"Urea ${usda.get('urea_price',0):.1f}/t  ·  DAP ${usda.get('dap_price',0):.0f}/t  ·  {usda.get('source','')}{bs_str}")
         with col_b:
             if gs is not None and not gs["gold_real"].dropna().empty:
                 gr_b = float(gs["gold_real"].dropna().iloc[0])
                 sg_b = float(gs["silver_gold"].dropna().iloc[0])
                 fig_g = quant_subplots(secondary=True, height=380)
                 fig_g.add_trace(go.Scatter(x=gs["gold_real"].dropna().index, y=(gs["gold_real"].dropna()/gr_b).values,
-                                           name="Gold / Real Yield", line=dict(color=COLORS["gold"], width=2)), secondary_y=False)
+                                           name="Gold/Real Yield", line=dict(color=COLORS["gold"], width=2)), secondary_y=False)
                 fig_g.add_trace(go.Scatter(x=gs["silver_gold"].dropna().index, y=(gs["silver_gold"].dropna()/sg_b).values,
-                                           name="Silver / Gold", line=dict(color=COLORS["silver"], width=1.8, dash="dash")), secondary_y=True)
+                                           name="Silver/Gold", line=dict(color=COLORS["silver"], width=1.8, dash="dash")), secondary_y=True)
                 fig_g.add_hline(y=1.0, line_dash="dot", line_color="#9CA3AF")
                 fig_g.update_yaxes(title_text="Gold/Real Yield (norm)", secondary_y=False)
                 fig_g.update_yaxes(title_text="Silver/Gold (norm)", secondary_y=True)
@@ -773,15 +806,14 @@ if "results" in st.session_state:
             else:
                 st.info("Gold signals not available.")
 
-    # ----- Tab 2: Geopolitical Intelligence -----
-    with tab_geo:
+    with tab2:
         st.subheader("Geopolitical Risk Indicators")
-        if zsc is not None and len(zsc) > 5 and gf is not None and len(gf) > 5:
+        if zsc is not None and len(zsc)>5 and gf is not None and len(gf)>5:
             fig_geo = quant_subplots(secondary=True, height=500)
             fig_geo.add_trace(go.Scatter(x=zsc.index, y=zsc.values, name="Z-Score Composite",
                                          line=dict(color=COLORS["wti"], width=2.5), fill="tozeroy",
                                          fillcolor="rgba(31,78,121,0.1)"), secondary_y=False)
-            fig_geo.add_trace(go.Scatter(x=gf.index, y=gf.values, name="GeoFactor (normalized)",
+            fig_geo.add_trace(go.Scatter(x=gf.index, y=gf.values, name="GeoFactor (norm)",
                                          line=dict(color=COLORS["gold"], width=3)), secondary_y=True)
             fig_geo.add_hline(y=1.5, line_dash="dot", line_color=COLORS["gold"], secondary_y=False)
             fig_geo.add_hline(y=-1.5, line_dash="dot", line_color=COLORS["gold"], secondary_y=False)
@@ -789,177 +821,156 @@ if "results" in st.session_state:
             fig_geo.update_yaxes(title_text="GeoFactor (σ)", secondary_y=True)
             st.plotly_chart(fig_geo, use_container_width=True)
         else:
-            st.info("Geopolitical data insufficient to generate chart.")
-
+            st.info("Geopolitical data insufficient.")
         st.divider()
         st.subheader("Agricultural Commodities – Indexed from War Start")
         fig_ag = quant_fig(450)
         for asset, color, label in [("wheat", COLORS["wheat"], "Wheat"), ("corn", COLORS["corn"], "Corn"), ("soy", COLORS["soy"], "Soy")]:
-            bv = float(prices[asset].iloc[0])
-            rel = (prices[asset] / bv * 100).dropna()
-            if len(rel) > 0:
-                fig_ag.add_trace(go.Scatter(x=rel.index, y=rel.values, name=f"{label} (base ${bv:.0f})", line=dict(color=color, width=2)))
+            if asset in prices.columns:
+                bv = float(prices[asset].iloc[0])
+                rel = (prices[asset] / bv * 100).dropna()
+                if len(rel)>0:
+                    fig_ag.add_trace(go.Scatter(x=rel.index, y=rel.values, name=f"{label} (base ${bv:.0f})", line=dict(color=color, width=2)))
         fig_ag.add_hline(y=100, line_dash="dot", line_color="#9CA3AF")
         fig_ag.update_layout(yaxis_title="Price Index (base = 100)")
         st.plotly_chart(fig_ag, use_container_width=True)
 
-    # ----- Tab 3: Monte Carlo Forecast -----
-    with tab_mc:
+    with tab3:
         war_note = " | War boost active" if war_t else ""
-        bs_note = f" | Fertilizer Black Swan x{bs:.2f}" if bs > 1.2 else (" | Fertilizer deflation" if bs < 0.8 else "")
-        st.subheader(f"Probabilistic Price Forecast – {mc_sims:,} paths, {mc_steps} days{war_note}{bs_note}")
-        if fan is not None and len(fan[50]) > 1:
-            x_ax = list(range(mc_steps + 1))
+        bs_note = f" | Black Swan x{bs:.2f}" if bs>1.2 else (" | Deflation" if bs<0.8 else "")
+        st.subheader(f"Probabilistic Forecast – {mc_sims:,} paths, {mc_steps}d{war_note}{bs_note}")
+        if fan and len(fan.get(50,[]))>1:
+            x_ax = list(range(mc_steps+1))
             fig_mc = quant_fig(550)
-            fig_mc.add_trace(go.Scatter(x=x_ax + x_ax[::-1], y=list(fan[95]) + list(fan[5][::-1]),
-                                        fill="toself", fillcolor=COLORS["ci_light"], line=dict(width=0), name="WTI 90% CI"))
-            fig_mc.add_trace(go.Scatter(x=x_ax + x_ax[::-1], y=list(fan[75]) + list(fan[25][::-1]),
-                                        fill="toself", fillcolor=COLORS["ci_medium"], line=dict(width=0), name="WTI 50% CI"))
-            fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan_b[50]), name=f"Brent P50 → ${fan_b[50][-1]:.2f}",
-                                        line=dict(color=COLORS["brent"], width=2.5, dash="dash")))
-            fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[50]), name=f"WTI P50 → ${fan[50][-1]:.2f}",
-                                        line=dict(color=COLORS["wti"], width=4)))
-            fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[95]), name=f"P95 → ${fan[95][-1]:.2f}",
-                                        line=dict(color=COLORS["gold"], width=1.5, dash="dot")))
-            fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[5]), name=f"P5 → ${fan[5][-1]:.2f}",
-                                        line=dict(color=COLORS["gold"], width=1.5, dash="dot")))
+            if 95 in fan and 5 in fan:
+                fig_mc.add_trace(go.Scatter(x=x_ax+x_ax[::-1], y=list(fan[95])+list(fan[5][::-1]),
+                                            fill="toself", fillcolor=COLORS["ci_light"], line=dict(width=0), name="WTI 90% CI"))
+            if 75 in fan and 25 in fan:
+                fig_mc.add_trace(go.Scatter(x=x_ax+x_ax[::-1], y=list(fan[75])+list(fan[25][::-1]),
+                                            fill="toself", fillcolor=COLORS["ci_medium"], line=dict(width=0), name="WTI 50% CI"))
+            if fan_b and 50 in fan_b:
+                fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan_b[50]), name=f"Brent P50 → ${fan_b[50][-1]:.2f}",
+                                            line=dict(color=COLORS["brent"], width=2.5, dash="dash")))
+            if 50 in fan:
+                fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[50]), name=f"WTI P50 → ${fan[50][-1]:.2f}",
+                                            line=dict(color=COLORS["wti"], width=4)))
+            if 95 in fan:
+                fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[95]), name=f"P95 → ${fan[95][-1]:.2f}",
+                                            line=dict(color=COLORS["gold"], width=1.5, dash="dot")))
+            if 5 in fan:
+                fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[5]), name=f"P5 → ${fan[5][-1]:.2f}",
+                                            line=dict(color=COLORS["gold"], width=1.5, dash="dot")))
             fig_mc.add_hline(y=wti0, line_dash="dash", line_color="#6B7280", annotation_text=f"Current ${wti0:.2f}")
             fig_mc.add_hline(y=40, line_dash="dot", line_color=COLORS["stress"], annotation_text="Stress $40")
             fig_mc.add_hline(y=150, line_dash="dot", line_color=COLORS["stress"], annotation_text="Stress $150")
             fig_mc.update_layout(xaxis_title="Trading Days Ahead", yaxis_title="Price (USD/bbl)", yaxis_tickprefix="$")
             st.plotly_chart(fig_mc, use_container_width=True)
-
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Probability Up 10d", f"{M['prob_up']:.1f}%")
-            c2.metric("VaR 95% 1d", f"${M['var95']:+.2f}", delta=f"CVaR ${M['cvar95']:+.2f}")
-            c3.metric("Extreme Probabilities", f"< $40: {M['prob_40']:.2f}%", delta=f"> $150: {M['prob_150']:.2f}%")
+            c1,c2,c3 = st.columns(3)
+            c1.metric("Prob Up 10d", f"{M.get('prob_up',0):.1f}%")
+            c2.metric("VaR 95% 1d", f"${M.get('var95',0):+.2f}", delta=f"CVaR ${M.get('cvar95',0):+.2f}")
+            c3.metric("Extreme Probabilities", f"< $40: {M.get('prob_40',0):.2f}%", delta=f"> $150: {M.get('prob_150',0):.2f}%")
         else:
-            st.info("Monte Carlo results not available. Run simulation first.")
+            st.info("Monte Carlo not available. Run simulation first.")
 
-    # ----- Tab 4: Quantitative Stats -----
-    with tab_stats:
+    with tab4:
         st.subheader("Risk‑Adjusted Performance")
         col1, col2 = st.columns(2)
         with col1:
             st.markdown("**WTI**")
-            st.metric("Sharpe Ratio (ann.)", f"{sharpe['oil']:.2f}")
-            st.metric("Sortino Ratio (ann.)", f"{sortino['oil']:.2f}")
-            st.metric("Skewness", f"{skew_oil:.3f}", delta="left tail" if skew_oil < 0 else "right tail")
-            st.metric("Excess Kurtosis", f"{kurt_oil:.3f}", delta="heavy tails" if kurt_oil > 0 else "thin tails")
+            st.metric("Sharpe (ann.)", f"{sharpe['oil']:.2f}")
+            st.metric("Sortino (ann.)", f"{sortino['oil']:.2f}")
+            st.metric("Skewness", f"{skew_oil:.3f}", delta="left tail" if skew_oil<0 else "right tail")
+            st.metric("Excess Kurtosis", f"{kurt_oil:.3f}")
         with col2:
             st.markdown("**Brent**")
-            st.metric("Sharpe Ratio (ann.)", f"{sharpe['brent']:.2f}")
-            st.metric("Sortino Ratio (ann.)", f"{sortino['brent']:.2f}")
+            st.metric("Sharpe (ann.)", f"{sharpe['brent']:.2f}")
+            st.metric("Sortino (ann.)", f"{sortino['brent']:.2f}")
             st.metric("Skewness", f"{skew_brt:.3f}")
             st.metric("Excess Kurtosis", f"{kurt_brt:.3f}")
-
         st.divider()
         st.subheader("DCC Correlation Dynamics")
-        st.metric("WTI–Brent Correlation (EWMA)", f"{corr:.4f}")
-        st.metric("DCC α (short‑term shock)", f"{dcc_a:.4f}", delta=f"β (persistence): {dcc_b:.4f}")
-        st.metric("DCC Persistence (α+β)", f"{dcc_a+dcc_b:.4f}")
+        st.metric("WTI–Brent ρ (EWMA)", f"{corr:.4f}")
+        st.metric("DCC α", f"{dcc_a:.4f}", delta=f"β (persistence): {dcc_b:.4f}")
+        st.metric("DCC Persistence", f"{dcc_a+dcc_b:.4f}")
 
-    # ----- Tab 5: Macro & Correlations (new) -----
-    with tab_macro:
+    with tab5:
         st.subheader("Global Market Correlations")
         if corr_matrix is not None:
-            fig_heatmap = go.Figure(data=go.Heatmap(
-                z=corr_matrix.values,
-                x=corr_matrix.columns,
-                y=corr_matrix.index,
-                colorscale="Blues",
-                zmin=-1, zmax=1,
-                text=np.round(corr_matrix.values, 2),
-                texttemplate="%{text}",
-                textfont={"size": 10},
-                hoverongaps=False,
-            ))
-            fig_heatmap.update_layout(height=450, title="Rolling Correlation Matrix (Oil, Brent, Gold, DXY, 10Y Yield)")
-            st.plotly_chart(fig_heatmap, use_container_width=True)
+            fig_heat = go.Figure(data=go.Heatmap(z=corr_matrix.values, x=corr_matrix.columns, y=corr_matrix.index,
+                                                 colorscale="Blues", zmin=-1, zmax=1, text=np.round(corr_matrix.values,2),
+                                                 texttemplate="%{text}", textfont={"size":10}))
+            fig_heat.update_layout(height=450, title="Correlation Matrix (Oil, Brent, Gold, DXY, 10Y)")
+            st.plotly_chart(fig_heat, use_container_width=True)
         else:
             st.info("Correlation matrix not available.")
-
         st.divider()
-        st.subheader("Risk-Return Profile")
-        # Scatter plot: Sharpe vs Volatility
-        risk_return = pd.DataFrame({
-            "Asset": ["WTI", "Brent"],
-            "Sharpe": [sharpe["oil"], sharpe["brent"]],
-            "Volatility": [M["vol_wti"], M["vol_brt"]],
-        })
+        st.subheader("Risk‑Return Profile")
+        risk_return = pd.DataFrame({"Asset": ["WTI","Brent"], "Sharpe": [sharpe["oil"], sharpe["brent"]],
+                                    "Volatility": [M.get("vol_wti",0), M.get("vol_brt",0)]})
         fig_scatter = go.Figure()
-        fig_scatter.add_trace(go.Scatter(
-            x=risk_return["Volatility"], y=risk_return["Sharpe"],
-            mode="markers+text", text=risk_return["Asset"],
-            textposition="top center",
-            marker=dict(size=20, color=[COLORS["wti"], COLORS["brent"]]),
-            showlegend=False,
-        ))
+        fig_scatter.add_trace(go.Scatter(x=risk_return["Volatility"], y=risk_return["Sharpe"],
+                                         mode="markers+text", text=risk_return["Asset"], textposition="top center",
+                                         marker=dict(size=20, color=[COLORS["wti"], COLORS["brent"]]), showlegend=False))
         fig_scatter.add_shape(type="line", x0=0, y0=0, x1=100, y1=2, line=dict(dash="dot", color="gray"))
-        fig_scatter.update_layout(
-            xaxis_title="Annualised Volatility (%)",
-            yaxis_title="Sharpe Ratio",
-            height=450,
-            title="Efficient Frontier Implied: WTI vs Brent",
-        )
+        fig_scatter.update_layout(xaxis_title="Annualised Volatility (%)", yaxis_title="Sharpe Ratio", height=450)
         st.plotly_chart(fig_scatter, use_container_width=True)
-
         st.divider()
-        st.subheader("Global Stress Indicator (Composite)")
-        if stress_index is not None and len(stress_index) > 0:
+        st.subheader("Global Stress Indicator")
+        if stress_index is not None and len(stress_index)>0:
             fig_stress = quant_fig(350)
-            fig_stress.add_trace(go.Scatter(x=stress_index.index, y=stress_index.values,
-                                            fill="tozeroy", line=dict(color=COLORS["stress"], width=2),
-                                            name="Stress Index"))
-            fig_stress.add_hline(y=0.3, line_dash="dash", line_color="green", annotation_text="Low Stress")
+            fig_stress.add_trace(go.Scatter(x=stress_index.index, y=stress_index.values, fill="tozeroy",
+                                            line=dict(color=COLORS["stress"], width=2), name="Stress Index"))
+            fig_stress.add_hline(y=0.3, line_dash="dash", line_color="green", annotation_text="Low")
             fig_stress.add_hline(y=0.6, line_dash="dash", line_color="orange", annotation_text="Elevated")
             fig_stress.add_hline(y=0.8, line_dash="dash", line_color="red", annotation_text="Crisis")
             fig_stress.update_layout(yaxis_title="Composite Stress (0-1)", title="Market Stress Indicator")
             st.plotly_chart(fig_stress, use_container_width=True)
-
-            latest_stress = stress_index.iloc[-1]
-            stress_color = "green" if latest_stress < 0.3 else ("orange" if latest_stress < 0.6 else "red")
-            st.markdown(f"**Current Stress Level:** <span style='color:{stress_color}; font-weight:bold;'>{latest_stress:.2f}</span>", unsafe_allow_html=True)
+            latest = stress_index.iloc[-1]
+            color = "green" if latest<0.3 else ("orange" if latest<0.6 else "red")
+            st.markdown(f"**Current Stress Level:** <span style='color:{color}; font-weight:bold;'>{latest:.2f}</span>", unsafe_allow_html=True)
         else:
             st.info("Stress index not available.")
 
-    # ----- Tab 6: Executive Summary (unchanged) -----
-    with tab_exec:
-        st.subheader("Model Diagnostics & Key Metrics")
-        col_left, col_right = st.columns(2)
-        with col_left:
-            st.markdown("**Market & Regime**")
-            st.write(f"- WTI Crude: ${wti0:.2f}")
-            st.write(f"- Brent Crude: ${brt0:.2f}")
-            st.write(f"- Spread: ${spread:.2f} ({spread/wti0*100:.1f}%)")
-            st.write(f"- GeoFactor (normalized): {float(gf.iloc[-1]):+.4f}σ")
-            st.write(f"- Risk Regime: WAR ({rbase:+.3f})")
-            st.write(f"- War Signal: {ws_val:.5f} ({'active' if war_t else 'subdued'})")
-            st.write(f"- DCC α/β: {dcc_a:.4f} / {dcc_b:.4f} (persist = {dcc_a+dcc_b:.4f})")
-        with col_right:
-            st.markdown("**Volatility & Risk**")
-            st.write(f"- WTI Vol (ann.): {M['vol_wti']:.1f}% (shrunk {dw_d['vsa']:.1f}%)")
-            st.write(f"- Brent Vol (ann.): {M['vol_brt']:.1f}% (shrunk {db_d['vsa']:.1f}%)")
-            st.write(f"- WTI–Brent ρ: {corr:.4f} (EWMA)")
-            st.write(f"- Dynamic tail df: {tdf_d:.2f}")
-            st.write(f"- Probability Up 10d: {M['prob_up']:.1f}%")
-            st.write(f"- VaR 95% 1d: ${M['var95']:+.2f}")
-            st.write(f"- CVaR 95% 1d: ${M['cvar95']:+.2f}")
-            st.write(f"- Z-Composite: {float(zsc.iloc[-1]):+.4f}")
-            st.write(f"- Prob WTI < $40: {M['prob_40']:.2f}%")
-            st.write(f"- Prob WTI > $150: {M['prob_150']:.2f}%")
+    with tab6:
+        st.subheader("VaR Backtesting – Kupiec, Christoffersen, DQ")
+        if 'returns' in st.session_state and 'vw' in st.session_state:
+            ret_series = returns['oil'].iloc[-252:]
+            var_series = vw.iloc[-252:] * 1.645  # 95% VaR
+            bt_res = backtest_var(ret_series, var_series, alpha=0.05)
+            st.metric("Model Calibration Score", f"{bt_res['calibration_score']:.3f}", delta=">0.9 good" if bt_res['calibration_score']>0.9 else "needs improvement")
+            col_a,col_b = st.columns(2)
+            with col_a:
+                st.write("**Kupiec (PF)**")
+                st.write(f"LR: {bt_res['Kupiec_LR']:.3f}, p-value: {bt_res['Kupiec_p']:.3f}")
+                st.write("**Christoffersen (CC)**")
+                st.write(f"LR: {bt_res['Christoffersen_LR']:.3f}, p-value: {bt_res['Christoffersen_p']:.3f}")
+            with col_b:
+                st.write("**Dynamic Quantile**")
+                st.write(f"Stat: {bt_res['DQ_stat']:.3f}, p-value: {bt_res['DQ_p']:.3f}")
+                st.write(f"Violations: {bt_res['n_violations']} / {len(ret_series)} (obs. freq {bt_res['obs_freq']:.3f})")
+            fig_viol = quant_fig(300)
+            viol = (ret_series < -var_series).astype(int)
+            fig_viol.add_trace(go.Scatter(x=ret_series.index, y=viol, mode='markers', name='VaR Violations'))
+            st.plotly_chart(fig_viol, use_container_width=True)
+        else:
+            st.info("Run full analysis first.")
 
-        st.info(
-            f"**Bayesian Shrinkage** · WTI {dw_d['vga']:.0f}% → {dw_d['vsa']:.0f}% (w={dw_d['w']:.2f}) · "
-            f"Brent {db_d['vga']:.0f}% → {db_d['vsa']:.0f}% (w={db_d['w']:.2f}) · "
-            f"Fertilizer: Urea ${usda['urea_price']:.1f}/t, DAP ${usda['dap_price']:.0f}/t · {usda['source']}"
-        )
+    with tab7:
+        st.subheader("Institutional Executive Dashboard")
+        st.metric("GeoFactor Predictive Power (IC lag1)", f"{geofactor_predictive_power(gf, returns['oil'], lags=[1])['lag_1']['IC']:.3f}")
+        regime_metrics = regime_classification(gf, threshold=0.5, volatility_series=vw*np.sqrt(252)*100, quantile=0.75)
+        st.metric("Regime Detection F1 Score", f"{regime_metrics['f1']:.2f}")
+        if feature_importance is not None:
+            st.subheader("Feature Importance (LASSO weights)")
+            fig_imp = go.Figure(go.Bar(x=feature_importance['importance'], y=feature_importance['feature'], orientation='h'))
+            fig_imp.update_layout(height=400, title="Marginal Contribution to GeoFactor")
+            st.plotly_chart(fig_imp, use_container_width=True)
+        st.subheader("Model Confidence Dashboard")
+        confidence_score = bt_res['calibration_score'] if 'bt_res' in locals() else 0.5
+        st.progress(confidence_score, text=f"Overall Model Confidence: {confidence_score:.0%}")
+        st.caption("Confidence is derived from VaR backtesting p‑values (Kupiec, Christoffersen, DQ).")
 
     st.divider()
-    st.caption(
-        f"GeoQuant · EVT + DCC + GARCH-X · {mc_sims:,} Monte Carlo paths · "
-        f"Eduardo Moraes · Quant Data Scientist & Economics · {now_sp.strftime('%d %b %Y')}"
-    )
-
+    st.caption(f"GeoQuant · EVT + DCC + GARCH-X · {mc_sims:,} MC paths · Eduardo Moraes · Quant Data Scientist & Economics · {now_sp.strftime('%d %b %Y')}")
 else:
     st.info("Configure parameters in the sidebar and press 'Run Full Analysis'.")
