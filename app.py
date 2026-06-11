@@ -489,7 +489,7 @@ def fetch_live(last_wti=65.0, last_brt=68.0):
     return last_wti, last_brt
 
 # =============================================================================
-# INSTITUTIONAL FUNCTIONS (backtest, EVT, rolling IC, GARCH diagnostics)
+# INSTITUTIONAL FUNCTIONS
 # =============================================================================
 def backtest_var(returns, var_forecast, alpha=0.05):
     common_idx = returns.index.intersection(var_forecast.index)
@@ -540,11 +540,15 @@ def backtest_es(returns, cvar_forecast, var_forecast, alpha=0.05):
     r = returns.loc[common]
     v = var_forecast.loc[common]
     cv = cvar_forecast.loc[common] if isinstance(cvar_forecast, pd.Series) else cvar_forecast
+    if isinstance(cv, pd.Series):
+        cv = cv.iloc[0] if len(cv) > 0 else np.nan
+    if np.isnan(cv):
+        return np.nan
     violations = (r < -v).astype(int)
     if violations.sum() == 0:
         return np.nan
     z = ((r[violations==1] + v[violations==1]).sum() / (violations.sum() * cv)) - 1
-    return z
+    return float(z)
 
 def rolling_ic(geofactor, returns, window=252, lag=1):
     ic_series = []
@@ -701,7 +705,6 @@ if needs_run:
         "feature": list(weights.keys()),
         "importance": np.abs(list(weights.values()))
     }).sort_values("importance", ascending=False)
-    # EVT e diagnósticos
     evt_tails = fit_evt_tails(returns["oil"])
     garch_diag = garch_diagnostics(vw)
     rolling_ic_series = rolling_ic(gf, returns["oil"], window=252, lag=1)
@@ -727,7 +730,7 @@ if needs_run:
     })
 
 # =============================================================================
-# DISPLAY
+# DISPLAY (TODAS AS 8 ABAS)
 # =============================================================================
 if "results" in st.session_state:
     mc = st.session_state["results"]
@@ -778,6 +781,7 @@ if "results" in st.session_state:
         "Macro & Corr", "Institutional Backtest", "Advanced Analytics", "Executive Dashboard"
     ])
 
+    # ----- TAB 1: MARKET & RISK -----
     with tab1:
         st.subheader("Live Commodity Snapshot")
         c1,c2,c3,c4 = st.columns(4)
@@ -835,6 +839,7 @@ if "results" in st.session_state:
             else:
                 st.info("Gold signals not available.")
 
+    # ----- TAB 2: GEOPOLITICAL -----
     with tab2:
         st.subheader("Geopolitical Risk Indicators")
         if zsc is not None and len(zsc) > 5 and gf is not None and len(gf) > 5:
@@ -864,6 +869,7 @@ if "results" in st.session_state:
         fig_ag.update_layout(yaxis_title="Price Index (base = 100)")
         st.plotly_chart(fig_ag, use_container_width=True)
 
+    # ----- TAB 3: MONTE CARLO -----
     with tab3:
         war_note = " | War boost active" if war_t else ""
         bs_note = f" | Black Swan x{bs:.2f}" if bs > 1.2 else (" | Deflation" if bs < 0.8 else "")
@@ -901,6 +907,7 @@ if "results" in st.session_state:
         else:
             st.info("Monte Carlo not available. Run simulation first.")
 
+    # ----- TAB 4: QUANT STATS -----
     with tab4:
         st.subheader("Risk‑Adjusted Performance")
         col1, col2 = st.columns(2)
@@ -922,6 +929,7 @@ if "results" in st.session_state:
         st.metric("DCC α", f"{dcc_a:.4f}", delta=f"β (persistence): {dcc_b:.4f}")
         st.metric("DCC Persistence", f"{dcc_a+dcc_b:.4f}")
 
+    # ----- TAB 5: MACRO & CORR -----
     with tab5:
         st.subheader("Global Market Correlations")
         if corr_matrix is not None:
@@ -960,19 +968,20 @@ if "results" in st.session_state:
         else:
             st.info("Stress index not available.")
 
+    # ----- TAB 6: INSTITUTIONAL BACKTEST (CORRIGIDA) -----
     with tab6:
         st.subheader("VaR and Expected Shortfall Backtesting")
         if 'returns' in st.session_state and 'vw' in st.session_state:
             ret_series = returns['oil'].iloc[-252:]
             var_series = vw.iloc[-252:] * 1.645
-            cvar_series = vw.iloc[-252:] * 2.326  # aproximação para CVaR 95% (normal)
+            cvar_series = vw.iloc[-252:] * 2.326
             common_idx = ret_series.index.intersection(var_series.index)
             if len(common_idx) < 50:
                 st.warning("Insufficient data for backtest (minimum 50 observations).")
             else:
                 bt_res = backtest_var(ret_series, var_series, alpha=0.05)
-                es_z = backtest_es(ret_series, cvar_series, var_series)
-                st.metric("Model Calibration Score", f"{bt_res['calibration_score']:.3f}", delta=">0.9 good" if bt_res['calibration_score']>0.9 else "needs improvement")
+                st.metric("Model Calibration Score", f"{bt_res['calibration_score']:.3f}", 
+                          delta=">0.9 good" if bt_res['calibration_score']>0.9 else "needs improvement")
                 col_a, col_b = st.columns(2)
                 with col_a:
                     st.write("**VaR Tests**")
@@ -981,7 +990,11 @@ if "results" in st.session_state:
                     st.write(f"Dynamic Quantile p-value: {bt_res['DQ_p']:.3f}")
                 with col_b:
                     st.write("**Expected Shortfall**")
-                    st.write(f"Acerbi Z-statistic: {es_z:.3f}" if not np.isnan(es_z) else "ES test: N/A")
+                    es_z = backtest_es(ret_series, cvar_series, var_series)
+                    if np.isscalar(es_z) and not np.isnan(es_z):
+                        st.write(f"Acerbi Z-statistic: {es_z:.3f}")
+                    else:
+                        st.write("ES test: N/A (no violations or invalid data)")
                 st.write(f"Violations: {bt_res['n_violations']} / {len(common_idx)} (obs. freq {bt_res['obs_freq']:.3f})")
                 fig_viol = quant_fig(300)
                 r_aligned = ret_series.loc[common_idx]
@@ -992,6 +1005,7 @@ if "results" in st.session_state:
         else:
             st.info("Run full analysis first.")
 
+    # ----- TAB 7: ADVANCED ANALYTICS (EVT, GARCH diagnostics, rolling IC) -----
     with tab7:
         st.subheader("Advanced Analytics (EVT, GARCH Diagnostics, Rolling IC)")
         st.markdown("**Extreme Value Theory – Oil Returns Tails**")
@@ -1012,9 +1026,9 @@ if "results" in st.session_state:
         else:
             st.info("Not enough data for rolling IC.")
 
+    # ----- TAB 8: EXECUTIVE DASHBOARD -----
     with tab8:
         st.subheader("Institutional Executive Dashboard")
-        # GeoFactor IC (estático) – último valor do rolling IC
         if rolling_ic_series is not None and len(rolling_ic_series) > 0:
             last_ic = rolling_ic_series.dropna().iloc[-1] if not rolling_ic_series.dropna().empty else np.nan
             st.metric("GeoFactor IC (lag1, 1y rolling)", f"{last_ic:.3f}" if not np.isnan(last_ic) else "N/A")
@@ -1024,7 +1038,6 @@ if "results" in st.session_state:
             fig_imp = go.Figure(go.Bar(x=feature_importance['importance'], y=feature_importance['feature'], orientation='h'))
             fig_imp.update_layout(height=400, title="Marginal Contribution to GeoFactor")
             st.plotly_chart(fig_imp, use_container_width=True)
-        # Confidence score from backtest
         if 'returns' in st.session_state and 'vw' in st.session_state:
             ret_series = returns['oil'].iloc[-252:]
             var_series = vw.iloc[-252:] * 1.645
