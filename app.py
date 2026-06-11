@@ -50,145 +50,170 @@ st.set_page_config(
 )
 
 # ══════════════════════════════════════════════════════════
-#   PROFESSIONAL LIGHT PALETTE – INSTITUTIONAL STYLE
-#   Adapts to Streamlit dark/light mode via theme variables.
+#   INSTITUTIONAL RESEARCH REPORT STYLING
+#   Clean, timeless, navy + gold accents, serif titles
 # ══════════════════════════════════════════════════════════
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&family=DM+Mono:wght@300;400&family=DM+Sans:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Source+Sans+3:wght@300;400;500&family=JetBrains+Mono:wght@300;400&display=swap');
 
-/* Base properties – inherit from Streamlit theme */
-html, body, [data-testid="stAppViewContainer"] {
-    font-family: 'DM Sans', 'Helvetica Neue', sans-serif !important;
-    font-weight: 300 !important;
+:root {
+    --bg: #FFFFFF;
+    --surface: #F8F7F4;
+    --border: #D9D5CD;
+    --text: #1C1C1C;
+    --text-secondary: #5A554F;
+    --accent: #1E3A5F;        /* navy */
+    --accent-light: #2A5080;
+    --gold: #B49450;           /* subdued gold */
+    --gold-light: #D4C094;
+    --muted: #7A766E;
+    --danger: #8B3A3A;
+    --success: #2D5A3F;
 }
-/* Sidebar – light, elegant */
+
+html, body, [data-testid="stAppViewContainer"] {
+    background: var(--bg) !important;
+    font-family: 'Source Sans 3', 'Helvetica Neue', sans-serif !important;
+    font-weight: 300 !important;
+    color: var(--text) !important;
+}
+
+/* Sidebar – clean, light, professional */
 [data-testid="stSidebar"] {
-    background: #F4F2EE !important;
-    border-right: 1px solid #D3CCC0 !important;
+    background: var(--surface) !important;
+    border-right: 1px solid var(--border) !important;
 }
 [data-testid="stSidebar"] * {
-    color: #2E2A24 !important;
+    color: var(--text) !important;
 }
 
 /* Metric cards */
 div[data-testid="stMetric"] {
-    background: #FAF9F7;
-    border: 1px solid #E2DDD2;
-    padding: .9rem 1.1rem;
-    border-radius: 2px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 1rem 1.2rem;
+    border-radius: 0px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
 div[data-testid="stMetric"] label {
-    font-family: 'DM Mono', monospace !important;
-    font-size: .56rem !important;
-    letter-spacing: .2em !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: .54rem !important;
+    letter-spacing: .22em !important;
     text-transform: uppercase !important;
-    color: #8B857A !important;
+    color: var(--muted) !important;
 }
 div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
-    font-family: 'Cormorant Garamond', Georgia, serif !important;
-    font-size: 1.6rem !important;
-    font-weight: 300 !important;
-    color: #2E2A24 !important;
+    font-family: 'Playfair Display', Georgia, serif !important;
+    font-size: 1.55rem !important;
+    font-weight: 400 !important;
+    color: var(--accent) !important;
 }
 
 /* Buttons */
 .stButton button {
-    background: #2E2A24 !important;
-    color: #D5B87A !important;
+    background: var(--accent) !important;
+    color: var(--gold-light) !important;
     border: none !important;
-    border-radius: 2px !important;
-    font-family: 'DM Mono', monospace !important;
-    font-size: .62rem !important;
-    letter-spacing: .18em !important;
+    border-radius: 0px !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: .58rem !important;
+    letter-spacing: .16em !important;
     text-transform: uppercase !important;
-    padding: .5rem 1.2rem !important;
+    padding: .55rem 1.2rem !important;
     width: 100%;
+    transition: background 0.2s;
+}
+.stButton button:hover {
+    background: var(--accent-light) !important;
 }
 .stProgress > div > div {
-    background: #D5B87A !important;
+    background: var(--gold) !important;
 }
 
 /* Tabs */
 [data-testid="stTabs"] [data-baseweb="tab-list"] {
-    background: #FAF9F7;
-    border-bottom: 1px solid #E2DDD2;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
     gap: 0;
 }
 [data-testid="stTabs"] [data-baseweb="tab"] {
-    font-family: 'DM Mono', monospace;
-    font-size: .6rem;
-    letter-spacing: .16em;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .58rem;
+    letter-spacing: .14em;
     text-transform: uppercase;
-    color: #8B857A;
-    padding: .6rem 1.2rem;
+    color: var(--muted);
+    padding: .7rem 1.4rem;
     border-bottom: 2px solid transparent;
     background: transparent;
 }
 [data-testid="stTabs"] [aria-selected="true"] {
-    color: #2E2A24 !important;
-    border-bottom: 2px solid #D5B87A !important;
+    color: var(--accent) !important;
+    border-bottom: 2px solid var(--gold) !important;
 }
 
-/* Typography helpers */
+/* Typography */
 .sec-label {
-    font-family: 'DM Mono', monospace;
-    font-size: .56rem;
-    letter-spacing: .28em;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .52rem;
+    letter-spacing: .3em;
     text-transform: uppercase;
-    color: #B8A16B;
+    color: var(--gold);
     margin-bottom: .2rem;
 }
 .sec-title {
-    font-family: 'Cormorant Garamond', Georgia, serif;
-    font-size: 1.25rem;
-    font-weight: 400;
-    color: #2E2A24;
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 1.2rem;
+    font-weight: 500;
+    color: var(--accent);
     margin-bottom: .8rem;
     padding-bottom: .4rem;
-    border-bottom: 1px solid #E2DDD2;
+    border-bottom: 1px solid var(--border);
 }
-.swiss-div {
+.divider {
     height: 1px;
-    background: linear-gradient(90deg, #D5B87A 0%, #E2DDD2 55%, transparent 100%);
-    margin: 1.5rem 0;
+    background: linear-gradient(90deg, var(--gold) 0%, var(--border) 60%, transparent 100%);
+    margin: 1.2rem 0;
 }
 .info-block {
-    background: #F8F6F2;
-    border-left: 2px solid #D5B87A;
-    padding: .6rem 1rem;
-    font-size: .74rem;
-    color: #6B645A;
+    background: var(--surface);
+    border-left: 2px solid var(--gold);
+    padding: .5rem .9rem;
+    font-size: .72rem;
+    color: var(--text-secondary);
     margin: .4rem 0;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: .04em;
 }
 .data-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: .76rem;
+    font-size: .74rem;
 }
 .data-table th {
-    font-family: 'DM Mono', monospace;
-    font-size: .54rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .5rem;
     letter-spacing: .18em;
     text-transform: uppercase;
-    color: #8B857A;
-    padding: .45rem .8rem;
-    border-bottom: 1px solid #E2DDD2;
-    background: #F8F6F2;
+    color: var(--muted);
+    padding: .5rem .8rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
 }
 .data-table td {
-    padding: .45rem .8rem;
-    border-bottom: 1px solid #E2DDD2;
+    padding: .5rem .8rem;
+    border-bottom: 1px solid var(--border);
     font-weight: 300;
+    color: var(--text);
 }
 .footer {
     margin-top: 2.5rem;
     padding-top: 1.2rem;
-    border-top: 1px solid #E2DDD2;
-    font-family: 'DM Mono', monospace;
-    font-size: .54rem;
-    letter-spacing: .14em;
-    color: #B0A99F;
+    border-top: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .5rem;
+    letter-spacing: .12em;
+    color: var(--muted);
     text-transform: uppercase;
     display: flex;
     justify-content: space-between;
@@ -208,25 +233,32 @@ GEO_W = {"oil_vol":0.22,"gold":0.09,"gold_real":0.09,"dxy":-0.10,"spread":0.09,
           "fert":0.22,"wheat":0.07,"copper":0.04,"natgas_vol":0.06}
 ZSC_W = {"oil_gold":0.40,"oil_natgas":0.35,"gold_real":0.25}
 
-# Institutional clean Plotly configuration
+# Plotly template – research report style
 PL = dict(
-    paper_bgcolor="#FAF9F7",
-    plot_bgcolor="#FAF9F7",
-    font=dict(family="DM Sans,Helvetica Neue,sans-serif", color="#2E2A24", size=11),
-    title_font=dict(family="Cormorant Garamond,Georgia,serif", size=16, color="#2E2A24"),
-    xaxis=dict(gridcolor="#E2DDD2", linecolor="#C4BDAF", zeroline=False,
-               tickfont=dict(size=10, family="DM Mono,monospace")),
-    yaxis=dict(gridcolor="#E2DDD2", linecolor="#C4BDAF", zeroline=False,
-               tickfont=dict(size=10, family="DM Mono,monospace")),
-    legend=dict(bgcolor="rgba(250,249,247,0.95)", bordercolor="#C4BDAF",
-                borderwidth=1, font=dict(size=10, family="DM Mono,monospace")),
+    template="plotly_white",
+    paper_bgcolor="#FFFFFF",
+    plot_bgcolor="#FFFFFF",
+    font=dict(family="Source Sans 3,Helvetica Neue,sans-serif", color="#1C1C1C", size=11),
+    title_font=dict(family="Playfair Display,Georgia,serif", size=16, color="#1E3A5F"),
+    xaxis=dict(gridcolor="#E8E4DA", linecolor="#D9D5CD", zeroline=False,
+               tickfont=dict(size=10, family="JetBrains Mono,monospace", color="#5A554F")),
+    yaxis=dict(gridcolor="#E8E4DA", linecolor="#D9D5CD", zeroline=False,
+               tickfont=dict(size=10, family="JetBrains Mono,monospace", color="#5A554F")),
+    legend=dict(bgcolor="rgba(255,255,255,0.97)", bordercolor="#D9D5CD",
+                borderwidth=1, font=dict(size=10, family="JetBrains Mono,monospace", color="#1C1C1C")),
     margin=dict(l=55, r=40, t=50, b=40),
-    hoverlabel=dict(bgcolor="#2E2A24", font_color="#D5B87A", font_family="DM Mono,monospace"),
+    hoverlabel=dict(bgcolor="#1E3A5F", font_color="#D4C094", font_family="JetBrains Mono,monospace"),
 )
-C = dict(primary="#2E2A24", gold="#D5B87A", gold_dim="#B8A16B",
-         blue="#3A5F8A", teal="#2D6B6B", sage="#5F6B47",
-         rust="#7A3F30", gray="#70695E", silver="#9E9488",
-         fan90="#E2DDD2", fan50="#C4BDAF")
+# Color palette for charts
+C = dict(
+    navy="#1E3A5F", navy_light="#2A5080",
+    gold="#B49450", gold_light="#D4C094",
+    burgundy="#7B3F3F", teal="#2B5F5F",
+    sage="#4A5D4A", gray="#5A554F", silver="#9A958A",
+    sky="#4A7380", rust="#8B5A3A",
+    fill_light="rgba(30,58,95,0.06)",
+    fill_medium="rgba(30,58,95,0.12)",
+)
 
 def qfig(h=420):
     fig = go.Figure()
@@ -238,15 +270,9 @@ def dual_axis_fig(h=380):
     fig.update_layout(
         **PL, height=h,
         yaxis2=dict(overlaying="y", side="right", showgrid=False,
-                    linecolor="#C4BDAF", zeroline=False,
-                    tickfont=dict(size=10, family="DM Mono,monospace")),
+                    linecolor="#D9D5CD", zeroline=False,
+                    tickfont=dict(size=10, family="JetBrains Mono,monospace", color="#5A554F")),
     )
-    return fig
-
-def add_secondary(fig, trace, is_secondary=False):
-    if is_secondary:
-        trace.update(yaxis="y2")
-    fig.add_trace(trace)
     return fig
 
 # ══════════════════════════════════════════════════════════
@@ -254,21 +280,21 @@ def add_secondary(fig, trace, is_secondary=False):
 # ══════════════════════════════════════════════════════════
 with st.sidebar:
     st.markdown("""
-    <div style='padding:1.3rem 0 1.1rem;border-bottom:1px solid #D3CCC0;margin-bottom:1.3rem;'>
-        <div style='font-family:"DM Mono",monospace;font-size:.5rem;letter-spacing:.26em;
-        color:#B8A16B;text-transform:uppercase;margin-bottom:.4rem;'>◆ Edumetria</div>
-        <div style='font-family:"Cormorant Garamond",Georgia,serif;font-size:1.3rem;
-        font-weight:300;color:#2E2A24;letter-spacing:.06em;'>GeoQuant Terminal</div>
-        <div style='font-family:"DM Mono",monospace;font-size:.5rem;
-        color:#8B857A;letter-spacing:.14em;margin-top:.3rem;'>Quantitative Research Infrastructure</div>
+    <div style='padding:1rem 0 1rem;border-bottom:1px solid #D9D5CD;margin-bottom:1.2rem;'>
+        <div style='font-family:"JetBrains Mono",monospace;font-size:.46rem;letter-spacing:.28em;
+        color:#B49450;text-transform:uppercase;margin-bottom:.3rem;'>◆ Edumetria</div>
+        <div style='font-family:"Playfair Display",Georgia,serif;font-size:1.2rem;
+        font-weight:500;color:#1E3A5F;letter-spacing:.04em;'>GeoQuant Terminal</div>
+        <div style='font-family:"JetBrains Mono",monospace;font-size:.46rem;
+        color:#7A766E;letter-spacing:.12em;margin-top:.2rem;'>Quantitative Research Infrastructure</div>
     </div>""", unsafe_allow_html=True)
 
     def slabel(t):
-        st.markdown(f'<div style="font-family:\'DM Mono\',monospace;font-size:.54rem;letter-spacing:.2em;'
-                    f'color:#B8A16B;text-transform:uppercase;margin:.9rem 0 .4rem;">{t}</div>',
+        st.markdown(f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:.5rem;letter-spacing:.2em;'
+                    f'color:#B49450;text-transform:uppercase;margin:.8rem 0 .3rem;">{t}</div>',
                     unsafe_allow_html=True)
     def ssep():
-        st.markdown('<div style="height:1px;background:#D3CCC0;margin:.6rem 0;"></div>',
+        st.markdown('<div style="height:1px;background:#D9D5CD;margin:.5rem 0;"></div>',
                     unsafe_allow_html=True)
 
     slabel("· Simulation")
@@ -290,8 +316,8 @@ with st.sidebar:
     ssep()
     run_btn = st.button("▶  Run Full System Pipeline")
     st.markdown("""
-    <div style='margin-top:1.8rem;font-family:"DM Mono",monospace;font-size:.46rem;
-    color:#B0A99F;letter-spacing:.1em;line-height:2.2;'>
+    <div style='margin-top:1.8rem;font-family:"JetBrains Mono",monospace;font-size:.42rem;
+    color:#9A958A;letter-spacing:.1em;line-height:2.2;'>
     FOR PROFESSIONAL USE ONLY<br>NOT INVESTMENT ADVICE<br>CONFIDENTIAL & PROPRIETARY
     </div>""", unsafe_allow_html=True)
 
@@ -301,25 +327,25 @@ with st.sidebar:
 now_sp = datetime.now(pytz.timezone("America/Sao_Paulo"))
 st.markdown(f"""
 <div style='display:flex;justify-content:space-between;align-items:flex-start;
-padding:1.6rem 0 1.2rem;border-bottom:1px solid #E2DDD2;margin-bottom:1.8rem;'>
+padding:1.4rem 0 1rem;border-bottom:1px solid #D9D5CD;margin-bottom:1.6rem;'>
   <div>
     <div style='display:flex;align-items:baseline;gap:.6rem;'>
-      <span style='font-family:"DM Mono",monospace;font-size:.85rem;color:#D5B87A;letter-spacing:.2em;'>◆◆◆</span>
+      <span style='font-family:"JetBrains Mono",monospace;font-size:.8rem;color:#B49450;letter-spacing:.2em;'>◆◆◆</span>
       <div>
-        <div style='font-family:"Cormorant Garamond",Georgia,serif;font-size:1.9rem;
-        font-weight:300;color:#2E2A24;letter-spacing:.06em;line-height:1;'>GeoQuant · Research Terminal</div>
-        <div style='font-family:"DM Mono",monospace;font-size:.55rem;color:#70695E;
-        letter-spacing:.2em;text-transform:uppercase;margin-top:.3rem;'>
+        <div style='font-family:"Playfair Display",Georgia,serif;font-size:1.8rem;
+        font-weight:500;color:#1E3A5F;letter-spacing:.04em;line-height:1;'>GeoQuant · Research Terminal</div>
+        <div style='font-family:"JetBrains Mono",monospace;font-size:.5rem;color:#5A554F;
+        letter-spacing:.2em;text-transform:uppercase;margin-top:.25rem;'>
         Geopolitical Intelligence · EVT+DCC+GARCH-X · Institutional Risk Management</div>
       </div>
     </div>
   </div>
   <div style='text-align:right;'>
-    <div style='display:inline-block;background:#2E2A24;color:#D5B87A;padding:.2rem .7rem;
-    font-family:"DM Mono",monospace;font-size:.55rem;letter-spacing:.18em;text-transform:uppercase;'>
+    <div style='display:inline-block;background:#1E3A5F;color:#D4C094;padding:.2rem .7rem;
+    font-family:"JetBrains Mono",monospace;font-size:.5rem;letter-spacing:.16em;text-transform:uppercase;'>
     ⚑ WAR REGIME</div>
-    <div style='font-family:"DM Mono",monospace;font-size:.57rem;color:#70695E;
-    letter-spacing:.1em;margin-top:.4rem;line-height:1.8;'>
+    <div style='font-family:"JetBrains Mono",monospace;font-size:.52rem;color:#5A554F;
+    letter-spacing:.1em;margin-top:.3rem;line-height:1.8;'>
     {now_sp.strftime("%d %B %Y · %H:%M")} (SP)<br>Institutional Analytics Framework
     </div>
   </div>
@@ -741,8 +767,8 @@ def run_shap(X, y):
     mdl.fit(X, y)
     exp = shap.TreeExplainer(mdl)
     sv = exp.shap_values(X)
-    fig, ax = plt.subplots(figsize=(6, 4), facecolor="#FAF9F7")
-    ax.set_facecolor("#FAF9F7")
+    fig, ax = plt.subplots(figsize=(6, 4), facecolor="#FFFFFF")
+    ax.set_facecolor("#FFFFFF")
     shap.summary_plot(sv, X, show=False, plot_size=None)
     plt.tight_layout()
     return fig
@@ -832,9 +858,9 @@ needs_run = run_btn or "results" not in st.session_state
 if needs_run:
     loading = st.empty()
     loading.markdown("""
-    <div style='text-align:center;padding:2.5rem 2rem;background:#FDFBF8;border:1px solid #C4BDAF;margin:1rem 0;'>
-      <div style='font-family:"DM Mono",monospace;font-size:.56rem;letter-spacing:.22em;color:#9E8050;text-transform:uppercase;margin-bottom:.7rem;'>Initialising Research Terminal</div>
-      <div style='font-family:"Cormorant Garamond",Georgia,serif;font-size:1.4rem;color:#0B1628;font-weight:300;'>Loading market data & calibrating quantitative framework…</div>
+    <div style='text-align:center;padding:2.2rem 2rem;background:#F8F7F4;border:1px solid #D9D5CD;margin:1rem 0;'>
+      <div style='font-family:"JetBrains Mono",monospace;font-size:.5rem;letter-spacing:.22em;color:#B49450;text-transform:uppercase;margin-bottom:.6rem;'>Initialising Research Terminal</div>
+      <div style='font-family:"Playfair Display",Georgia,serif;font-size:1.3rem;color:#1E3A5F;font-weight:400;'>Loading market data & calibrating quantitative framework…</div>
     </div>""", unsafe_allow_html=True)
     prog = st.progress(0)
 
@@ -909,7 +935,7 @@ if needs_run:
     prog.progress(68)
     mb = st.empty()
     mc_bar = st.progress(0)
-    mb.markdown('<div style="font-family:\'DM Mono\',monospace;font-size:.58rem;letter-spacing:.14em;color:#9E8050;">Monte Carlo simulation executing…</div>', unsafe_allow_html=True)
+    mb.markdown('<div style="font-family:\'JetBrains Mono\',monospace;font-size:.55rem;letter-spacing:.12em;color:#5A554F;">Monte Carlo simulation executing…</div>', unsafe_allow_html=True)
     mc = run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase, returns["oil"], returns["brent"],
                 vw, vb_s, jpu, tdf_d, bs_mult, dcc_a, dcc_b, mc_sims, mc_steps, mc_bar)
     mb.empty()
@@ -983,7 +1009,7 @@ if needs_run:
     })
 
 # ══════════════════════════════════════════════════════════
-#   RENDER (unchanged, only styling adapted)
+#   RENDER
 # ══════════════════════════════════════════════════════════
 if "results" not in st.session_state:
     st.info("Configure parameters in the sidebar and click **▶ Run Full System Pipeline** to start.")
@@ -1013,17 +1039,17 @@ with tab1:
     c3.metric("WTI Vol p.a.", f"{M['vol_wti']:.1f}%", f"Shrunk {dw_d['vsa']:.1f}%")
     c4.metric("Brent Vol p.a.", f"{M['vol_brt']:.1f}%", f"Shrunk {db_d['vsa']:.1f}%")
 
-    st.markdown('<div class="swiss-div"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
     fig_vol=qfig(380)
     fig_vol.add_trace(go.Scatter(x=vw.index,y=vw*np.sqrt(252)*100,name="WTI Vol",
-        line=dict(color=C["primary"],width=2.2)))
+        line=dict(color=C["navy"],width=2.2)))
     fig_vol.add_trace(go.Scatter(x=vb.index,y=vb*np.sqrt(252)*100,name="Brent Vol",
-        line=dict(color=C["blue"],width=2.2,dash="dash")))
+        line=dict(color=C["sky"],width=2.2,dash="dash")))
     fig_vol.add_trace(go.Scatter(x=vg.index,y=vg*np.sqrt(252)*100,name="Gold Vol",
         line=dict(color=C["gold"],width=1.8,dash="dot")))
-    fig_vol.add_hrect(y0=25,y1=45,fillcolor="rgba(46,42,36,0.03)",line_width=0,
+    fig_vol.add_hrect(y0=25,y1=45,fillcolor="rgba(30,58,95,0.04)",line_width=0,
         annotation_text="Normal band 25–45%",annotation_position="top left",
-        annotation_font=dict(size=9,color=C["gray"],family="DM Mono,monospace"))
+        annotation_font=dict(size=9,color=C["gray"],family="JetBrains Mono,monospace"))
     fig_vol.update_layout(yaxis_ticksuffix="%",
         title="GARCH-X Conditional Volatility — Adaptive Bayesian Shrinkage Framework")
     st.plotly_chart(fig_vol, use_container_width=True)
@@ -1036,15 +1062,15 @@ with tab2:
 
     fig_geo=dual_axis_fig(380)
     fig_geo.add_trace(go.Scatter(x=zsc.index,y=zsc.values,name="Z-Score Composite",
-        line=dict(color=C["blue"],width=2.2),
-        fill="tozeroy",fillcolor="rgba(58,95,138,0.04)"))
+        line=dict(color=C["sky"],width=2.2),
+        fill="tozeroy",fillcolor="rgba(74,115,128,0.06)"))
     fig_geo.add_trace(go.Scatter(x=gf.index,y=gf.values,name="GeoFactor (σ)",
-        line=dict(color=C["primary"],width=2.8),yaxis="y2"))
+        line=dict(color=C["navy"],width=2.8),yaxis="y2"))
     for y in [1.5,-1.5]:
         fig_geo.add_shape(type="line",x0=zsc.index.min(),x1=zsc.index.max(),
-            y0=y,y1=y,line=dict(dash="dot",color=C["gold_dim"],width=1.2),yref="y")
+            y0=y,y1=y,line=dict(dash="dot",color=C["gold"],width=1.2),yref="y")
     fig_geo.add_shape(type="line",x0=zsc.index.min(),x1=zsc.index.max(),
-        y0=0,y1=0,line=dict(dash="solid",color="#C4BDAF",width=0.8),yref="y")
+        y0=0,y1=0,line=dict(dash="solid",color="#D9D5CD",width=0.8),yref="y")
     fig_geo.update_layout(yaxis_title="Z-Score",yaxis2_title="GeoFactor (σ)",
         title="Geopolitical Risk Signals Extraction")
     st.plotly_chart(fig_geo, use_container_width=True)
@@ -1054,7 +1080,7 @@ with tab2:
         ng_vol=returns["natgas"].rolling(20).std()*np.sqrt(252)*100
         fig_f=dual_axis_fig(310)
         fig_f.add_trace(go.Scatter(x=fi.index,y=fi.values,name="Fertilizer Stress",
-            fill="tozeroy",fillcolor="rgba(95,107,71,0.05)",line=dict(color=C["sage"],width=2.2)))
+            fill="tozeroy",fillcolor="rgba(74,93,74,0.06)",line=dict(color=C["sage"],width=2.2)))
         fig_f.add_trace(go.Scatter(x=ng_vol.index,y=ng_vol.values,name="NatGas Vol %",
             line=dict(color=C["teal"],width=1.8,dash="dash"),yaxis="y2"))
         fig_f.update_layout(yaxis_title="Fert Index",yaxis2_title="NatGas Vol %",
@@ -1075,14 +1101,14 @@ with tab2:
             yaxis2_title="Silver/Gold (norm)",title="Gold Macro Signals — Real Yield Basis")
         st.plotly_chart(fig_g, use_container_width=True)
 
-    st.markdown('<div class="swiss-div"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title" style="font-size:1.1rem;">Agricultural Commodities — Indexed from Regime Inception</div>', unsafe_allow_html=True)
     fig_ag=qfig(280)
-    for asset,color,label in [("wheat",C["primary"],"Wheat"),("corn",C["blue"],"Corn"),("soy",C["gray"],"Soy")]:
+    for asset,color,label in [("wheat",C["navy"],"Wheat"),("corn",C["sky"],"Corn"),("soy",C["gray"],"Soy")]:
         bv=float(prices[asset].iloc[0]); rel=(prices[asset]/bv*100).dropna()
         fig_ag.add_trace(go.Scatter(x=rel.index,y=rel.values,
             name=f"{label} (base ${bv:.0f})",line=dict(color=color,width=2.0)))
-    fig_ag.add_hline(y=100,line_dash="dot",line_color="#C4BDAF",line_width=1.2)
+    fig_ag.add_hline(y=100,line_dash="dot",line_color="#D9D5CD",line_width=1.2)
     fig_ag.update_layout(yaxis_title="Price Index (base = 100)")
     st.plotly_chart(fig_ag, use_container_width=True)
 
@@ -1096,23 +1122,23 @@ with tab3:
     x_ax=list(range(mc_steps+1))
     fig_mc=qfig(480)
     fig_mc.add_trace(go.Scatter(x=x_ax+x_ax[::-1],y=list(fan[95])+list(fan[5][::-1]),
-        fill="toself",fillcolor="rgba(196,189,175,0.15)",line=dict(width=0),name="WTI 90% CI"))
+        fill="toself",fillcolor=C["fill_light"],line=dict(width=0),name="WTI 90% CI"))
     fig_mc.add_trace(go.Scatter(x=x_ax+x_ax[::-1],y=list(fan[75])+list(fan[25][::-1]),
-        fill="toself",fillcolor="rgba(158,148,136,0.20)",line=dict(width=0),name="WTI 50% CI"))
+        fill="toself",fillcolor=C["fill_medium"],line=dict(width=0),name="WTI 50% CI"))
     fig_mc.add_trace(go.Scatter(x=x_ax,y=list(fb[50]),name=f"Brent P50 → ${fb[50][-1]:.2f}",
-        line=dict(color=C["blue"],width=2.2,dash="dash")))
+        line=dict(color=C["sky"],width=2.2,dash="dash")))
     fig_mc.add_trace(go.Scatter(x=x_ax,y=list(fan[50]),name=f"WTI P50 → ${fan[50][-1]:.2f}",
-        line=dict(color=C["primary"],width=3.2)))
+        line=dict(color=C["navy"],width=3.2)))
     fig_mc.add_trace(go.Scatter(x=x_ax,y=list(fan[95]),name=f"P95 → ${fan[95][-1]:.2f}",
-        line=dict(color=C["gold_dim"],width=1.4,dash="dot")))
+        line=dict(color=C["gold"],width=1.4,dash="dot")))
     fig_mc.add_trace(go.Scatter(x=x_ax,y=list(fan[5]),name=f"P5 → ${fan[5][-1]:.2f}",
-        line=dict(color=C["gold_dim"],width=1.4,dash="dot")))
-    fig_mc.add_hline(y=wti0,line_dash="dash",line_color="#8C8377",line_width=1.4,
-        annotation_text=f"Current ${wti0:.2f}",annotation_font=dict(family="DM Mono",size=10,color="#8C8377"))
-    fig_mc.add_hline(y=40,line_dash="dot",line_color=C["rust"],line_width=1.4,
-        annotation_text="Stress Target $40",annotation_font=dict(family="DM Mono",size=10,color=C["rust"]))
-    fig_mc.add_hline(y=150,line_dash="dot",line_color=C["rust"],line_width=1.4,
-        annotation_text="Stress Target $150",annotation_font=dict(family="DM Mono",size=10,color=C["rust"]))
+        line=dict(color=C["gold"],width=1.4,dash="dot")))
+    fig_mc.add_hline(y=wti0,line_dash="dash",line_color="#9A958A",line_width=1.4,
+        annotation_text=f"Current ${wti0:.2f}",annotation_font=dict(family="JetBrains Mono",size=10,color="#9A958A"))
+    fig_mc.add_hline(y=40,line_dash="dot",line_color=C["burgundy"],line_width=1.4,
+        annotation_text="Stress Target $40",annotation_font=dict(family="JetBrains Mono",size=10,color=C["burgundy"]))
+    fig_mc.add_hline(y=150,line_dash="dot",line_color=C["burgundy"],line_width=1.4,
+        annotation_text="Stress Target $150",annotation_font=dict(family="JetBrains Mono",size=10,color=C["burgundy"]))
     fig_mc.update_layout(xaxis_title="Trading Days Ahead",yaxis_title="Price (USD/bbl)",yaxis_tickprefix="$")
     st.plotly_chart(fig_mc, use_container_width=True)
 
@@ -1147,14 +1173,14 @@ with tab4:
         for k,v in rows2: html+=f"<tr><td>{k}</td><td><strong>{v}</strong></td></tr>"
         html+="</tbody></table>"; st.markdown(html,unsafe_allow_html=True)
 
-    st.markdown('<div class="swiss-div"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title" style="font-size:1.1rem;">Cross-Asset Correlation Matrix</div>', unsafe_allow_html=True)
     fig_corr=qfig(320)
     cm=S["corr_mx"].values; cols_=list(S["corr_mx"].columns)
     fig_corr.add_trace(go.Heatmap(z=cm,x=cols_,y=cols_,
-        colorscale=[[0,"#7A3F30"],[0.5,"#FFFFFF"],[1,"#2E2A24"]],
+        colorscale=[[0,"#8B3A3A"],[0.5,"#FFFFFF"],[1,"#1E3A5F"]],
         zmid=0,text=np.round(cm,3),texttemplate="%{text}",
-        textfont=dict(size=10,family="DM Mono,monospace"),showscale=True))
+        textfont=dict(size=10,family="JetBrains Mono,monospace"),showscale=True))
     fig_corr.update_layout(title="EWMA Asset Interdependence Topology")
     st.plotly_chart(fig_corr, use_container_width=True)
 
@@ -1165,19 +1191,19 @@ with tab5:
     if S["stress_idx"] is not None and len(S["stress_idx"])>0:
         fig_st=qfig(340)
         fig_st.add_trace(go.Scatter(x=S["stress_idx"].index,y=S["stress_idx"].values,
-            fill="tozeroy",fillcolor="rgba(122,63,48,0.06)",
-            line=dict(color=C["rust"],width=2.2),name="Stress Index"))
-        fig_st.add_hline(y=S["stress_idx"].mean(),line_dash="dot",line_color="#8C8377",line_width=1.2,
-            annotation_text="Historical Baseline Mean",annotation_font=dict(family="DM Mono",size=9,color="#8C8377"))
+            fill="tozeroy",fillcolor="rgba(123,63,63,0.05)",
+            line=dict(color=C["burgundy"],width=2.2),name="Stress Index"))
+        fig_st.add_hline(y=S["stress_idx"].mean(),line_dash="dot",line_color="#9A958A",line_width=1.2,
+            annotation_text="Historical Baseline Mean",annotation_font=dict(family="JetBrains Mono",size=9,color="#9A958A"))
         fig_st.update_layout(title="Multivariate Macro Stress Metrics (Volatility + Basis Coherence + Factor Drift)")
         st.plotly_chart(fig_st, use_container_width=True)
 
-    st.markdown('<div class="swiss-div"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title" style="font-size:1.1rem;">Risk Factor Contribution Calibration (LASSO)</div>', unsafe_allow_html=True)
     fig_imp=qfig(300)
     fi_df=S["feat_imp"].head(10)
     fig_imp.add_trace(go.Bar(x=fi_df["Importance"],y=fi_df["Feature"],orientation="h",
-        marker_color=C["primary"],name="Importance"))
+        marker_color=C["navy"],name="Importance"))
     fig_imp.update_layout(xaxis_title="Absolute LASSO Structural Coefficient",yaxis_autorange="reversed",
         title="Structural Factor Importance Optimization")
     st.plotly_chart(fig_imp, use_container_width=True)
@@ -1231,7 +1257,7 @@ with tab8:
         st.dataframe(wf,use_container_width=True)
         fig_wf=qfig(300)
         fig_wf.add_trace(go.Bar(x=wf["Window End"],y=wf["OOS RMSE"],
-            marker_color=C["primary"],name="OOS RMSE"))
+            marker_color=C["navy"],name="OOS RMSE"))
         fig_wf.update_layout(title="Rolling Window Multi-Period Errors",
             xaxis_title="Evaluation Window End",yaxis_title="OOS RMSE")
         st.plotly_chart(fig_wf, use_container_width=True)
