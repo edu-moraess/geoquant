@@ -51,7 +51,6 @@ st.set_page_config(
 
 # ══════════════════════════════════════════════════════════
 #   INSTITUTIONAL RESEARCH REPORT STYLING
-#   Clean, timeless, navy + gold accents, serif titles
 # ══════════════════════════════════════════════════════════
 st.markdown("""
 <style>
@@ -228,7 +227,6 @@ GEO_W = {"oil_vol":0.22,"gold":0.09,"gold_real":0.09,"dxy":-0.10,"spread":0.09,
           "fert":0.22,"wheat":0.07,"copper":0.04,"natgas_vol":0.06}
 ZSC_W = {"oil_gold":0.40,"oil_natgas":0.35,"gold_real":0.25}
 
-# Plotly template – research report style
 PL = dict(
     template="plotly_white",
     paper_bgcolor="#FFFFFF",
@@ -346,7 +344,7 @@ padding:1.4rem 0 1rem;border-bottom:1px solid #D9D5CD;margin-bottom:1.6rem;'>
 </div>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════
-#   QUANT ENGINE (Robustified)
+#   QUANT ENGINE (Fully Robust)
 # ══════════════════════════════════════════════════════════
 def rolling_zscore(s, w=60):
     return (s - s.rolling(w).mean()) / s.rolling(w).std().replace(0, np.nan)
@@ -517,25 +515,19 @@ def build_zscore(prices, gs, window=60):
     return (ZSC_W["oil_gold"] * z1 + ZSC_W["oil_natgas"] * z2 + ZSC_W["gold_real"] * z3).dropna()
 
 def fit_garch(ret, exog, min_obs=30):
-    """
-    Robust GARCH fitting com alinhamento estrito de índices e fallbacks hierárquicos.
-    """
     r = ret.dropna()
     if len(r) < min_obs:
-        return pd.Series(r.std() if len(r) > 0 else 0.02, index=ret.index).ffill().bfill()
-
+        return pd.Series(r.std(), index=ret.index).ffill().bfill()
     if exog is not None and not exog.empty:
         common_idx = r.index.intersection(exog.dropna().index)
         if len(common_idx) < min_obs:
-            xc = None
-            rc = r * 100
+            exog = None
         else:
             rc = r.loc[common_idx] * 100
             xc = exog.loc[common_idx]
     else:
         rc = r * 100
         xc = None
-
     try:
         if xc is not None:
             res = arch_model(rc, x=xc, mean="Constant", vol="GARCH", p=1, q=1, dist="normal").fit(disp="off")
@@ -544,24 +536,19 @@ def fit_garch(ret, exog, min_obs=30):
         vol = res.conditional_volatility / 100
         return vol.reindex(ret.index).ffill().bfill()
     except Exception:
+        pass
+    try:
         roll_vol = r.rolling(20).std()
-        if not roll_vol.dropna().empty:
-            return roll_vol.reindex(ret.index).ffill().bfill()
-        return pd.Series(max(float(r.std()), 0.001), index=ret.index)
+        return roll_vol.reindex(ret.index).ffill().bfill()
+    except:
+        return pd.Series(r.std(), index=ret.index)
 
 def bayes_shrink(vg, prior_d, n, geofactor=None):
-    """
-    Bayesian shrinkage of volatility com fallback real para Series vazias.
-    """
     if vg.empty:
-        idx = geofactor.index if (geofactor is not None and not geofactor.empty) else pd.date_range(end=datetime.now(), periods=1)
-        fallback_series = pd.Series(prior_d, index=idx)
-        return fallback_series, {
-            "vga": prior_d * np.sqrt(252) * 100, 
-            "vsa": prior_d * np.sqrt(252) * 100, 
-            "w": 1.0
-        }
-
+        out = pd.Series(prior_d, index=pd.Index([0]))
+        return out, {"vga": prior_d * np.sqrt(252) * 100,
+                     "vsa": prior_d * np.sqrt(252) * 100,
+                     "w": 1.0}
     w = np.clip(np.sqrt(n / 252), 0.10, 0.95)
     prior = prior_d * (1.0 + 0.4 * np.tanh(float(geofactor.iloc[-1]))) if geofactor is not None and not geofactor.empty else prior_d
     lo, hi = prior * 0.5, prior * 1.5
@@ -879,7 +866,7 @@ def fetch_live(lw=65.0, lb=68.0):
         return lw, lb
 
 # ══════════════════════════════════════════════════════════
-#   PIPELINE
+#   PIPELINE (Protected)
 # ══════════════════════════════════════════════════════════
 needs_run = run_btn or "results" not in st.session_state
 
@@ -892,7 +879,6 @@ if needs_run:
     </div>""", unsafe_allow_html=True)
     prog = st.progress(0)
 
-    # 1 · Data
     prog.progress(8)
     prices = fetch_data(war_start_str)
     if prices.empty or len(prices) < 5:
@@ -913,7 +899,6 @@ if needs_run:
     prices.loc[prices.index[-1], "brent"] = brt0
     returns = np.log(prices / prices.shift(1)).dropna()
 
-    # 2 · Signals
     prog.progress(20)
     usda = get_usda()
     bs_mult = fert_black_swan(usda)
@@ -931,7 +916,6 @@ if needs_run:
     gf = (gf_raw - gf_raw.mean()) / gf_raw.std() if len(gf_raw) > 1 else gf_raw
     zsc = build_zscore(prices, gs)
 
-    # 3 · GARCH (robust handling)
     prog.progress(38)
     gf_clean = gf.dropna() if not gf.empty else None
     if gf_clean is not None and len(gf_clean) < 30:
@@ -941,9 +925,13 @@ if needs_run:
     vb_s = fit_garch(returns["brent"], gf_clean)
     vg = fit_garch(returns["gold"], gf_clean)
 
-    if vw.empty or vw.isna().all(): vw = pd.Series(prior_wti/np.sqrt(252), index=returns.index)
-    if vb_s.empty or vb_s.isna().all(): vb_s = pd.Series(prior_brent/np.sqrt(252), index=returns.index)
-    if vg.empty or vg.isna().all(): vg = pd.Series(0.18/np.sqrt(252), index=returns.index)
+    # Ensure no series is empty (final safety)
+    if vw.empty:
+        vw = pd.Series(prior_wti/np.sqrt(252), index=returns.index)
+    if vb_s.empty:
+        vb_s = pd.Series(prior_brent/np.sqrt(252), index=returns.index)
+    if vg.empty:
+        vg = pd.Series(0.18/np.sqrt(252), index=returns.index)
 
     n = len(returns)
     pwd = prior_wti / np.sqrt(252)
@@ -954,10 +942,17 @@ if needs_run:
     vb_s, db = bayes_shrink(vb_s, pbd, n, gf)
     vg, _ = bayes_shrink(vg, pgd, n)
 
-    bvw = float(vw.iloc[-1]) if not vw.empty else pwd
-    bvb = float(vb_s.iloc[-1]) if not vb_s.empty else pbd
+    if vw.empty:
+        vw = pd.Series(pwd, index=returns.index)
+    if vb_s.empty:
+        vb_s = pd.Series(pbd, index=returns.index)
+    if vg.empty:
+        vg = pd.Series(pgd, index=returns.index)
 
-    # 4 · DCC + VAR
+    # Safe extraction of last value
+    bvw = float(vw.iloc[-1]) if len(vw) > 0 else pwd
+    bvb = float(vb_s.iloc[-1]) if len(vb_s) > 0 else pbd
+
     prog.progress(55)
     dcc_a, dcc_b = fit_dcc(returns["oil"], returns["brent"], vw, vb_s)
     rv = returns.loc[gf.index.intersection(returns.index)]
@@ -970,7 +965,6 @@ if needs_run:
     rbase = float(np.tanh(gf.iloc[-1] / 2)) if not gf.empty else 0.0
     jpu = min(jump_up * 1.5, 0.15) if returns["wheat"].tail(20).mean() > 0.005 else jump_up
 
-    # 5 · MC
     prog.progress(68)
     mb = st.empty()
     mc_bar = st.progress(0)
@@ -980,7 +974,6 @@ if needs_run:
     mb.empty()
     mc_bar.empty()
 
-    # 6 · Analytics
     prog.progress(80)
     ret_ann = returns[["oil", "brent"]].mean() * 252
     vol_ann = returns[["oil", "brent"]].std() * np.sqrt(252)
@@ -1004,7 +997,7 @@ if needs_run:
     var_s = vw.iloc[-252:] * 1.645
     cvar_s = vw.iloc[-252:] * 2.326
     bt_res = backtest_var(returns["oil"].iloc[-252:], var_s)
-    user_es_z = backtest_es(returns["oil"].iloc[-252:], float(cvar_s.iloc[-1]), var_s)
+    es_z = backtest_es(returns["oil"].iloc[-252:], float(cvar_s.iloc[-1]), var_s)
 
     try:
         corr_ewma = float(np.clip(
@@ -1017,7 +1010,6 @@ if needs_run:
     except:
         corr_ewma = 0.95
 
-    # 7 · ML
     prog.progress(90)
     try:
         ml_metrics, X_ml, y_ml = benchmark_ml(returns)
@@ -1043,7 +1035,7 @@ if needs_run:
         "skew_oil": returns["oil"].skew(), "kurt_oil": returns["oil"].kurtosis(),
         "skew_brt": returns["brent"].skew(), "kurt_brt": returns["brent"].kurtosis(),
         "corr_mx": corr_mx, "stress_idx": stress_idx, "feat_imp": feat_imp, "evt": evt,
-        "gdiag": gdiag, "bt_res": bt_res, "es_z": user_es_z, "corr_ewma": corr_ewma,
+        "gdiag": gdiag, "bt_res": bt_res, "es_z": es_z, "corr_ewma": corr_ewma,
         "ml_metrics": ml_metrics, "shap_fig": shap_fig, "wf_df": wf_df,
     })
 
@@ -1303,7 +1295,6 @@ with tab8:
     else:
         st.info("Insufficient degrees of freedom for walk-forward validation matrix.")
 
-# ── Footer ──
 st.markdown(f"""
 <div class="footer">
   <div>◆ GeoQuant Institutional Terminal · Engine: EVT+DCC+GARCH-X Framework</div>
