@@ -85,7 +85,7 @@ def quant_subplots(rows, cols, secondary=False, height=450, **kw):
 # SIDEBAR
 with st.sidebar:
     st.markdown("## GeoQuant Terminal")
-    st.caption("Institutional Research")
+    st.caption("Research")
     st.divider()
     mc_sims = st.slider("Monte Carlo paths", 1000, 30000, 5000, 1000)
     mc_steps = st.slider("Horizon (days)", 5, 30, 10, 1)
@@ -105,7 +105,7 @@ now_sp = datetime.now(pytz.timezone("America/Sao_Paulo"))
 st.markdown(
     f"""
     <div style="border-bottom: 2px solid #1F4E79; margin-bottom: 1.5rem;">
-        <h1 style="color: #1F4E79; font-weight: 400; margin-bottom: 0;">GeoQuant · Institutional Research</h1>
+        <h1 style="color: #1F4E79; font-weight: 400; margin-bottom: 0;">GeoQuant ·Research</h1>
         <p style="color: #6B7280; font-size: 0.8rem;">Geopolitical Intelligence · EVT+DCC+GARCH-X · {now_sp.strftime('%d %B %Y · %H:%M')} (SP)</p>
     </div>
     """, unsafe_allow_html=True)
