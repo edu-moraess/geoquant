@@ -28,7 +28,7 @@ import yfinance as yf
 from arch import arch_model
 import shap
 import xgboost as xgb
-import lgb
+import lightgbm as lgb
 
 try:
     from pandas_datareader import data as pdr
