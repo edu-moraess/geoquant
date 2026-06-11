@@ -1351,4 +1351,4 @@ st.markdown(f"""
   <div>◆ GeoQuant Institutional Terminal · Engine: Conditional EVT + DCC-GARCH-X</div>
   <div>Eduardo Moraes · Quant Data Scientist & Economics</div>
   <div>Proprietary Research Infrastructure · {now_sp.strftime("%Y")}</div>
-</div>""", unsafe_allow_html=True)
+</div>""", unsafe_allow_html=True) 
