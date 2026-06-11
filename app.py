@@ -50,7 +50,8 @@ def ensure_scalar(x):
         if x.size == 1:
             return float(x.item())
         else:
-            return x.tolist()
+            # Se for um array maior, converte para lista e retorna (será tratado depois)
+            return x.flatten().tolist()
     if isinstance(x, (int, float)):
         return float(x)
     return x
@@ -58,6 +59,9 @@ def ensure_scalar(x):
 def ensure_series(s):
     """Garante que o objeto seja uma Series do pandas, convertendo ndarray se necessário."""
     if isinstance(s, np.ndarray):
+        # Garantir que o array seja 1D
+        if s.ndim > 1:
+            s = s.flatten()
         return pd.Series(s)
     return s
 
@@ -386,12 +390,12 @@ def fetch_cot(ticker="CL"):
         wti = yf.download("CL=F", period="5d", progress=False)["Close"]
         if len(wti) > 1:
             vol = wti.pct_change().std()
-            noise = np.random.normal(0, vol * 300000)
+            noise = float(np.random.normal(0, vol * 300000))
         else:
-            noise = np.random.normal(0, 15000)
-        return max(0, 300000 + noise)
+            noise = float(np.random.normal(0, 15000))
+        return max(0.0, 300000.0 + noise)
     except:
-        return 300000
+        return 300000.0
 
 # ============================================================
 #   API STATUS FUNCTION
@@ -618,7 +622,7 @@ def bayes_shrink(vg, prior_d, n, geofactor=None):
     w = np.clip(np.sqrt(n/252), 0.10, 0.95)
     prior = prior_d * (1.0 + 0.4 * np.tanh(float(geofactor.iloc[-1]))) if (geofactor is not None and len(geofactor) > 0) else prior_d
 
-    # Retorna escalar direto se não houver dados históricos
+    # CORREÇÃO CRÍTICA: Garantir retorno escalar explícito se não houver dados
     if len(vg) == 0:
         return float(prior), {"vga": float(prior)*100, "vsa": float(prior)*100, "w": float(w)}
 
@@ -1217,7 +1221,9 @@ if run_btn or "results" not in st.session_state:
     except Exception as e:
         loading.empty()
         prog.empty()
-        st.error(f"Structural Fatal Exception in Pipeline: {str(e)}")
+        import traceback
+        st.error(f"Structural Fatal Exception in Pipeline: {e}")
+        st.code(traceback.format_exc())
         st.stop()
 
 # ============================================================
