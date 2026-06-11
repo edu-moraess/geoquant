@@ -941,7 +941,7 @@ if "results" in st.session_state:
         st.divider()
         st.subheader("Risk‑Return Profile")
         risk_return = pd.DataFrame({"Asset": ["WTI","Brent"], "Sharpe": [sharpe["oil"], sharpe["brent"]],
-                                    "Volatility": [M.get("vol_wti',0), M.get("vol_brt",0)]})
+                                    "Volatility": [M.get("vol_wti",0), M.get("vol_brt",0)]})
         fig_scatter = go.Figure()
         fig_scatter.add_trace(go.Scatter(x=risk_return["Volatility"], y=risk_return["Sharpe"],
                                          mode="markers+text", text=risk_return["Asset"], textposition="top center",
