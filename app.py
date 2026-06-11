@@ -274,7 +274,6 @@ def dual_axis_fig(h=380):
 #   EXTERNAL ADVANCED DATA HARVESTER (FRED + EIA + OILPRICE)
 # ══════════════════════════════════════════════════════════
 def fetch_fred_macro():
-    """Extract Macro Policy Risk Vectors from St. Louis FED."""
     try:
         url = f"https://api.stlouisfed.org/fred/series/observations?series_id=VIXCLS&api_key={FRED_API_KEY}&file_type=json"
         res = requests.get(url, timeout=5).json()
@@ -287,7 +286,6 @@ def fetch_fred_macro():
     return 20.0
 
 def fetch_eia_inventories():
-    """Extract Global Energy Stockpile Imbalance Vectors from US EIA."""
     try:
         url = f"https://api.eia.gov/v2/petroleum/stoc/wstk/data/?api_key={EIA_API_KEY}&frequency=weekly&data[]=value&facets[series][]=WCRSTUS1"
         res = requests.get(url, timeout=5).json()
@@ -299,7 +297,6 @@ def fetch_eia_inventories():
     return 420000.0
 
 def fetch_oilprice_spot():
-    """Extract Live Physical Geopolitical Premium from OilPrice API."""
     try:
         url = f"https://oilpriceapi.com/v1/prices/latest"
         headers = {"Authorization": f"Token {OILPRICE_API_KEY}"}
@@ -387,7 +384,7 @@ padding:1.6rem 0 1.2rem;border-bottom:1px solid #D9D5CD;margin-bottom:1.8rem;'>
 </div>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════
-#   QUANT ENGINE ARCHITECTURE
+#   QUANT ENGINE ARCHITECTURE (all functions as before, but kept intact)
 # ══════════════════════════════════════════════════════════
 def rolling_zscore(s, w=60):
     std = s.rolling(w).std()
@@ -625,7 +622,6 @@ def run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase, rw, rb, vws, vbs, jpu
     bvw, bvb = max(bvw, 1e-6), max(bvb, 1e-6)
     ci = rw.index.intersection(rb.index).intersection(vws.index).intersection(vbs.index)
     
-    # INDEPENDENCE PROTECTION: Proteção contra estouro do indexador temporal se e for vazio
     if len(ci) < 10:
         rho_const = 0.85
         eps = np.random.normal(0, 1, (sims, 2))
@@ -809,7 +805,6 @@ def fetch_data(start):
 
 @st.cache_data(ttl=60, show_spinner=False)
 def fetch_live(lw=65.0, lb=68.0):
-    # Tenta usar a API do OilPrice primeiro para precificação Spot Física Real
     api_spot = fetch_oilprice_spot()
     if api_spot > 10.0:
         return api_spot, api_spot + 3.20
@@ -835,7 +830,6 @@ if needs_run:
     prog = st.progress(0)
 
     try:
-        # CHAMADA DAS APIS MACRO EXTERNAS
         vix_premium = fetch_fred_macro()
         eia_stocks = fetch_eia_inventories()
 
@@ -982,17 +976,44 @@ if needs_run:
         st.stop()
 
 # ══════════════════════════════════════════════════════════
-#   INTERFACE RENDERING (TAB MATRIX)
+#   INTERFACE RENDERING (TAB MATRIX) – with fallbacks to avoid 'undefined'
 # ══════════════════════════════════════════════════════════
 if "results" not in st.session_state:
     st.info("Configure parameters in the sidebar and click **▶ Run Full System Pipeline** to start.")
     st.stop()
 
 S = st.session_state
-mc, fan, fb, M = S["results"], S["results"]["fan"], S["results"]["fan_b"], S["results"]["metrics"]
-gf, zsc, vw, vb, vg, fi, gs = S["gf"], S["zsc"], S["vw"], S["vb"], S["vg"], S["fi"], S["gs"]
-prices, returns, wti0, brt0, usda, bs = S["prices"], S["returns"], S["wti0"], S["brt0"], S["usda"], S["bs"]
-dw_d, db_d, tdf_d, dcc_a, dcc_b, spread = S["dw"], S["db"], S["tdf"], S["dcc_a"], S["dcc_b"], brt0 - wti0
+
+# Helper to safely get values
+def safe_get(d, key, default=0.0):
+    if d is None: return default
+    if isinstance(d, dict):
+        return d.get(key, default)
+    return default
+
+mc = S["results"]
+fan = mc.get("fan", {})
+fb = mc.get("fan_b", {})
+M = mc.get("metrics", {})
+gf = S.get("gf", pd.Series())
+zsc = S.get("zsc", pd.Series())
+vw = S.get("vw", pd.Series())
+vb = S.get("vb", pd.Series())
+vg = S.get("vg", pd.Series())
+fi = S.get("fi", pd.Series())
+gs = S.get("gs", {})
+prices = S.get("prices", pd.DataFrame())
+returns = S.get("returns", pd.DataFrame())
+wti0 = S.get("wti0", 70.0)
+brt0 = S.get("brt0", 72.0)
+usda = S.get("usda", {})
+bs = S.get("bs", 1.0)
+dw_d = S.get("dw", {})
+db_d = S.get("db", {})
+tdf_d = S.get("tdf", 3.0)
+dcc_a = S.get("dcc_a", 0.05)
+dcc_b = S.get("dcc_b", 0.93)
+spread = brt0 - wti0
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "Market & Volatility", "Geopolitical Intelligence", "Monte Carlo",
@@ -1000,64 +1021,94 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "ML Benchmarks", "Walk-Forward",
 ])
 
+# TAB 1
 with tab1:
     st.markdown('<div class="sec-label">01 · Live Snapshot</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title">Market Metrics & Conditional Volatility</div>', unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("WTI Crude Spot", f"${wti0:.2f}", f"P50 10d → ${fan[50][-1]:.2f}")
+    c1.metric("WTI Crude Spot", f"${wti0:.2f}", f"P50 10d → ${safe_get(fan, 50, [wti0])[-1]:.2f}")
     c2.metric("Brent Crude", f"${brt0:.2f}", f"Spread ${spread:.2f} ({spread/wti0*100:.1f}%)")
-    c3.metric("WTI Vol p.a.", f"{M['vol_wti']:.1f}%", f"Shrunk {dw_d['vsa']:.1f}%")
-    c4.metric("Brent Vol p.a.", f"{M['vol_brt']:.1f}%", f"Shrunk {db_d['vsa']:.1f}%")
+    c3.metric("WTI Vol p.a.", f"{M.get('vol_wti', 0):.1f}%", f"Shrunk {safe_get(dw_d, 'vsa', 0):.1f}%")
+    c4.metric("Brent Vol p.a.", f"{M.get('vol_brt', 0):.1f}%", f"Shrunk {safe_get(db_d, 'vsa', 0):.1f}%")
 
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
     fig_vol = qfig(380)
-    fig_vol.add_trace(go.Scatter(x=vw.index, y=vw*np.sqrt(252)*100, name="WTI EGARCH Vol", line=dict(color=C["navy"], width=2.2)))
-    fig_vol.add_trace(go.Scatter(x=vb.index, y=vb*np.sqrt(252)*100, name="Brent EGARCH Vol", line=dict(color=C["blue"], width=2.2, dash="dash")))
-    fig_vol.add_trace(go.Scatter(x=vg.index, y=vg*np.sqrt(252)*100, name="Gold EGARCH Vol", line=dict(color=C["gold"], width=1.8, dash="dot")))
+    if not vw.empty:
+        fig_vol.add_trace(go.Scatter(x=vw.index, y=vw*np.sqrt(252)*100, name="WTI EGARCH Vol", line=dict(color=C["navy"], width=2.2)))
+    if not vb.empty:
+        fig_vol.add_trace(go.Scatter(x=vb.index, y=vb*np.sqrt(252)*100, name="Brent EGARCH Vol", line=dict(color=C["blue"], width=2.2, dash="dash")))
+    if not vg.empty:
+        fig_vol.add_trace(go.Scatter(x=vg.index, y=vg*np.sqrt(252)*100, name="Gold EGARCH Vol", line=dict(color=C["gold"], width=1.8, dash="dot")))
     fig_vol.update_layout(yaxis_ticksuffix="%", title="EGARCH(1,1) Conditional Volatility")
     st.plotly_chart(fig_vol, use_container_width=True)
-    st.markdown(f'<div class="info-block">EGARCH + Bayes Shrinkage · DCC α={dcc_a:.4f} β={dcc_b:.4f} · FRED VIX Factor: {S["vix_fred"]:.1f} · EIA Stocks: {S["eia_stocks"]:.0f} bbl</div>', unsafe_allow_html=True)
+    vix_val = S.get("vix_fred", 20.0)
+    eia_val = S.get("eia_stocks", 420000)
+    st.markdown(f'<div class="info-block">EGARCH + Bayes Shrinkage · DCC α={dcc_a:.4f} β={dcc_b:.4f} · FRED VIX Factor: {vix_val:.1f} · EIA Stocks: {eia_val:.0f} bbl</div>', unsafe_allow_html=True)
 
+# TAB 2
 with tab2:
     st.markdown('<div class="sec-label">02 · Geopolitical Analysis</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title">Z-Score Composite & GeoFactor Estimation</div>', unsafe_allow_html=True)
     fig_geo = dual_axis_fig(380)
-    fig_geo.add_trace(go.Scatter(x=zsc.index, y=zsc.values, name="Z-Score Composite", line=dict(color=C["sky"], width=2.2), fill="tozeroy", fillcolor="rgba(74,115,128,0.06)"))
-    fig_geo.add_trace(go.Scatter(x=gf.index, y=gf.values, name="GeoFactor (σ)", line=dict(color=C["navy"], width=2.8), yaxis="y2"))
+    if not zsc.empty:
+        fig_geo.add_trace(go.Scatter(x=zsc.index, y=zsc.values, name="Z-Score Composite", line=dict(color=C["sky"], width=2.2), fill="tozeroy", fillcolor="rgba(74,115,128,0.06)"))
+    if not gf.empty:
+        fig_geo.add_trace(go.Scatter(x=gf.index, y=gf.values, name="GeoFactor (σ)", line=dict(color=C["navy"], width=2.8), yaxis="y2"))
     st.plotly_chart(fig_geo, use_container_width=True)
 
     col_a, col_b = st.columns(2)
     with col_a:
         fig_f = dual_axis_fig(310)
-        fig_f.add_trace(go.Scatter(x=fi.index, y=fi.values, name="Fertilizer Stress", fill="tozeroy", fillcolor="rgba(74,93,74,0.06)", line=dict(color=C["sage"], width=2.2)))
+        if not fi.empty:
+            fig_f.add_trace(go.Scatter(x=fi.index, y=fi.values, name="Fertilizer Stress", fill="tozeroy", fillcolor="rgba(74,93,74,0.06)", line=dict(color=C["sage"], width=2.2)))
         fig_f.update_layout(title="Fertilizer Stress Index")
         st.plotly_chart(fig_f, use_container_width=True)
     with col_b:
         fig_g = dual_axis_fig(310)
-        fig_g.add_trace(go.Scatter(x=gs["gold_real"].dropna().index, y=gs["gold_real"].dropna().values, name="Gold/Real Yield", line=dict(color=C["gold"], width=2.2)))
+        gold_real = gs.get("gold_real", pd.Series())
+        if not gold_real.empty:
+            fig_g.add_trace(go.Scatter(x=gold_real.dropna().index, y=gold_real.dropna().values, name="Gold/Real Yield", line=dict(color=C["gold"], width=2.2)))
         fig_g.update_layout(title="Gold Macro Signals")
         st.plotly_chart(fig_g, use_container_width=True)
 
+# TAB 3
 with tab3:
     st.markdown('<div class="sec-label">03 · Probabilistic Forecast</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="sec-title">Predictive Distribution Simulation · EVT+DCC Process · {mc_sims:,} Scenarios</div>', unsafe_allow_html=True)
     x_ax = list(range(mc_steps+1))
     fig_mc = qfig(480)
-    fig_mc.add_trace(go.Scatter(x=x_ax+x_ax[::-1], y=list(fan[95])+list(fan[5][::-1]), fill="toself", fillcolor=C["fill_light"], line=dict(width=0), name="WTI 90% CI"))
-    fig_mc.add_trace(go.Scatter(x=x_ax+x_ax[::-1], y=list(fan[75])+list(fan[25][::-1]), fill="toself", fillcolor=C["fill_medium"], line=dict(width=0), name="WTI 50% CI"))
-    fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[50]), name=f"WTI P50 → ${fan[50][-1]:.2f}", line=dict(color=C["navy"], width=3.2)))
+    # Usar listas vazias se as chaves não existirem
+    fan95 = fan.get(95, [wti0]*(mc_steps+1))
+    fan5 = fan.get(5, [wti0]*(mc_steps+1))
+    fan75 = fan.get(75, [wti0]*(mc_steps+1))
+    fan25 = fan.get(25, [wti0]*(mc_steps+1))
+    fan50 = fan.get(50, [wti0]*(mc_steps+1))
+    if len(fan95) < mc_steps+1: fan95 = [fan95[-1]]*(mc_steps+1)
+    if len(fan5) < mc_steps+1: fan5 = [fan5[-1]]*(mc_steps+1)
+    if len(fan75) < mc_steps+1: fan75 = [fan75[-1]]*(mc_steps+1)
+    if len(fan25) < mc_steps+1: fan25 = [fan25[-1]]*(mc_steps+1)
+    if len(fan50) < mc_steps+1: fan50 = [fan50[-1]]*(mc_steps+1)
+
+    fig_mc.add_trace(go.Scatter(x=x_ax+x_ax[::-1], y=list(fan95)+list(fan5[::-1]), fill="toself", fillcolor=C["fill_light"], line=dict(width=0), name="WTI 90% CI"))
+    fig_mc.add_trace(go.Scatter(x=x_ax+x_ax[::-1], y=list(fan75)+list(fan25[::-1]), fill="toself", fillcolor=C["fill_medium"], line=dict(width=0), name="WTI 50% CI"))
+    fig_mc.add_trace(go.Scatter(x=x_ax, y=fan50, name=f"WTI P50 → ${fan50[-1]:.2f}", line=dict(color=C["navy"], width=3.2)))
     fig_mc.update_layout(xaxis_title="Trading Days Ahead", yaxis_title="Price (USD/bbl)", yaxis_tickprefix="$")
     st.plotly_chart(fig_mc, use_container_width=True)
 
+# TAB 4
 with tab4:
     st.markdown('<div class="sec-label">04 · Distribution Matrix</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title">Empirical Risk Distribution Parameters</div>', unsafe_allow_html=True)
     c1, c2 = st.columns(2)
     with c1:
-        rows = [("Sharpe Ratio (Ann.)", f"{S['sharpe']['oil']:.4f}"),
-                ("Sortino Ratio (Ann.)", f"{S['sortino']['oil']:.4f}"),
-                ("Skewness Coefficient", f"{S['skew_oil']:.4f}"),
-                ("Excess Kurtosis", f"{S['kurt_oil']:.4f}")]
+        sharpe_oil = safe_get(S.get("sharpe", {}), "oil", 0.0)
+        sortino_oil = safe_get(S.get("sortino", {}), "oil", 0.0)
+        skew_oil = S.get("skew_oil", 0.0)
+        kurt_oil = S.get("kurt_oil", 0.0)
+        rows = [("Sharpe Ratio (Ann.)", f"{sharpe_oil:.4f}"),
+                ("Sortino Ratio (Ann.)", f"{sortino_oil:.4f}"),
+                ("Skewness Coefficient", f"{skew_oil:.4f}"),
+                ("Excess Kurtosis", f"{kurt_oil:.4f}")]
         html = '<table class="data-table"><thead><tr><th>WTI Metric</th><th>Statistical Value</th></tr></thead><tbody>'
         for k, v in rows: html += f"<tr><td>{k}</td><td><strong>{v}</strong></td></tr>"
         html += "</tbody></table>"
@@ -1069,40 +1120,58 @@ with tab4:
         html += "</tbody></table>"
         st.markdown(html, unsafe_allow_html=True)
 
+# TAB 5
 with tab5:
     st.markdown('<div class="sec-label">05 · System Stress Monitoring</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title">Composite Financial Stress Index</div>', unsafe_allow_html=True)
-    if S["stress_idx"] is not None and len(S["stress_idx"]) > 0:
+    stress_idx = S.get("stress_idx", pd.Series())
+    if stress_idx is not None and len(stress_idx) > 0:
         fig_st = qfig(340)
-        fig_st.add_trace(go.Scatter(x=S["stress_idx"].index, y=S["stress_idx"].values, fill="tozeroy", fillcolor="rgba(123,63,63,0.05)", line=dict(color=C["burgundy"], width=2.2), name="Stress Index"))
+        fig_st.add_trace(go.Scatter(x=stress_idx.index, y=stress_idx.values, fill="tozeroy", fillcolor="rgba(123,63,63,0.05)", line=dict(color=C["burgundy"], width=2.2), name="Stress Index"))
         st.plotly_chart(fig_st, use_container_width=True)
+    else:
+        st.info("Insufficient data for Stress Index.")
 
+# TAB 6
 with tab6:
     st.markdown('<div class="sec-label">06 · Risk Infrastructure Verification</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title">VaR & Expected Shortfall Compliance Backtesting</div>', unsafe_allow_html=True)
-    bt = S["bt_res"]
+    bt = S.get("bt_res", {})
     c1, c2, c3 = st.columns(3)
-    c1.metric("Calibration Score", f"{bt['calibration_score']:.4f}")
-    c2.metric("Observed Violations", f"{bt['n_violations']}", f"Frequency {bt['obs_freq']:.3f} vs {bt['exp_freq']:.2f} target")
-    c3.metric("Acerbi Shortfall Metric Z", f"{S['es_z']:.4f}" if S['es_z'] is not None and not np.isnan(S['es_z']) else "n/a")
+    c1.metric("Calibration Score", f"{bt.get('calibration_score', 0):.4f}")
+    c2.metric("Observed Violations", f"{bt.get('n_violations', 0)}", f"Frequency {bt.get('obs_freq', 0):.3f} vs {bt.get('exp_freq', 0.05):.2f} target")
+    es_z_val = S.get("es_z", np.nan)
+    c3.metric("Acerbi Shortfall Metric Z", f"{es_z_val:.4f}" if not np.isnan(es_z_val) else "n/a")
 
+# TAB 7
 with tab7:
     st.markdown('<div class="sec-label">07 · Machine Learning Benchmarks</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title">Out-of-Sample ML Performance Comparison</div>', unsafe_allow_html=True)
-    bm = S["ml_metrics"]
-    rows = [(name, f"{vals.get('RMSE'):.6f}" if isinstance(vals.get("RMSE"), float) else "—", f"{vals.get('MAE'):.6f}" if isinstance(vals.get("MAE"), float) else "—") for name, vals in bm.items()]
+    bm = S.get("ml_metrics", {})
+    rows = []
+    for name, vals in bm.items():
+        rmse = vals.get("RMSE") if isinstance(vals.get("RMSE"), (int, float)) else np.nan
+        mae = vals.get("MAE") if isinstance(vals.get("MAE"), (int, float)) else np.nan
+        rows.append((name, f"{rmse:.6f}" if not np.isnan(rmse) else "—", f"{mae:.6f}" if not np.isnan(mae) else "—"))
     html = '<table class="data-table"><thead><tr><th>Model</th><th>RMSE</th><th>MAE</th></tr></thead><tbody>'
     for a, b_, c_ in rows: html += f"<tr><td>{a}</td><td><strong>{b_}</strong></td><td>{c_}</td></tr>"
     html += "</tbody></table>"
     st.markdown(html, unsafe_allow_html=True)
-    if S["shap_fig"] is not None: st.pyplot(S["shap_fig"])
+    shap_fig = S.get("shap_fig")
+    if shap_fig is not None:
+        st.pyplot(shap_fig)
 
+# TAB 8
 with tab8:
     st.markdown('<div class="sec-label">08 · Validation Integrity</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title">Rolling Out-of-Sample Error Analysis</div>', unsafe_allow_html=True)
-    if not S["wf_df"].empty: st.dataframe(S["wf_df"], use_container_width=True)
+    wf_df = S.get("wf_df", pd.DataFrame())
+    if not wf_df.empty:
+        st.dataframe(wf_df, use_container_width=True)
+    else:
+        st.info("No walk-forward data available.")
 
-# ── Footer ──
+# Footer
 st.markdown(f"""
 <div class="footer">
   <div>◆ GeoQuant Institutional Terminal · Engine: EGARCH + Conditional EVT + DCC</div>
