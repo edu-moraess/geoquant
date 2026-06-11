@@ -1,7 +1,7 @@
 """
 GeoQuant – Institutional Macro Research Terminal
 EVT + DCC-GARCH-X + GeoFactor + Walk-Forward + SHAP + ML Benchmarking
-+ GPR (FRED) + COT (CFTC) + DCC Time Series + Sensitivity Map + Export + Status + Model Card
++ GPR (FRED) + COT (CFTC) + DCC Time Series + Export + Status + Model Card
 Eduardo Moraes | Quant Data Scientist & Economics
 """
 
@@ -352,11 +352,8 @@ def fetch_gpr():
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def fetch_cot(ticker="CL"):
-    """Commitment of Traders – proxy de posições líquidas de especuladores (non-commercial) para o ticker dado.
-       Em ambiente real, deve-se conectar à API da CFTC. Aqui usamos um proxy baseado em dados recentes conhecidos."""
-    # Dado real aproximado (WTI): ~300k contratos líquidos longos. Adicionamos um ruído baseado na volatilidade do petróleo.
+    """Commitment of Traders – proxy de posições líquidas de especuladores (non-commercial)"""
     try:
-        # Tenta obter a volatilidade recente do WTI para calibrar o ruído
         wti = yf.download("CL=F", period="5d", progress=False)["Close"]
         if len(wti) > 1:
             vol = wti.pct_change().std()
@@ -404,12 +401,12 @@ def get_api_status():
             status["OilPrice"] = "⚠️ FALLBACK"
     except:
         status["OilPrice"] = "⚠️ FALLBACK"
-    # yfinance (sempre OK)
+    # yfinance
     status["yfinance"] = "✅ OK"
     return status
 
 # ══════════════════════════════════════════════════════════
-#   QUANT ENGINE ARCHITECTURE (original, com pequenas adaptações)
+#   QUANT ENGINE ARCHITECTURE
 # ══════════════════════════════════════════════════════════
 def rolling_zscore(s, w=60):
     std = s.rolling(w).std()
@@ -483,6 +480,9 @@ def silver_demand_proxy(prices):
     return (0.6*cr[ci]+0.4*br[ci]).rolling(20).mean().reindex(prices.index,method="ffill").fillna(0.0)
 
 def simulate_macro_indices(prices_index):
+    # Converte para datetime se necessário
+    if not isinstance(prices_index, pd.DatetimeIndex):
+        prices_index = pd.to_datetime(prices_index)
     np.random.seed(42)
     n = len(prices_index)
     baltic = pd.Series(1500 + np.cumsum(np.random.normal(2, 45, n)), index=prices_index).clip(600, 4000)
@@ -605,7 +605,6 @@ def fit_dcc(rw, rb, vw, vb):
     e = np.column_stack([ew[c2], eb[c2]])
     Qb = np.cov(e, rowvar=False)
     np.fill_diagonal(Qb, 1.0)
-    # Armazenar correlações ao longo do tempo
     rho_series = np.zeros(len(c2))
     def nll(p):
         a, b = p
@@ -985,7 +984,7 @@ st.markdown(f"""
 </div>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════
-#   EXECUTION PIPELINE
+#   EXECUTION PIPELINE (COM CORREÇÃO DE ÍNDICE)
 # ══════════════════════════════════════════════════════════
 if run_btn or "results" not in st.session_state:
     st.cache_data.clear()
@@ -1012,6 +1011,9 @@ if run_btn or "results" not in st.session_state:
             st.error("Execution halted: Insufficient historical data extracted from live sources.")
             st.stop()
 
+        # Força o índice a ser datetime64
+        if not isinstance(prices.index, pd.DatetimeIndex):
+            prices.index = pd.to_datetime(prices.index)
         prices = prices.ffill().bfill()
         for k in TICKERS:
             if k not in prices.columns: prices[k] = np.nan
@@ -1029,8 +1031,12 @@ if run_btn or "results" not in st.session_state:
         gs = gold_signals(prices)
         sd = silver_demand_proxy(prices)
         macro_proxies = simulate_macro_indices(prices.index)
-        # Adicionar GPR e COT aos proxies (para possível uso futuro)
-        macro_proxies["gpr"] = gpr_series.reindex(prices.index, method='ffill').fillna(gpr_series.median() if not gpr_series.empty else 100)
+        # Adicionar GPR e COT
+        if not gpr_series.empty:
+            gpr_series = gpr_series.reindex(prices.index, method='ffill').fillna(gpr_series.median() if not gpr_series.empty else 100)
+        else:
+            gpr_series = pd.Series(100, index=prices.index)
+        macro_proxies["gpr"] = gpr_series
         macro_proxies["cot"] = pd.Series(cot_value, index=prices.index[-1:]).reindex(prices.index, method='ffill').fillna(cot_value)
         
         weights = calibrate_weights(returns, prices, gs, build_fert_index(returns, usda, bs_mult), sd, macro_proxies)
@@ -1172,7 +1178,7 @@ t_exec, t_vol, t_geo, t_attr, t_mc, t_stat, t_diag, t_ml, t_modelcard = st.tabs(
     "Model Diagnostics", "Machine Learning Leaderboard", "Model Card"
 ])
 
-# Abas 1 a 8 idênticas ao original (apenas substituímos a variável macro_proxies onde usado)
+# Abas 1 a 8 (idênticas ao original, mas com pequenas adaptações para usar S["macro_proxies"])
 with t_exec:
     st.markdown('<div class="sec-label">Report · Asset Management Grade</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title">Executive Macro & Geopolitical Summary</div>', unsafe_allow_html=True)
@@ -1205,7 +1211,7 @@ with t_exec:
                     f'<tbody><tr><td>WTI &gt; US$ 70</td><td><strong>{fmt_num(M["wti_70"], ".1f")}%</strong></td></tr>'
                     f'<tr><td>WTI &gt; US$ 80</td><td><strong>{fmt_num(M["wti_80"], ".1f")}%</strong></td></tr>'
                     f'<tr><td>WTI &gt; US$ 90</td><td><strong>{fmt_num(M["wti_90"], ".1f")}%</strong></td></tr>'
-                    f'<tr><td>WTI &gt; US$ 100</td><td><strong>{fmt_num(M["wti_100"], ".1f")}%</strong></td></tr>'
+                    f'<tr>.htmlWTI &gt; US$ 100</td><td><strong>{fmt_num(M["wti_100"], ".1f")}%</strong></td></tr>'
                     f'<tr><td>WTI &gt; US$ 120</td><td><strong>{fmt_num(M["wti_120"], ".1f")}%</strong></td></tr></tbody></table>', unsafe_allow_html=True)
     with col_p2:
         st.markdown('<table class="data-table"><thead><tr><th>WTI Bearish</th><th>Implied Prob</th></tr></thead>'
@@ -1232,7 +1238,6 @@ with t_vol:
     fig_vol.update_layout(yaxis_ticksuffix="%", title=safe_text("EGARCH(1,1) Filtering Engine (Exogenous GeoFactor Multi-Regime)"))
     st.plotly_chart(fig_vol, use_container_width=True)
     
-    # Novo gráfico: DCC correlation time series
     if "dcc_rho" in S and not S["dcc_rho"].empty:
         fig_dcc = qfig(240)
         fig_dcc.add_trace(go.Scatter(x=S["dcc_rho"].index, y=S["dcc_rho"].values, name="DCC Correlation (WTI/Brent)", line=dict(color=C["teal"], width=2)))
@@ -1316,7 +1321,7 @@ with t_stat:
                     f'<tr><td>Distribution Median (P50)</td><td><strong>${fmt_num(moments["median"], ".2f")}</strong></td></tr>'
                     f'<tr><td>Pearson Empirical Mode</td><td><strong>${fmt_num(moments["mode"], ".2f")}</strong></td></tr>'
                     f'<tr><td>Simulated Skewness Coefficient</td><td><strong>{fmt_num(moments["skew"], ".4f")}</strong></td></tr>'
-                    f'<tr><td>Simulated Excess Kurtosis</td><td><strong>{fmt_num(moments["kurt"], ".4f")}</strong></td></tr></tbody></tr>', unsafe_allow_html=True)
+                    f'<tr><td>Simulated Excess Kurtosis</td><td><strong>{fmt_num(moments["kurt"], ".4f")}</strong></td></tr></tbody></table>', unsafe_allow_html=True)
     with c_m2:
         st.markdown('<table class="data-table"><thead><tr><th>Institutional Scenario Mapping</th><th>Terminal Target Price</th></tr></thead><tbody>'
                     f'<tr><td><span style="color:var(--danger)">Extreme Bear (P1)</span></td><td><strong>${fmt_num(fan[1][-1], ".2f")}</strong></td></tr>'
@@ -1345,7 +1350,7 @@ with t_diag:
     st.markdown('<table class="data-table"><thead><tr><th>Backtest Validation Module</th><th>Target Criteria</th><th>Observed Value</th><th>Status P-Value</th></tr></thead><tbody>'
                 f'<tr><td>Kupiec Unconditional Coverage</td><td>5.00% Violations Max</td><td>{(bt["obs_freq"]*100):.2f}%</td><td>{get_status_html(bt["Kupiec_p"])} (p={fmt_num(bt["Kupiec_p"], ".4f")})</td></tr>'
                 f'<tr><td>Christoffersen Conditional Independence</td><td>No Violation Clustering</td><td>—</td><td>{get_status_html(bt["Christoffersen_p"])} (p={fmt_num(bt["Christoffersen_p"], ".4f")})</td></tr>'
-                f'<tr><td>Acerbi Expected Shortfall Metric Z</td><td>Z Score Optimization &lt; 0</td><td>—</td><td><strong>{fmt_num(S["es_z"], ".4f")}</strong></td></tr></tbody></tr>', unsafe_allow_html=True)
+                f'<tr><td>Acerbi Expected Shortfall Metric Z</td><td>Z Score Optimization &lt; 0</td><td>—</td><td><strong>{fmt_num(S["es_z"], ".4f")}</strong></td></tr></tbody></table>', unsafe_allow_html=True)
 
 with t_ml:
     st.markdown('<div class="sec-label">07 · Out-of-Sample Predictive Benchmarks</div>', unsafe_allow_html=True)
@@ -1369,7 +1374,6 @@ with t_ml:
         html_shap += "</tbody></table>"
         st.markdown(html_shap, unsafe_allow_html=True)
 
-# Nova aba: Model Card
 with t_modelcard:
     st.markdown('<div class="sec-label">08 · Model Documentation & Assumptions</div>', unsafe_allow_html=True)
     st.markdown("""
@@ -1403,7 +1407,7 @@ with t_modelcard:
             <li>Os backtests falham intencionalmente em regime extremo (Hormuz) – isso é esperado e indica que o modelo não está superajustado a condições normais.</li>
             <li>As projeções de cauda (P99) são altamente sensíveis aos parâmetros de salto e à escolha da distribuição.</li>
         </ul>
-        <p><em>Model version: 2.0 (com GPR, COT, DCC time series e sensitivity map integrados).</em></p>
+        <p><em>Model version: 2.0 (com GPR, COT, DCC time series, export e model card integrados).</em></p>
     </div>
     """, unsafe_allow_html=True)
 
