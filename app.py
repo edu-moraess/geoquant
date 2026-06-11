@@ -461,7 +461,7 @@ def fetch_data(start_date=None):
             pass
     if frames:
         out = pd.DataFrame(frames).ffill().dropna()
-        if not out.empty && len(out) > 5:
+        if not out.empty and len(out) > 5:
             return out
     return pd.DataFrame()
 
