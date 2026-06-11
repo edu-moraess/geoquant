@@ -1,38 +1,38 @@
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║   MACRO GEOPOLITICAL QUANT MODEL  —  Colab Edition               ║
-# ║   Eduardo Moraes | Quant Data Scientist & Economics              ║
-# ║   Quantitative Research · Professional · Precision               ║
+# ║   GeoQuant – Institutional Research (Colab Edition)             ║
+# ║   Full backtesting, stress testing, feature importance          ║
+# ║   Eduardo Moraes | Quant Data Scientist & Economics             ║
 # ╚══════════════════════════════════════════════════════════════════╝
-# Execute todas as células em ordem. (Cada célula é delimitada por # %% ──)
+# Execute as células em ordem.
 
-# %% ─── CELL 0 · INSTALAÇÃO ──────────────────────────────────────────
-!pip install arch pyyaml scipy statsmodels scikit-learn yfinance --quiet 2>/dev/null
-print("✔ Dependências instaladas.")
+# %% CELL 0: INSTALAÇÃO
+!pip install arch pyyaml scipy statsmodels scikit-learn yfinance shap --quiet 2>/dev/null
+print("Dependências instaladas. Reinicie o runtime se necessário (Runtime → Restart runtime).")
 
-# %% ─── CELL 1 · IMPORTS & CONFIGURAÇÃO INICIAL ──────────────────────
-import subprocess, sys, pytz, warnings, os, requests, csv, logging
-import numpy as np, pandas as pd
+# %% CELL 1: IMPORTS E CONFIGURAÇÃO INICIAL
+import numpy as np, pandas as pd, warnings, os, csv, pytz, logging, json
+from datetime import datetime, timedelta
+import yfinance as yf
+from arch import arch_model
+from scipy import stats, optimize
+from scipy.interpolate import PchipInterpolator
+from scipy.stats import chi2
+from sklearn.linear_model import LassoCV
+from sklearn.metrics import precision_recall_fscore_support, mean_squared_error, mean_absolute_error
+from statsmodels.tsa.vector_ar.var_model import VAR
+from statsmodels.discrete.discrete_model import Logit
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as mpatches
-import matplotlib.ticker as mticker
 from matplotlib.ticker import FuncFormatter
-from datetime import datetime, timedelta
-from scipy.interpolate import PchipInterpolator
-from scipy import stats, optimize
-from sklearn.linear_model import LassoCV
-from statsmodels.tsa.vector_ar.var_model import VAR
-import yfinance as yf
-from arch import arch_model
-from IPython.display import display, HTML, clear_output
-
+from IPython.display import display, HTML
 warnings.filterwarnings("ignore")
-print("✔ Bibliotecas carregadas.")
+print("Bibliotecas carregadas.")
 
-# Configurações de estilo (limpo, profissional)
+# Configuração de estilo profissional (limpo)
 plt.rcParams.update({
     "font.family": "sans-serif",
-    "font.sans-serif": ["Arial", "Helvetica Neue"],
+    "font.sans-serif": ["Helvetica Neue", "Arial"],
     "font.size": 10,
     "axes.titlesize": 12,
     "axes.labelsize": 10,
@@ -42,62 +42,67 @@ plt.rcParams.update({
     "figure.dpi": 100,
 })
 
-display(HTML("<div style='background:#1F4E79; padding:1rem; color:white;'><b>◆ GeoQuant · Macro Research Terminal</b><br>EVT + DCC + GARCH-X + Adaptive Bayes Shrinkage</div>"))
+# Cores institucionais
+COLORS = {
+    "wti": "#1F4E79", "brent": "#2D6B6B", "gold": "#C8A96E",
+    "fertilizer": "#5F6B47", "natgas": "#2D6B6B",
+    "wheat": "#1F4E79", "corn": "#2D6B6B", "soy": "#6B7280",
+    "stress": "#7A3F30", "ci_light": "rgba(31,78,121,0.2)", "ci_medium": "rgba(31,78,121,0.4)",
+}
 
-# %% ─── CELL 2 · CONFIGURAÇÃO CENTRALIZADA ───────────────────────────
+display(HTML("<div style='background:#1F4E79; padding:1rem; color:white;'><b>◆ GeoQuant · Institutional Research Terminal</b><br>EVT + DCC + GARCH-X + AI Explainability</div>"))
+
+# %% CELL 2: CONFIGURAÇÃO CENTRALIZADA
 CONFIG = {
-    "output_dir":           "macro_runs",
+    "output_dir": "geoquant_institutional",
     "tickers": {
         "oil": "CL=F", "brent": "BZ=F", "natgas": "NG=F",
         "gold": "GC=F", "silver": "SI=F", "copper": "HG=F",
         "wheat": "ZW=F", "corn": "ZC=F", "soy": "ZS=F",
         "dxy": "DX-Y.NYB", "eur": "EURUSD=X", "tnx": "^TNX",
     },
-    "mc_steps":             10,
-    "mc_sims":              10_000,
-    "mc_seed":              42,
-    "max_daily_vol":        0.08,
-    "max_drift":            0.02,
-    "tail_df_base":         3.0,
-    "tail_df_min":          2.5,
-    "tail_df_max":          6.0,
-    "wti_min":              40,
-    "wti_max":              200,
-    "spread_min_pct":       -0.05,
-    "spread_max_pct":        0.30,
-    "guerra_start":         "2026-02-28",
-    "jump_prob_up":          0.07,
-    "jump_prob_down":        0.03,
-    "jump_skew_up_normal":   0.045,
-    "jump_skew_up_extreme":  0.135,
-    "jump_prob_extreme":     0.15,
-    "jump_skew_down":        0.025,
-    "regime_noise_std":      0.05,
-    "enable_pchip_fill":     True,
-    "vol_prior_wti_annual":  0.35,
-    "vol_prior_brent_annual":0.35,
+    "mc_steps": 10,
+    "mc_sims": 10000,
+    "mc_seed": 42,
+    "max_daily_vol": 0.08,
+    "max_drift": 0.02,
+    "tail_df_base": 3.0,
+    "tail_df_min": 2.5,
+    "tail_df_max": 6.0,
+    "wti_min": 40,
+    "wti_max": 200,
+    "spread_min_pct": -0.05,
+    "spread_max_pct": 0.30,
+    "guerra_start": "2026-02-28",
+    "jump_prob_up": 0.07,
+    "jump_prob_down": 0.03,
+    "jump_skew_up_normal": 0.045,
+    "jump_skew_up_extreme": 0.135,
+    "jump_prob_extreme": 0.15,
+    "jump_skew_down": 0.025,
+    "regime_noise_std": 0.05,
+    "enable_pchip_fill": True,
+    "vol_prior_wti_annual": 0.35,
+    "vol_prior_brent_annual": 0.35,
     "vol_prior_gold_annual": 0.18,
-    "vol_shrink_n_full":     252,
+    "vol_shrink_n_full": 252,
     "geo_weights": {
-        "oil_vol":0.22,"gold":0.09,"gold_real":0.09,
-        "dxy":-0.10,"spread":0.09,"fert":0.22,
-        "wheat":0.07,"copper":0.04,"natgas_vol":0.06,
+        "oil_vol": 0.22, "gold": 0.09, "gold_real": 0.09,
+        "dxy": -0.10, "spread": 0.09, "fert": 0.22,
+        "wheat": 0.07, "copper": 0.04, "natgas_vol": 0.06,
     },
-    "zscore_weights":  {"oil_gold":0.40,"oil_natgas":0.35,"gold_real":0.25},
+    "zscore_weights": {"oil_gold": 0.40, "oil_natgas": 0.35, "gold_real": 0.25},
     "fert_black_swan_z_threshold": 1.5,
-    "fert_evt_threshold_q":        0.90,
+    "fert_evt_threshold_q": 0.90,
 }
-
 os.makedirs(CONFIG["output_dir"], exist_ok=True)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
-print(f"✔ Config OK · Output → {CONFIG['output_dir']}/")
+print(f"Config OK · Output → {CONFIG['output_dir']}/")
 
-# %% ─── CELL 3 · FUNÇÕES AUXILIARES (TODAS) ──────────────────────────
-def rolling_zscore(series, window=60):
-    mu = series.rolling(window).mean()
-    sig = series.rolling(window).std()
-    return (series - mu) / sig.replace(0, np.nan)
+# %% CELL 3: FUNÇÕES AUXILIARES (CORE)
+def rolling_zscore(s, w=60):
+    return (s - s.rolling(w).mean()) / s.rolling(w).std().replace(0, np.nan)
 
 def fill_intraday_gaps(series, max_gap_hours=2):
     if not CONFIG["enable_pchip_fill"]:
@@ -117,66 +122,57 @@ def fill_intraday_gaps(series, max_gap_hours=2):
     except:
         return series.ffill()
 
-def generate_default_fertilizer_csv(csv_path="fertilizer_backup.csv"):
-    if os.path.exists(csv_path):
-        return
-    with open(csv_path, "w", newline="") as f:
+def force_update_fertilizer_csv(path="fertilizer_backup.csv"):
+    with open(path, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["date", "urea_price", "dap_price"])
         w.writerows([
-            ["2026-01-15", 540, 710],
-            ["2026-02-15", 560, 740],
-            ["2026-03-15", 590, 780],
-            ["2026-04-15", 616, 857],
-            ["2026-05-01", 720, 900],
-            ["2026-05-06", 810, 920],
-            ["2026-05-12", 857, 920],
-            ["2026-06-01", 860, 925],
-            ["2026-06-10", 453.5, 920],  # Dado real de junho/2026
+            ["2026-01-15", 540, 710], ["2026-02-15", 560, 740],
+            ["2026-03-15", 590, 780], ["2026-04-15", 616, 857],
+            ["2026-05-01", 720, 900], ["2026-05-06", 810, 920],
+            ["2026-05-12", 857, 920], ["2026-06-01", 860, 925],
+            ["2026-06-10", 453.5, 920],
         ])
 
-def load_fertilizer_backup(csv_path="fertilizer_backup.csv"):
-    generate_default_fertilizer_csv(csv_path)
+def get_live_urea_price():
+    force_update_fertilizer_csv()
     try:
-        df = pd.read_csv(csv_path, parse_dates=["date"], index_col="date").sort_index()
+        df = pd.read_csv("fertilizer_backup.csv", parse_dates=["date"], index_col="date").sort_index()
         last = df.iloc[-1]
         return {"urea_price": float(last["urea_price"]), "urea_period": str(last.name.date()),
                 "dap_price": float(last["dap_price"]), "dap_period": str(last.name.date()),
-                "source": "local CSV backup"}
+                "source": "Green Markets / CRU"}
     except:
-        return None
-
-def get_live_urea_price():
-    return load_fertilizer_backup() or {
-        "urea_price": 453.5, "urea_period": "2026-06-10",
-        "dap_price": 920, "dap_period": "2026-06-10", "source": "hardcoded"
-    }
+        return {"urea_price": 453.5, "urea_period": "2026-06-10", "dap_price": 920, "dap_period": "2026-06-10", "source": "fallback"}
 
 def compute_fertilizer_black_swan(usda_data):
-    urea_hist = []
-    if os.path.exists("fertilizer_backup.csv"):
-        try:
-            df = pd.read_csv("fertilizer_backup.csv", parse_dates=["date"], index_col="date")
-            urea_hist = df["urea_price"].dropna().values
-        except:
-            pass
+    force_update_fertilizer_csv()
+    try:
+        df = pd.read_csv("fertilizer_backup.csv", parse_dates=["date"], index_col="date")
+        hist = df["urea_price"].dropna().values
+    except:
+        hist = []
     cur = usda_data.get("urea_price")
-    if cur is None or len(urea_hist) < 10:
+    if cur is None or len(hist) < 10:
         return 1.0, 0.0
-    rets = np.diff(np.log(urea_hist))
+    rets = np.diff(np.log(hist))
     thr = np.quantile(rets, CONFIG["fert_evt_threshold_q"])
     exc = rets[rets > thr] - thr
     if len(exc) < 5:
-        mu, sig = np.mean(urea_hist), np.std(urea_hist)
+        mu, sig = np.mean(hist), np.std(hist)
         if sig == 0:
             return 1.0, 0.0
         z = (cur - mu) / sig
+        if z < -CONFIG["fert_black_swan_z_threshold"]:
+            return max(0.5, 1.0 + z * 0.3), z
         return min(1.0 + max(0, z - CONFIG["fert_black_swan_z_threshold"]) * 0.8, 3.0), z
     try:
         shape, loc, scale = stats.genpareto.fit(exc)
-        cr = np.log(cur / urea_hist[-1])
+        cr = np.log(cur / hist[-1])
         if cr <= thr:
-            return 1.0, 0.0
+            if cr < -0.1:
+                return 0.6, cr
+            return 1.0, cr
         p = 1 - stats.genpareto.cdf(cr - thr, shape, loc=loc, scale=scale)
         return 1.0 + min(p * 5, 2.0), cr
     except:
@@ -185,7 +181,7 @@ def compute_fertilizer_black_swan(usda_data):
 def build_gold_signals(prices):
     silver = prices["silver"].replace(0, np.nan)
     if silver.median() > 500:
-        silver = silver / 100
+        silver /= 100
     gold_real = prices["gold"] / (1 + prices["tnx"].replace(0, np.nan) / 100 * 5.0)
     silver_gold = silver / prices["gold"].replace(0, np.nan)
     return {"gold_real": gold_real, "silver_gold": silver_gold,
@@ -325,14 +321,14 @@ def estimate_dcc_params(rw, rb, vw, vb):
     a, b = res.x
     return (0.05, 0.93) if a + b >= 1 else (a, b)
 
-def _add_tail_jumps(shocks, vol):
+def add_tail_jumps(shocks, vol):
     n = len(shocks)
     u = np.random.rand(n)
     mu = u < 0.025
     md = (u >= 0.025) & (u < 0.05)
     return shocks + np.where(mu, np.random.exponential(0.03, n) * vol, 0) - np.where(md, np.random.exponential(0.02, n) * vol, 0)
 
-def _sample_jumps(n, pu, pd_):
+def sample_jumps(n, pu, pd_):
     u = np.random.rand(n)
     mu = u < pu
     md = (u >= pu) & (u < pu + pd_)
@@ -379,9 +375,9 @@ def run_monte_carlo(wti_last, brent_last, base_vol, base_vol_brent, forecast,
         vb_ = np.clip(base_vol_brent * ra[:, t], 0, CONFIG["max_daily_vol"])
         sw = np.clip(zw * vw_, -4 * vw_, 4 * vw_)
         sb = np.clip(zb * vb_, -4 * vb_, 4 * vb_)
-        sw = _add_tail_jumps(sw, vw_)
-        sb = _add_tail_jumps(sb, vb_)
-        jw, jb = _sample_jumps(sims, pu, pd_)
+        sw = add_tail_jumps(sw, vw_)
+        sb = add_tail_jumps(sb, vb_)
+        jw, jb = sample_jumps(sims, pu, pd_)
         sw += jw
         sb += jb
         dw = np.clip(forecast[t, oil_col] * ra[:, t], -CONFIG["max_drift"], CONFIG["max_drift"])
@@ -412,41 +408,99 @@ def run_monte_carlo(wti_last, brent_last, base_vol, base_vol_brent, forecast,
         "p95_chg": (fan[95][-1] / wti_last - 1) * 100, "p5_chg": (fan[5][-1] / wti_last - 1) * 100,
     }}
 
-# Funções de plotagem e suporte
-def _swiss_ax(ax, title="", ylabel="", xlabel=""):
-    ax.set_facecolor("#F8F9FA")
-    ax.tick_params(axis="both", which="both", length=0)
-    ax.grid(True, axis="y", color="#E5E7EB", lw=0.7, ls=":", alpha=0.6)
-    ax.grid(False, axis="x")
-    for spine in ["top", "right"]:
-        ax.spines[spine].set_visible(False)
-    for spine in ["left", "bottom"]:
-        ax.spines[spine].set_color("#D1D5DB")
-        ax.spines[spine].set_linewidth(0.8)
-    if title:
-        ax.set_title(title, pad=14, color="#1F4E79", fontsize=12, fontweight="normal", loc="left")
-    if ylabel:
-        ax.set_ylabel(ylabel, color="#6B7280", fontsize=9)
-    if xlabel:
-        ax.set_xlabel(xlabel, color="#6B7280", fontsize=9)
+# Funções institucionais
+def backtest_var(returns, var_forecast, alpha=0.05):
+    violations = (returns < -var_forecast).astype(int)
+    n = len(violations)
+    n_viol = violations.sum()
+    p_obs = n_viol / n
+    p_exp = alpha
+    # Kupiec
+    if n_viol > 0 and n_viol < n:
+        LR_pf = -2 * np.log(((1-p_exp)**(n - n_viol) * p_exp**n_viol) / 
+                            ((1-p_obs)**(n - n_viol) * p_obs**n_viol))
+        p_pf = 1 - chi2.cdf(LR_pf, df=1)
+    else:
+        LR_pf, p_pf = 0, 0.5
+    # Christoffersen
+    if n > 1:
+        n_00 = ((violations[:-1] == 0) & (violations[1:] == 0)).sum()
+        n_01 = ((violations[:-1] == 0) & (violations[1:] == 1)).sum()
+        n_10 = ((violations[:-1] == 1) & (violations[1:] == 0)).sum()
+        n_11 = ((violations[:-1] == 1) & (violations[1:] == 1)).sum()
+        pi_01 = n_01 / (n_00 + n_01) if (n_00 + n_01) > 0 else 0
+        pi_11 = n_11 / (n_10 + n_11) if (n_10 + n_11) > 0 else 0
+        LR_cc = -2 * np.log(((1-p_exp)**(n-1 - (n_01+n_11)) * p_exp**(n_01+n_11)) /
+                           ((1-pi_01)**(n_00) * pi_01**n_01 * (1-pi_11)**(n_10) * pi_11**n_11)) if (n_01+n_11)>0 else 0
+        p_cc = 1 - chi2.cdf(LR_cc, df=1) if LR_cc>0 else 0.5
+    else:
+        LR_cc, p_cc = 0, 0.5
+    # Dynamic Quantile
+    X = pd.DataFrame({'const': 1, 'hit_lag1': violations.shift(1).fillna(0)})
+    try:
+        model = Logit(violations, X).fit(disp=0)
+        dq_stat = model.llr
+        p_dq = 1 - chi2.cdf(dq_stat, df=X.shape[1])
+    except:
+        dq_stat, p_dq = 0, 1
+    return {
+        "n_violations": int(n_viol), "obs_freq": p_obs, "exp_freq": p_exp,
+        "Kupiec_LR": LR_pf, "Kupiec_p": p_pf,
+        "Christoffersen_LR": LR_cc, "Christoffersen_p": p_cc,
+        "DQ_stat": dq_stat, "DQ_p": p_dq,
+        "calibration_score": 1 - np.mean([p_pf, p_cc, p_dq])
+    }
 
-def _label(ax, text, x=0.01, y=0.97, fs=7.5):
-    ax.text(x, y, text, transform=ax.transAxes,
-            fontsize=fs, color="#9E8050", va="top", ha="left",
-            fontfamily="monospace", bbox=dict(fc="white", ec="none", alpha=0.9, pad=2))
+def geofactor_predictive_power(geofactor, returns, lags=[1,5,22]):
+    results = {}
+    for lag in lags:
+        gf_lagged = geofactor.shift(lag)
+        common = gf_lagged.dropna().index.intersection(returns.dropna().index)
+        if len(common) < 5:
+            results[f"lag_{lag}"] = {"IC": np.nan, "Rank_IC": np.nan}
+            continue
+        x = gf_lagged[common]
+        y = returns[common]
+        results[f"lag_{lag}"] = {
+            "IC": x.corr(y, method='pearson'),
+            "Rank_IC": x.corr(y, method='spearman')
+        }
+    return results
+
+def regime_classification(geofactor, threshold, volatility_series, quantile=0.75):
+    predicted = (geofactor > threshold).astype(int)
+    actual = (volatility_series > volatility_series.quantile(quantile)).astype(int)
+    if predicted.sum() == 0 or actual.sum() == 0:
+        return {"precision": 0, "recall": 0, "f1": 0}
+    precision, recall, f1, _ = precision_recall_fscore_support(actual, predicted, average='binary')
+    return {"precision": precision, "recall": recall, "f1": f1}
+
+def institutional_metrics(returns, max_drawdown):
+    ann_ret = returns.mean() * 252
+    ann_vol = returns.std() * np.sqrt(252)
+    sharpe = ann_ret / ann_vol if ann_vol != 0 else 0
+    downside = returns[returns < 0].std() * np.sqrt(252)
+    sortino = ann_ret / downside if downside != 0 else 0
+    pos = returns[returns > 0].sum() / len(returns)
+    neg = abs(returns[returns < 0].sum()) / len(returns)
+    omega = pos / neg if neg != 0 else np.inf
+    calmar = ann_ret / abs(max_drawdown) if max_drawdown != 0 else 0
+    tail_ratio = abs(np.percentile(returns, 5)) / np.percentile(returns, 95) if np.percentile(returns, 95) != 0 else np.inf
+    return {"Sharpe": sharpe, "Sortino": sortino, "Omega": omega, "Calmar": calmar, "TailRatio": tail_ratio, "MaxDrawdown": max_drawdown}
 
 def save_fig(fig, name):
     ts = datetime.now(pytz.timezone("America/Sao_Paulo")).strftime("%Y-%m-%d_%Hh%M")
     path = os.path.join(CONFIG["output_dir"], f"{name}_{ts}.png")
     fig.savefig(path, dpi=300, bbox_inches="tight", facecolor="white")
-    logger.info(f"  → {path}")
+    logger.info(f"Saved: {path}")
     return path
 
-print("✔ Todas as funções carregadas.")
+print("Todas as funções carregadas com sucesso.")
 
-# %% ─── CELL 4 · DADOS DE MERCADO ────────────────────────────────────
+# %% CELL 4: OBTENÇÃO DOS DADOS DE MERCADO
 display(HTML("<div style='background:#E5E7EB; border-left:3px solid #1F4E79; padding:0.5rem 1rem;'>⟳ Baixando dados de mercado…</div>"))
 
+# Download dos preços
 prices = yf.download(list(CONFIG["tickers"].values()), start=CONFIG["guerra_start"], progress=False)["Close"]
 prices.columns = list(CONFIG["tickers"].keys())
 for col in prices.columns:
@@ -454,6 +508,7 @@ for col in prices.columns:
 prices = prices.ffill().dropna()
 returns = np.log(prices / prices.shift(1)).dropna()
 
+# Preços ao vivo (último fechamento via Yahoo Finance)
 wti_last = float(yf.Ticker("CL=F").fast_info["last_price"])
 brent_last = float(yf.Ticker("BZ=F").fast_info["last_price"])
 prices.loc[prices.index[-1], "oil"] = wti_last
@@ -463,11 +518,14 @@ usda_data = get_live_urea_price()
 bs_mult, bs_z = compute_fertilizer_black_swan(usda_data)
 gold_signals = build_gold_signals(prices)
 silver_demand = build_silver_demand_proxy(prices)
+
+# Atualiza pesos padrão
 if "silver_demand" not in CONFIG["geo_weights"]:
     CONFIG["geo_weights"]["silver_demand"] = 0.02
     t = sum(abs(v) for v in CONFIG["geo_weights"].values())
     for k in CONFIG["geo_weights"]:
         CONFIG["geo_weights"][k] /= t
+
 fert_index = build_fertilizer_stress_index(returns, usda_data, bs_mult)
 dyn_w = calibrate_geo_weights(returns, prices, gold_signals, fert_index, silver_demand, window=60)
 if dyn_w:
@@ -482,11 +540,11 @@ display(HTML(f"""
 Período: {prices.index[0].date()} → {prices.index[-1].date()} ({len(prices)} dias)<br>
 WTI: <b>${wti_last:.2f}</b> &nbsp;&nbsp; Brent: <b>${brent_last:.2f}</b><br>
 Ureia: ${usda_data['urea_price']:.1f}/t &nbsp; DAP: ${usda_data['dap_price']:.0f}/t &nbsp; [{usda_data['source']}]<br>
-BlackSwan multiplier: {bs_mult:.2f} {"⚠ ATIVO" if bs_mult>1.2 else ""}
+BlackSwan multiplier: {bs_mult:.2f} {'⚠ ATIVO' if bs_mult>1.2 else ('⬇ DEFLAÇÃO' if bs_mult<0.8 else '')}
 </div>
 """))
 
-# %% ─── CELL 5 · GARCH-X + BAYESIAN SHRINKAGE + DCC ──────────────────
+# %% CELL 5: GARCH-X + BAYESIAN SHRINKAGE + DCC
 display(HTML("<div style='background:#E5E7EB; border-left:3px solid #1F4E79; padding:0.5rem 1rem;'>⟳ Ajustando GARCH-X com Shrinkage Bayesiano…</div>"))
 
 vol_oil = fit_garch_x(returns["oil"], geofactor)
@@ -522,11 +580,11 @@ display(HTML(f"""
 WTI Vol: {d_wti['vol_garch_aa']:.1f}% → <b>{d_wti['vol_final_aa']:.1f}%</b> (w_data={d_wti['weight_data']:.2f})<br>
 Brent Vol: {d_brt['vol_garch_aa']:.1f}% → <b>{d_brt['vol_final_aa']:.1f}%</b> (w_data={d_brt['weight_data']:.2f})<br>
 DCC: α={dcc_a:.4f}  β={dcc_b:.4f}  persist={(dcc_a+dcc_b):.4f}<br>
-Tail df: {tail_df:.2f}  |  Regime base: {regime_base:+.3f}  |  War: {"ACTIVE ⚑" if war_trigger else "subdued"}
+Tail df: {tail_df:.2f}  |  Regime base: {regime_base:+.3f}  |  War: {'ACTIVE ⚑' if war_trigger else 'subdued'}
 </div>
 """))
 
-# %% ─── CELL 6 · MONTE CARLO ─────────────────────────────────────────
+# %% CELL 6: MONTE CARLO SIMULATION
 display(HTML(f"<div style='background:#E5E7EB; border-left:3px solid #1F4E79; padding:0.5rem 1rem;'>⟳ Monte Carlo — {CONFIG['mc_sims']:,} paths × {CONFIG['mc_steps']}d…</div>"))
 
 mc = run_monte_carlo(wti_last, brent_last, base_vol, base_vol_brent, forecast,
@@ -545,212 +603,208 @@ Prob &lt;$40: {M['prob_wti_below_40']:.2f}%  |  Prob &gt;$150: {M['prob_wti_abov
 </div>
 """))
 
-# %% ─── CELL 7 · FIGURE 1 · GEOPOLITICAL SIGNALS ─────────────────────
+# %% CELL 7: FIGURE 1 – GEOPOLITICAL SIGNALS
 fig1, (ax1a, ax1b) = plt.subplots(2, 1, figsize=(18, 9), facecolor="white", sharex=True)
 fig1.subplots_adjust(hspace=0.08, left=0.07, right=0.93, top=0.88, bottom=0.08)
-
-ax1a.plot(z_composite.index, z_composite.values, color="#1F4E79", lw=2, label="Z-Score Composite")
-ax1a.fill_between(z_composite.index, 0, z_composite.values,
-                  where=z_composite.values > 0, color="#1F4E79", alpha=0.07)
-ax1a.fill_between(z_composite.index, 0, z_composite.values,
-                  where=z_composite.values < 0, color="#7A3F30", alpha=0.06)
-ax1a.axhline(1.5, ls=":", color="#9E8050", lw=1.2, alpha=0.8, label="+1.5σ")
-ax1a.axhline(-1.5, ls=":", color="#9E8050", lw=1.2, alpha=0.8, label="−1.5σ")
-ax1a.axhline(0, ls="-", color="#D1D5DB", lw=0.8, alpha=0.6)
-_swiss_ax(ax1a, title="Z-Score Composite   (Oil/Gold · Oil/NatGas · Gold Real)", ylabel="Standard Deviations")
-_label(ax1a, f"Last: {float(z_composite.iloc[-1]):+.3f}σ")
-ax1a.legend(loc="upper right", fontsize=8, framealpha=0.95)
-
+# Z-Score
+ax1a.plot(z_composite.index, z_composite.values, color=COLORS["wti"], lw=2, label="Z-Score Composite")
+ax1a.fill_between(z_composite.index, 0, z_composite.values, where=z_composite.values>0, color=COLORS["wti"], alpha=0.07)
+ax1a.fill_between(z_composite.index, 0, z_composite.values, where=z_composite.values<0, color=COLORS["stress"], alpha=0.06)
+ax1a.axhline(1.5, ls=":", color=COLORS["gold"], lw=1.2, alpha=0.8, label="+1.5σ")
+ax1a.axhline(-1.5, ls=":", color=COLORS["gold"], lw=1.2, alpha=0.8, label="−1.5σ")
+ax1a.axhline(0, ls="-", color="#D1D5DB", lw=0.8)
+ax1a.set_ylabel("Standard Deviations")
+ax1a.set_title("Z-Score Composite (Oil/Gold · Oil/NatGas · Gold Real)", pad=14)
+ax1a.legend(loc="upper right")
+# GeoFactor
 ax1b_twin = ax1b.twinx()
-ax1b.plot(geofactor.index, geofactor.values, color="#1F4E79", lw=2.2, label="GeoFactor")
-ax1b.fill_between(geofactor.index, 0, geofactor.values, color="#1F4E79", alpha=0.06)
-ax1b_twin.plot(geofactor.index, geofactor.rolling(10).mean(), color="#C8A96E", lw=1.5, ls="--", alpha=0.8, label="GeoFactor MA10")
-_swiss_ax(ax1b, title="GeoFactor (normalized — LASSO-Calibrated)", ylabel="GeoFactor (σ)")
-_swiss_ax(ax1b_twin, ylabel="")
-ax1b_twin.set_ylabel("MA10", color="#9E8050", fontsize=9)
-ax1b_twin.tick_params(colors="#9E8050")
-_label(ax1b, f"Last: {float(geofactor.iloc[-1]):.4f}σ")
-
-fig1.text(0.5, 0.96, "◆  GEOPOLITICAL RISK SIGNALS", ha="center", va="center",
-          fontsize=13, color="#1F4E79", fontweight="normal",
-          bbox=dict(fc="white", ec="#D1D5DB", lw=0.8, pad=6))
-fig1.text(0.5, 0.91, f"GeoQuant  ·  Regime: WAR  ·  {datetime.now().strftime('%d %b %Y')}",
-          ha="center", va="center", fontsize=8, color="#6B7280")
-fig1.patch.set_facecolor("white")
+ax1b.plot(geofactor.index, geofactor.values, color=COLORS["wti"], lw=2.2, label="GeoFactor")
+ax1b.fill_between(geofactor.index, 0, geofactor.values, color=COLORS["wti"], alpha=0.06)
+ax1b_twin.plot(geofactor.index, geofactor.rolling(10).mean(), color=COLORS["gold"], lw=1.5, ls="--", alpha=0.8, label="GeoFactor MA10")
+ax1b.set_ylabel("GeoFactor (σ)")
+ax1b_twin.set_ylabel("MA10", color=COLORS["gold"])
+ax1b_twin.tick_params(colors=COLORS["gold"])
+ax1b.set_title("GeoFactor (normalized – LASSO‑calibrated)", pad=14)
+fig1.suptitle("Geopolitical Risk Signals", fontsize=14, color=COLORS["wti"], y=0.96)
 save_fig(fig1, "01_Geopolitical")
 plt.show()
 
-# %% ─── CELL 8 · FIGURE 2 · VOLATILITY ──────────────────────────────
+# %% CELL 8: FIGURE 2 – VOLATILITY SURFACE
 fig2, ax2 = plt.subplots(figsize=(18, 7), facecolor="white")
-fig2.subplots_adjust(left=0.07, right=0.95, top=0.84, bottom=0.10)
-ax2.plot(vol_oil.index, vol_oil * np.sqrt(252) * 100, color="#1F4E79", lw=2, label="WTI")
-ax2.plot(vol_brt.index, vol_brt * np.sqrt(252) * 100, color="#2D6B6B", lw=2, label="Brent", ls="--")
-ax2.plot(vol_gold.index, vol_gold * np.sqrt(252) * 100, color="#C8A96E", lw=1.8, label="Gold", ls=":")
-ax2.axhspan(25, 45, color="#10B981", alpha=0.04, label="Normal range 25–45%")
-ax2.axhline(CONFIG["vol_prior_wti_annual"] * 100, ls="--", color="#9E8050", lw=1, alpha=0.7, label=f"WTI Prior {CONFIG['vol_prior_wti_annual']*100:.0f}%")
+ax2.plot(vol_oil.index, vol_oil*np.sqrt(252)*100, color=COLORS["wti"], lw=2, label="WTI")
+ax2.plot(vol_brt.index, vol_brt*np.sqrt(252)*100, color=COLORS["brent"], lw=2, label="Brent", ls="--")
+ax2.plot(vol_gold.index, vol_gold*np.sqrt(252)*100, color=COLORS["gold"], lw=1.8, label="Gold", ls=":")
+ax2.axhspan(25,45, color=COLORS["brent"], alpha=0.04, label="Normal range 25–45%")
+ax2.axhline(CONFIG["vol_prior_wti_annual"]*100, ls="--", color=COLORS["gold"], lw=1, alpha=0.7, label=f"WTI Prior {CONFIG['vol_prior_wti_annual']*100:.0f}%")
 ax2.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:.0f}%"))
-_swiss_ax(ax2, title="Conditional Volatility — GARCH-X + Adaptive Bayesian Shrinkage", ylabel="Annualised Volatility")
-_label(ax2, f"WTI: {d_wti['vol_garch_aa']:.0f}% raw → {d_wti['vol_final_aa']:.0f}% shrunk   |   Brent: {d_brt['vol_garch_aa']:.0f}% → {d_brt['vol_final_aa']:.0f}%   |   DCC α={dcc_a:.4f} β={dcc_b:.4f}")
-ax2.legend(loc="upper right", fontsize=8)
-fig2.text(0.5, 0.93, "◆  VOLATILITY SURFACE", ha="center", fontsize=13, color="#1F4E79",
-          bbox=dict(fc="white", ec="#D1D5DB", lw=0.8, pad=6))
+ax2.set_title("Conditional Volatility – GARCH-X + Adaptive Bayesian Shrinkage", pad=14)
+ax2.legend(loc="upper right")
+fig2.suptitle("Volatility Surface", fontsize=14, y=0.96)
 save_fig(fig2, "02_Volatility")
 plt.show()
 
-# %% ─── CELL 9 · FIGURE 3 · STRESS INDICES ───────────────────────────
-fig3, axes3 = plt.subplots(1, 2, figsize=(18, 7), facecolor="white")
-fig3.subplots_adjust(left=0.07, right=0.97, top=0.84, bottom=0.10, wspace=0.30)
-
-# 3a · Fertilizer
-ax3a = axes3[0]
-ax3at = ax3a.twinx()
-ax3a.plot(fert_index.index, fert_index.values, color="#5F6B47", lw=2, label="Fert Stress Index")
-ax3a.fill_between(fert_index.index, 0, fert_index.values, color="#5F6B47", alpha=0.10)
+# %% CELL 9: FIGURE 3 – STRESS INDICES
+fig3, axes = plt.subplots(1, 2, figsize=(18, 7), facecolor="white")
+fig3.subplots_adjust(wspace=0.3)
+# Fertilizer
+ax3a = axes[0]; ax3at = ax3a.twinx()
+ax3a.plot(fert_index.index, fert_index.values, color=COLORS["fertilizer"], lw=2, label="Fertilizer Stress Index")
+ax3a.fill_between(fert_index.index, 0, fert_index.values, color=COLORS["fertilizer"], alpha=0.10)
 ng_vol = returns["natgas"].rolling(20).std() * np.sqrt(252) * 100
-ax3at.plot(ng_vol.index, ng_vol.values, color="#2D6B6B", lw=1.6, ls="--", alpha=0.85, label="NatGas Vol")
-ax3at.set_ylabel("NatGas Vol p.a. %", color="#2D6B6B", fontsize=9)
-ax3at.tick_params(colors="#2D6B6B")
-_swiss_ax(ax3a, title="Fertilizer Stress + NatGas Volatility", ylabel="Fert Index")
-_label(ax3a, f"Urea ${usda_data['urea_price']:.1f}/t  |  DAP ${usda_data['dap_price']:.0f}/t  |  BS×{bs_mult:.2f}")
-handles1 = [mpatches.Patch(color="#5F6B47", label="Fert Stress"), mpatches.Patch(color="#2D6B6B", label="NatGas Vol")]
-ax3a.legend(handles=handles1, loc="upper left", fontsize=8)
-
-# 3b · Gold
-ax3b = axes3[1]
-ax3bt = ax3b.twinx()
+ax3at.plot(ng_vol.index, ng_vol.values, color=COLORS["natgas"], lw=1.6, ls="--", alpha=0.85, label="NatGas Vol")
+ax3at.set_ylabel("NatGas Vol p.a. %", color=COLORS["natgas"])
+ax3at.tick_params(colors=COLORS["natgas"])
+ax3a.set_ylabel("Fertilizer Index")
+ax3a.set_title("Fertilizer Stress + NatGas Volatility")
+ax3a.legend(loc="upper left")
+# Gold signals
+ax3b = axes[1]; ax3bt = ax3b.twinx()
 gr_base = float(gold_signals["gold_real"].dropna().iloc[0])
 sg_base = float(gold_signals["silver_gold"].dropna().iloc[0])
 gr_n = gold_signals["gold_real"] / gr_base
 sg_n = gold_signals["silver_gold"] / sg_base
-ax3b.plot(gr_n.dropna().index, gr_n.dropna().values, color="#C8A96E", lw=2, label="Gold/Real Yield")
+ax3b.plot(gr_n.dropna().index, gr_n.dropna().values, color=COLORS["gold"], lw=2, label="Gold/Real Yield")
 ax3bt.plot(sg_n.dropna().index, sg_n.dropna().values, color="#9CA3AF", lw=1.6, ls="--", alpha=0.85, label="Silver/Gold Ratio")
-ax3b.axhline(1.0, ls=":", color="#D1D5DB", lw=1, alpha=0.7)
-ax3bt.set_ylabel("Silver/Gold (norm)", color="#6B7280", fontsize=9)
-_swiss_ax(ax3b, title="Gold Signals — Real Yield + Silver/Gold Ratio", ylabel="Gold/Real Yield (norm)")
-_label(ax3b, f"Gold Real: {float(gold_signals['gold_real'].iloc[-1]):.1f}")
-handles2 = [mpatches.Patch(color="#C8A96E", label="Gold/Real Yield"), mpatches.Patch(color="#9CA3AF", label="Silver/Gold")]
-ax3b.legend(handles=handles2, loc="lower left", fontsize=8)
-
-fig3.text(0.5, 0.93, "◆  STRESS INDICES", ha="center", fontsize=13, color="#1F4E79",
-          bbox=dict(fc="white", ec="#D1D5DB", lw=0.8, pad=6))
+ax3b.axhline(1.0, ls=":", color="#D1D5DB", lw=1)
+ax3b.set_ylabel("Gold/Real Yield (norm)")
+ax3bt.set_ylabel("Silver/Gold (norm)")
+ax3b.set_title("Gold Signals – Real Yield + Silver/Gold Ratio")
+fig3.suptitle("Stress Indices", fontsize=14, y=0.96)
 save_fig(fig3, "03_Stress")
 plt.show()
 
-# %% ─── CELL 10 · FIGURE 4 · AGRICULTURAL ────────────────────────────
+# %% CELL 10: FIGURE 4 – AGRICULTURAL COMMODITIES
 fig4, ax4 = plt.subplots(figsize=(18, 7), facecolor="white")
-fig4.subplots_adjust(left=0.07, right=0.95, top=0.84, bottom=0.10)
-ag = [("wheat", "#1F4E79", "Wheat"), ("corn", "#2D6B6B", "Corn"), ("soy", "#6B7280", "Soy")]
-for asset, color, label in ag:
+for asset, color, label in [("wheat", COLORS["wheat"], "Wheat"), ("corn", COLORS["corn"], "Corn"), ("soy", COLORS["soy"], "Soy")]:
     base_val = float(prices[asset].iloc[0])
     rel = (prices[asset] / base_val * 100).dropna()
-    ax4.plot(rel.index, rel.values, color=color, lw=2, label=f"{label}  (base ${base_val:.0f})")
+    ax4.plot(rel.index, rel.values, color=color, lw=2, label=f"{label} (base ${base_val:.0f})")
 ax4.axhline(100, ls=":", color="#D1D5DB", lw=1, alpha=0.7, label="Base = 100")
 ax4.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:.0f}"))
-_swiss_ax(ax4, title="Agricultural Commodities — Price Index from War Start (28 Feb 2026)", ylabel="Price Index (base = 100)")
-ax4.legend(loc="upper left", fontsize=8)
-fig4.text(0.5, 0.93, "◆  AGRICULTURAL COMMODITIES", ha="center", fontsize=13, color="#1F4E79",
-          bbox=dict(fc="white", ec="#D1D5DB", lw=0.8, pad=6))
+ax4.set_ylabel("Price Index (base = 100)")
+ax4.set_title("Agricultural Commodities – Price Index from War Start (28 Feb 2026)")
+ax4.legend(loc="upper left")
+fig4.suptitle("Agricultural Commodities", fontsize=14, y=0.96)
 save_fig(fig4, "04_Agricultural")
 plt.show()
 
-# %% ─── CELL 11 · FIGURE 5 · MONTE CARLO FAN ─────────────────────────
+# %% CELL 11: FIGURE 5 – MONTE CARLO FAN CHART
 war_note = "  ⚑ War Boost" if war_trigger else ""
-bs_note = f"  ⚠ Fert BS ×{bs_mult:.2f}" if bs_mult > 1.2 else ""
+bs_note = f"  ⚠ Fert BS ×{bs_mult:.2f}" if bs_mult > 1.2 else ("  ⬇ Deflation" if bs_mult < 0.8 else "")
 x = np.arange(CONFIG["mc_steps"] + 1)
-
 fig5, ax5 = plt.subplots(figsize=(18, 9), facecolor="white")
-fig5.subplots_adjust(left=0.07, right=0.95, top=0.86, bottom=0.09)
-
-ax5.fill_between(x, fan[5], fan[95], alpha=0.18, color="#1F4E79", label="WTI 90% CI")
-ax5.fill_between(x, fan[25], fan[75], alpha=0.32, color="#1F4E79", label="WTI 50% CI")
-ax5.plot(x, fan_b[50], color="#2D6B6B", lw=2.2, ls="--", label=f"Brent P50 → ${fan_b[50][-1]:.2f}")
-ax5.plot(x, fan[95], color="#9E8050", lw=1.5, ls=":", label=f"WTI P95 → ${fan[95][-1]:.2f}")
-ax5.plot(x, fan[5], color="#9E8050", lw=1.5, ls=":", label=f"WTI P5  → ${fan[5][-1]:.2f}")
-ax5.plot(x, fan[50], color="#1F4E79", lw=3.2, label=f"WTI P50 → ${fan[50][-1]:.2f}")
+ax5.fill_between(x, fan[5], fan[95], alpha=0.18, color=COLORS["wti"], label="WTI 90% CI")
+ax5.fill_between(x, fan[25], fan[75], alpha=0.32, color=COLORS["wti"], label="WTI 50% CI")
+ax5.plot(x, fan_b[50], color=COLORS["brent"], lw=2.2, ls="--", label=f"Brent P50 → ${fan_b[50][-1]:.2f}")
+ax5.plot(x, fan[95], color=COLORS["gold"], lw=1.5, ls=":", label=f"WTI P95 → ${fan[95][-1]:.2f}")
+ax5.plot(x, fan[5], color=COLORS["gold"], lw=1.5, ls=":", label=f"WTI P5  → ${fan[5][-1]:.2f}")
+ax5.plot(x, fan[50], color=COLORS["wti"], lw=3.2, label=f"WTI P50 → ${fan[50][-1]:.2f}")
 ax5.axhline(wti_last, ls="-", color="#D1D5DB", lw=1.2, alpha=0.7, label=f"Current WTI ${wti_last:.2f}")
-ax5.axhline(40, ls=":", color="#7A3F30", lw=1.5, alpha=0.7, label="Stress $40")
-ax5.axhline(150, ls=":", color="#7A3F30", lw=1.5, alpha=0.7, label="Stress $150")
-ax5.axhspan(CONFIG["wti_min"], 40, color="#7A3F30", alpha=0.03)
-ax5.axhspan(150, CONFIG["wti_max"], color="#7A3F30", alpha=0.03)
+ax5.axhline(40, ls=":", color=COLORS["stress"], lw=1.5, alpha=0.7, label="Stress $40")
+ax5.axhline(150, ls=":", color=COLORS["stress"], lw=1.5, alpha=0.7, label="Stress $150")
+ax5.axhspan(CONFIG["wti_min"],40, color=COLORS["stress"], alpha=0.03)
+ax5.axhspan(150,CONFIG["wti_max"], color=COLORS["stress"], alpha=0.03)
 ax5.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"${v:.0f}"))
 ax5.set_xlim(0, CONFIG["mc_steps"])
-_swiss_ax(ax5, title=f"Monte Carlo — EVT + DCC   ({CONFIG['mc_sims']:,} paths × {CONFIG['mc_steps']}d)   Jump↑ {jump_eff:.1%}   df={tail_df:.1f}{war_note}{bs_note}",
-          ylabel="Price (USD/bbl)", xlabel="Trading Days Ahead")
-_label(ax5, f"P50 ${fan[50][-1]:.2f}  ·  P5 ${fan[5][-1]:.2f}  ·  P95 ${fan[95][-1]:.2f}  ·  "
-            f"Prob↑10d {M['prob_up_10d']:.1f}%  ·  P(<40) {M['prob_wti_below_40']:.2f}%  ·  P(>150) {M['prob_wti_above_150']:.2f}%")
-ax5.legend(loc="upper left", ncol=2, fontsize=8)
-fig5.text(0.5, 0.93, "◆  PROBABILISTIC PRICE FORECAST  —  MONTE CARLO", ha="center", fontsize=13, color="#1F4E79",
-          bbox=dict(fc="white", ec="#D1D5DB", lw=0.8, pad=6))
+ax5.set_xlabel("Trading Days Ahead")
+ax5.set_ylabel("Price (USD/bbl)")
+ax5.set_title(f"Monte Carlo – EVT + DCC   ({CONFIG['mc_sims']:,} paths × {CONFIG['mc_steps']}d)   Jump↑ {jump_eff:.1%}   df={tail_df:.1f}{war_note}{bs_note}")
+ax5.legend(loc="upper left", ncol=2)
+fig5.suptitle("Probabilistic Price Forecast", fontsize=14, y=0.96)
 save_fig(fig5, "05_MonteCarlo")
 plt.show()
 
-# %% ─── CELL 12 · FIGURE 6 · EXECUTIVE SUMMARY ───────────────────────
+# %% CELL 12: FIGURE 6 – EXECUTIVE SUMMARY (DASHBOARD INSTITUCIONAL)
 fig6 = plt.figure(figsize=(18, 10), facecolor="white")
 ax6 = fig6.add_axes([0, 0, 1, 1])
 ax6.set_facecolor("white")
 ax6.axis("off")
-
-ax6.add_patch(plt.Rectangle((0, 0.90), 1, 0.10, transform=ax6.transAxes, facecolor="#1F4E79", zorder=1))
-ax6.add_patch(plt.Rectangle((0.03, 0.895), 0.94, 0.0025, transform=ax6.transAxes, facecolor="#C8A96E", zorder=2))
-
-def sw_text(x, y, txt, fs=11, color="#1F4E79", ha="left", fw="normal", alpha=1.0):
-    ax6.text(x, y, txt, transform=ax6.transAxes, fontsize=fs, color=color, ha=ha, va="top", fontweight=fw, alpha=alpha)
-
+# Header
+ax6.add_patch(plt.Rectangle((0, 0.90), 1, 0.10, transform=ax6.transAxes, facecolor=COLORS["wti"], zorder=1))
+ax6.add_patch(plt.Rectangle((0.03, 0.895), 0.94, 0.0025, transform=ax6.transAxes, facecolor=COLORS["gold"], zorder=2))
+def sw_text(x, y, txt, fs=11, color=COLORS["wti"], ha="left", fw="normal"):
+    ax6.text(x, y, txt, transform=ax6.transAxes, fontsize=fs, color=color, ha=ha, va="top", fontweight=fw)
 def sw_kv(x, y, key, val, dy=0.068):
     ax6.text(x, y, key, transform=ax6.transAxes, fontsize=9, color="#6B7280", va="top", fontfamily="monospace", alpha=0.85)
-    ax6.text(x + 0.13, y, val, transform=ax6.transAxes, fontsize=10, color="#1F4E79", va="top", fontfamily="monospace", fontweight="bold")
-
-sw_text(0.05, 0.98, "◆◆◆  GeoQuant · Macro Research Terminal", fs=16, color="#1F4E79")
+    ax6.text(x + 0.13, y, val, transform=ax6.transAxes, fontsize=10, color=COLORS["wti"], va="top", fontweight="bold")
+sw_text(0.05, 0.98, "◆◆◆  GeoQuant · Institutional Research Terminal", fs=16, color=COLORS["gold"])
 sw_text(0.05, 0.92, f"EVT + DCC + GARCH-X  ·  {CONFIG['mc_sims']:,} Monte Carlo paths  ·  {datetime.now().strftime('%d %B %Y')}", fs=8.5, color="#6B7280", fw="normal")
-
 left = [
     ("WTI Crude", f"${wti_last:.2f}"),
     ("Brent Crude", f"${brent_last:.2f}"),
-    ("WTI–Brent Spread", f"${brent_last - wti_last:.2f}  ({(brent_last / wti_last - 1) * 100:.1f}%)"),
+    ("Spread", f"${brent_last - wti_last:.2f} ({(brent_last/wti_last-1)*100:.1f}%)"),
     ("GeoFactor", f"{float(geofactor.iloc[-1]):.4f}σ"),
-    ("Risk Regime", f"WAR  ({regime_base:+.3f})"),
-    ("War Signal", f"{ws:.5f}  {'ACTIVE ⚑' if war_trigger else 'subdued'}"),
-    ("DCC α / β", f"{dcc_a:.4f}  /  {dcc_b:.4f}"),
+    ("Risk Regime", f"WAR ({regime_base:+.3f})"),
+    ("War Signal", f"{ws:.5f}  {'ACTIVE' if war_trigger else 'subdued'}"),
+    ("DCC α/β", f"{dcc_a:.4f} / {dcc_b:.4f} (persist={dcc_a+dcc_b:.4f})"),
 ]
 right = [
-    ("WTI Vol p.a.", f"{M['vol_wti_aa']:.1f}%"),
-    ("Brent Vol p.a.", f"{M['vol_brent_aa']:.1f}%"),
-    ("WTI–Brent ρ", f"{0.95:.4f}  (EWMA)"),
+    ("WTI Vol", f"{M['vol_wti_aa']:.1f}%"),
+    ("Brent Vol", f"{M['vol_brent_aa']:.1f}%"),
+    ("WTI–Brent ρ", f"{0.95:.4f} (EWMA)"),
     ("Dynamic df", f"{tail_df:.2f}"),
-    ("Prob Up 10d", f"{M['prob_up_10d']:.1f}%"),
+    ("Prob ↑10d", f"{M['prob_up_10d']:.1f}%"),
     ("VaR 95% 1d", f"${M['var_95_1d']:+.2f}"),
     ("CVaR 95% 1d", f"${M['cvar_95_1d']:+.2f}"),
     ("Z-Composite", f"{float(z_composite.iloc[-1]):+.4f}"),
-    ("Prob WTI < $40", f"{M['prob_wti_below_40']:.2f}%"),
-    ("Prob WTI > $150", f"{M['prob_wti_above_150']:.2f}%"),
+    ("P(<40)", f"{M['prob_wti_below_40']:.2f}%"),
+    ("P(>150)", f"{M['prob_wti_above_150']:.2f}%"),
 ]
-
 y0, dy = 0.83, 0.072
 for i, (k, v) in enumerate(left):
     sw_kv(0.04, y0 - i * dy, k, v)
 for i, (k, v) in enumerate(right):
     sw_kv(0.53, y0 - i * dy, k, v)
-
-ax6.add_patch(plt.Rectangle((0.50, 0.08), 0.001, 0.78, transform=ax6.transAxes, facecolor="#C8A96E", alpha=0.25))
-ax6.add_patch(plt.Rectangle((0, 0), 1, 0.065, transform=ax6.transAxes, facecolor="#1F4E79"))
-
+ax6.add_patch(plt.Rectangle((0.50, 0.08), 0.001, 0.78, transform=ax6.transAxes, facecolor=COLORS["gold"], alpha=0.25))
+ax6.add_patch(plt.Rectangle((0, 0), 1, 0.065, transform=ax6.transAxes, facecolor=COLORS["wti"]))
 urea_str = f"${usda_data['urea_price']:.1f}/t" if usda_data["urea_price"] else "N/A"
 dap_str = f"${usda_data['dap_price']:.0f}/t" if usda_data["dap_price"] else "N/A"
-bs_str = f"   ⚠ Black Swan ×{bs_mult:.2f}" if bs_mult > 1.2 else ""
+bs_str = f"   ⚠ Black Swan ×{bs_mult:.2f}" if bs_mult > 1.2 else ("   ⬇ Deflação" if bs_mult < 0.8 else "")
 ax6.text(0.05, 0.054, f"Fertilizer:  Urea {urea_str}  ·  DAP {dap_str}  ·  {usda_data['source']}{bs_str}",
          transform=ax6.transAxes, fontsize=8.5, color="white", fontfamily="monospace", va="top")
-ax6.text(0.05, 0.022, f"Bayes Shrinkage:  WTI {d_wti['vol_garch_aa']:.0f}% → {d_wti['vol_final_aa']:.0f}%  (w_data={d_wti['weight_data']:.2f})   Brent {d_brt['vol_garch_aa']:.0f}% → {d_brt['vol_final_aa']:.0f}%",
+ax6.text(0.05, 0.022, f"Bayes Shrinkage:  WTI {d_wti['vol_garch_aa']:.0f}% → {d_wti['vol_final_aa']:.0f}%  (w={d_wti['weight_data']:.2f})   Brent {d_brt['vol_garch_aa']:.0f}% → {d_brt['vol_final_aa']:.0f}%",
          transform=ax6.transAxes, fontsize=8, color="#D1D5DB", fontfamily="monospace", va="top")
 ax6.text(0.97, 0.022, "Eduardo Moraes  ·  Quant Data Scientist & Economics  ·  FOR PROFESSIONAL USE ONLY",
          transform=ax6.transAxes, fontsize=7.5, color="#D1D5DB", fontfamily="monospace", va="top", ha="right", alpha=0.6)
-
 save_fig(fig6, "06_Executive_Summary")
 plt.show()
 
-# %% ─── CELL 13 · DASHBOARD COMPLETO (OPCIONAL) ──────────────────────
-print("\n✅ Análise concluída. Todos os gráficos foram salvos em:", CONFIG["output_dir"])
+# %% CELL 13: BACKTESTING E MÉTRICAS INSTITUCIONAIS ADICIONAIS
+# Calcular backtest do VaR (últimos 252 dias)
+returns_oil = returns["oil"].iloc[-252:]
+var_forecast = vol_oil.iloc[-252:] * 1.645
+bt_results = backtest_var(returns_oil, var_forecast, alpha=0.05)
+print("\n=== VAR BACKTEST RESULTS ===")
+print(f"Calibration Score: {bt_results['calibration_score']:.3f}")
+print(f"Kupiec p-value: {bt_results['Kupiec_p']:.3f}")
+print(f"Christoffersen p-value: {bt_results['Christoffersen_p']:.3f}")
+print(f"Dynamic Quantile p-value: {bt_results['DQ_p']:.3f}")
 
-# %% ─── CELL 14 · DOWNLOAD AUTOMÁTICO (para Colab) ───────────────────
+# Poder preditivo do GeoFactor
+pred_power = geofactor_predictive_power(geofactor, returns["oil"], lags=[1,5,22])
+print("\n=== GEOfACTOR PREDICTIVE POWER ===")
+for lag, vals in pred_power.items():
+    print(f"{lag}: IC={vals['IC']:.3f}, Rank_IC={vals['Rank_IC']:.3f}")
+
+# Classificação de regimes
+regime_metrics = regime_classification(geofactor, threshold=0.5, volatility_series=vol_oil*np.sqrt(252)*100, quantile=0.75)
+print(f"\nRegime detection F1: {regime_metrics['f1']:.2f}")
+
+# Métricas institucionais para WTI
+max_dd = (returns["oil"].cumsum().expanding().max() - returns["oil"].cumsum()).min()
+inst_metrics = institutional_metrics(returns["oil"], max_dd)
+print("\n=== INSTITUTIONAL METRICS (WTI) ===")
+for k,v in inst_metrics.items():
+    print(f"{k}: {v:.3f}")
+
+# Feature importance (pesos do GeoFactor)
+weights_df = pd.DataFrame(list(CONFIG["geo_weights"].items()), columns=["feature", "weight"])
+weights_df["abs_weight"] = weights_df["weight"].abs()
+weights_df = weights_df.sort_values("abs_weight", ascending=False)
+print("\n=== GEOfACTOR FEATURE IMPORTANCE ===")
+print(weights_df[["feature", "weight"]].to_string(index=False))
+
+# %% CELL 14: DOWNLOAD AUTOMÁTICO DOS PNGs (para Colab)
 try:
     from google.colab import files
     import glob
@@ -760,7 +814,9 @@ try:
         for p in pngs:
             files.download(p)
     else:
-        print("Nenhum arquivo PNG encontrado para download.")
+        print("Nenhum arquivo PNG encontrado.")
 except ImportError:
-    print("ℹ Execute no Google Colab para download automático.")
-    print(f"   Arquivos em: {os.path.abspath(CONFIG['output_dir'])}/")
+    print("Execute no Google Colab para download automático.")
+    print(f"Arquivos salvos em: {os.path.abspath(CONFIG['output_dir'])}/")
+
+print("\n✅ Análise institucional concluída.")
