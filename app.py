@@ -1,5 +1,5 @@
 """
-GeoQuant – Institutional Macro Research Terminal v9.5
+GeoQuant – Institutional Macro Research Terminal
 EVT + DCC-GARCH-X + GeoFactor + Walk-Forward + SHAP + ML Benchmarking
 Eduardo Moraes | Quant Data Scientist & Economics
 """
@@ -50,7 +50,7 @@ st.set_page_config(
 )
 
 # ══════════════════════════════════════════════════════════
-#   SWISS BANK CSS
+#   CLEAN MINIMALIST WHITE CSS (SWISS BANK STYLE)
 # ══════════════════════════════════════════════════════════
 st.markdown("""
 <style>
@@ -58,8 +58,8 @@ st.markdown("""
 
 :root {
     --navy:#0B1628; --navy-mid:#142038; --gold:#C8A96E; --gold-dim:#9E8050;
-    --cream:#F5F1EB; --warm:#FDFBF8; --g10:#EAE6DF; --g30:#C4BDAF;
-    --g50:#8C8377; --text:#1A1814; --danger:#7A3F30; --ok:#3D6B4F;
+    --cream:#F9F8F6; --warm:#FFFFFF; --g10:#EAE6DF; --g30:#C4BDAF;
+    --g50:#70695E; --text:#1A1814; --danger:#7A3F30; --ok:#3D6B4F;
 }
 html,body,[data-testid="stAppViewContainer"]{background:var(--warm)!important;
     font-family:'DM Sans','Helvetica Neue',sans-serif;font-weight:300;color:var(--text);}
@@ -86,12 +86,12 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"]{font-family:'Cormor
 .sec-label{font-family:'DM Mono',monospace;font-size:.56rem;letter-spacing:.28em;
     text-transform:uppercase;color:var(--gold-dim);margin-bottom:.2rem;}
 .sec-title{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.25rem;font-weight:400;
-    color:var(--navy);margin-bottom:.8rem;padding-bottom:.4rem;border-bottom:1px solid var(--g10);}
+    color:var(--navy);margin-bottom:.8rem;padding-bottomexport:.4rem;border-bottom:1px solid var(--g10);}
 .swiss-div{height:1px;background:linear-gradient(90deg,var(--gold) 0%,var(--g10) 55%,transparent 100%);margin:1.5rem 0;}
 .info-block{background:var(--cream);border-left:2px solid var(--gold);
     padding:.6rem 1rem;font-size:.74rem;color:var(--g50);margin:.4rem 0;}
 .data-table{width:100%;border-collapse:collapse;font-size:.76rem;}
-.data-table th{font-family:'DM Mono',monospace;font-size:.54rem;letter-spacing:.18em;
+.data-table th{font-family:'DM Mono',monospace;font-sizeexport:.54rem;letter-spacing:.18em;
     text-transform:uppercase;color:var(--g50);padding:.45rem .8rem;
     border-bottom:1px solid var(--g10);background:var(--cream);}
 .data-table td{padding:.45rem .8rem;border-bottom:1px solid var(--g10);font-weight:300;}
@@ -113,29 +113,28 @@ GEO_W = {"oil_vol":0.22,"gold":0.09,"gold_real":0.09,"dxy":-0.10,"spread":0.09,
           "fert":0.22,"wheat":0.07,"copper":0.04,"natgas_vol":0.06}
 ZSC_W = {"oil_gold":0.40,"oil_natgas":0.35,"gold_real":0.25}
 
-# Swiss Plotly base
+# Institutional Clean Plotly Configuration
 PL = dict(
-    paper_bgcolor="#FDFBF8", plot_bgcolor="#F5F1EB",
+    paper_bgcolor="#FFFFFF", plot_bgcolor="#FDFBF8",
     font=dict(family="DM Sans,Helvetica Neue,sans-serif", color="#1A1814", size=11),
     title_font=dict(family="Cormorant Garamond,Georgia,serif", size=16, color="#0B1628"),
-    xaxis=dict(gridcolor="#DDD9D1", linecolor="#C4BDAF", zeroline=False,
+    xaxis=dict(gridcolor="#EAE6DF", linecolor="#C4BDAF", zeroline=False,
                tickfont=dict(size=10, family="DM Mono,monospace")),
-    yaxis=dict(gridcolor="#DDD9D1", linecolor="#C4BDAF", zeroline=False,
+    yaxis=dict(gridcolor="#EAE6DF", linecolor="#C4BDAF", zeroline=False,
                tickfont=dict(size=10, family="DM Mono,monospace")),
-    legend=dict(bgcolor="rgba(253,251,248,.93)", bordercolor="#C4BDAF",
+    legend=dict(bgcolor="rgba(255,255,255,.95)", bordercolor="#C4BDAF",
                 borderwidth=1, font=dict(size=10, family="DM Mono,monospace")),
     margin=dict(l=55, r=40, t=50, b=40),
     hoverlabel=dict(bgcolor="#0B1628", font_color="#C8A96E", font_family="DM Mono,monospace"),
 )
 C = dict(navy="#0B1628",gold="#C8A96E",gold_dim="#9E8050",blue="#3A5F8A",
-         teal="#2D6B6B",sage="#5F6B47",rust="#7A3F30",gray="#8C8377",silver="#9E9488",
-         fan90="#C4BDAF",fan50="#9E9488")
+         teal="#2D6B6B",sage="#5F6B47",rust="#7A3F30",gray="#70695E",silver="#9E9488",
+         fan90="#EAE6DF",fan50="#C4BDAF")
 
 def qfig(h=420):
     fig = go.Figure(); fig.update_layout(**PL, height=h); return fig
 
 def dual_axis_fig(h=380):
-    """Create a dual-axis figure using yaxis2 — avoids Plotly 'undefined' legend bug."""
     fig = go.Figure()
     fig.update_layout(
         **PL, height=h,
@@ -146,7 +145,6 @@ def dual_axis_fig(h=380):
     return fig
 
 def add_secondary(fig, trace, is_secondary=False):
-    """Add trace to primary or secondary axis."""
     if is_secondary:
         trace.update(yaxis="y2")
     fig.add_trace(trace)
@@ -159,11 +157,11 @@ with st.sidebar:
     st.markdown("""
     <div style='padding:1.3rem 0 1.1rem;border-bottom:1px solid rgba(200,169,110,.18);margin-bottom:1.3rem;'>
         <div style='font-family:"DM Mono",monospace;font-size:.5rem;letter-spacing:.26em;
-        color:#C8A96E;text-transform:uppercase;margin-bottom:.4rem;'>◆ Edumetria</div>
+        color:#C8A96E;text-transform:uppercase;margin-bottom:#.4rem;'>◆ Edumetria</div>
         <div style='font-family:"Cormorant Garamond",Georgia,serif;font-size:1.3rem;
         font-weight:300;color:#F5F1EB;letter-spacing:.06em;'>GeoQuant Terminal</div>
         <div style='font-family:"DM Mono",monospace;font-size:.5rem;
-        color:rgba(245,241,235,.35);letter-spacing:.14em;margin-top:.3rem;'>v9.5 · Institutional Research</div>
+        color:rgba(245,241,235,.35);letter-spacing:.14em;margin-top:.3rem;'>Quantitative Research Infrastructure</div>
     </div>""", unsafe_allow_html=True)
 
     def slabel(t):
@@ -211,9 +209,9 @@ padding:1.6rem 0 1.2rem;border-bottom:1px solid #EAE6DF;margin-bottom:1.8rem;'>
       <div>
         <div style='font-family:"Cormorant Garamond",Georgia,serif;font-size:1.9rem;
         font-weight:300;color:#0B1628;letter-spacing:.06em;line-height:1;'>GeoQuant · Research Terminal</div>
-        <div style='font-family:"DM Mono",monospace;font-size:.55rem;color:#8C8377;
+        <div style='font-family:"DM Mono",monospace;font-size:.55rem;color:#70695E;
         letter-spacing:.2em;text-transform:uppercase;margin-top:.3rem;'>
-        Geopolitical Intelligence · EVT+DCC+GARCH-X · Institutional</div>
+        Geopolitical Intelligence · EVT+DCC+GARCH-X · Institutional Risk Management</div>
       </div>
     </div>
   </div>
@@ -221,9 +219,9 @@ padding:1.6rem 0 1.2rem;border-bottom:1px solid #EAE6DF;margin-bottom:1.8rem;'>
     <div style='display:inline-block;background:#0B1628;color:#C8A96E;padding:.2rem .7rem;
     font-family:"DM Mono",monospace;font-size:.55rem;letter-spacing:.18em;text-transform:uppercase;'>
     ⚑ WAR REGIME</div>
-    <div style='font-family:"DM Mono",monospace;font-size:.57rem;color:#8C8377;
+    <div style='font-family:"DM Mono",monospace;font-size:.57rem;color:#70695E;
     letter-spacing:.1em;margin-top:.4rem;line-height:1.8;'>
-    {now_sp.strftime("%d %B %Y · %H:%M")} (SP)<br>v9.5 · EVT+DCC+GARCH-X+SHAP
+    {now_sp.strftime("%d %B %Y · %H:%M")} (SP)<br>Institutional Analytics Framework
     </div>
   </div>
 </div>""", unsafe_allow_html=True)
@@ -444,7 +442,6 @@ def run_mc(wti0,brt0,bvw,bvb,fcast,ocol,bcol,rbase,rw,rb,vws,vbs,jpu,tdf,bs=1.0,
         "prob_up":np.mean(term>wti0)*100,"prob_40":np.mean(term<40)*100,"prob_150":np.mean(term>150)*100,
         "p5":(fan[5][-1]/wti0-1)*100,"p95":(fan[95][-1]/wti0-1)*100}}
 
-# ── Validation suite ──
 def backtest_var(returns, var_forecast, alpha=0.05):
     ci=returns.index.intersection(var_forecast.index)
     if len(ci)==0: return {"calibration_score":0,"Kupiec_p":1,"Christoffersen_p":1,"DQ_p":1,"n_violations":0,"obs_freq":0}
@@ -508,7 +505,7 @@ def benchmark_ml(returns_df, target_col="oil", split=0.8):
 def run_shap(X, y):
     mdl=RandomForestRegressor(n_estimators=100,random_state=42); mdl.fit(X,y)
     exp=shap.TreeExplainer(mdl); sv=exp.shap_values(X)
-    fig,ax=plt.subplots(figsize=(6,4),facecolor="#FDFBF8"); ax.set_facecolor("#F5F1EB")
+    fig,ax=plt.subplots(figsize=(6,4),facecolor="#FFFFFF"); ax.set_facecolor("#FDFBF8")
     shap.summary_plot(sv,X,show=False,plot_size=None)
     plt.tight_layout(); return fig
 
@@ -582,9 +579,9 @@ needs_run = run_btn or "results" not in st.session_state
 if needs_run:
     loading=st.empty()
     loading.markdown("""
-    <div style='text-align:center;padding:2.5rem 2rem;background:#F5F1EB;border:1px solid #C4BDAF;margin:1rem 0;'>
+    <div style='text-align:center;padding:2.5rem 2rem;background:#FDFBF8;border:1px solid #C4BDAF;margin:1rem 0;'>
       <div style='font-family:"DM Mono",monospace;font-size:.56rem;letter-spacing:.22em;color:#9E8050;text-transform:uppercase;margin-bottom:.7rem;'>Initialising Research Terminal</div>
-      <div style='font-family:"Cormorant Garamond",Georgia,serif;font-size:1.4rem;color:#0B1628;font-weight:300;'>Loading market data & calibrating model…</div>
+      <div style='font-family:"Cormorant Garamond",Georgia,serif;font-size:1.4rem;color:#0B1628;font-weight:300;'>Loading market data & calibrating quantitative framework…</div>
     </div>""", unsafe_allow_html=True)
     prog=st.progress(0)
 
@@ -639,7 +636,7 @@ if needs_run:
     # 5 · MC
     prog.progress(68)
     mb=st.empty(); mc_bar=st.progress(0)
-    mb.markdown('<div style="font-family:\'DM Mono\',monospace;font-size:.58rem;letter-spacing:.14em;color:#9E8050;">Monte Carlo simulation running…</div>',unsafe_allow_html=True)
+    mb.markdown('<div style="font-family:\'DM Mono\',monospace;font-size:.58rem;letter-spacing:.14em;color:#9E8050;">Monte Carlo simulation executing…</div>',unsafe_allow_html=True)
     mc=run_mc(wti0,brt0,bvw,bvb,fcast,ocol,bcol,rbase,returns["oil"],returns["brent"],
               vw,vb_s,jpu,tdf_d,bs_mult,dcc_a,dcc_b,mc_sims,mc_steps,mc_bar)
     mb.empty(); mc_bar.empty()
@@ -733,24 +730,23 @@ with tab1:
         line=dict(color=C["blue"],width=2.2,dash="dash")))
     fig_vol.add_trace(go.Scatter(x=vg.index,y=vg*np.sqrt(252)*100,name="Gold Vol",
         line=dict(color=C["gold"],width=1.8,dash="dot")))
-    fig_vol.add_hrect(y0=25,y1=45,fillcolor="rgba(61,107,79,0.05)",line_width=0,
+    fig_vol.add_hrect(y0=25,y1=45,fillcolor="rgba(11,22,40,0.03)",line_width=0,
         annotation_text="Normal band 25–45%",annotation_position="top left",
         annotation_font=dict(size=9,color=C["gray"],family="DM Mono,monospace"))
     fig_vol.update_layout(yaxis_ticksuffix="%",
-        title="GARCH-X Conditional Volatility — Adaptive Bayesian Shrinkage")
+        title="GARCH-X Conditional Volatility — Adaptive Bayesian Shrinkage Framework")
     st.plotly_chart(fig_vol, use_container_width=True)
     st.markdown(f'<div class="info-block">Bayes Shrinkage · WTI {dw_d["vga"]:.0f}% → {dw_d["vsa"]:.0f}% (w={dw_d["w"]:.2f}) · Brent {db_d["vga"]:.0f}% → {db_d["vsa"]:.0f}% (w={db_d["w"]:.2f}) · DCC α={dcc_a:.4f} β={dcc_b:.4f}</div>',unsafe_allow_html=True)
 
 # ── TAB 2 · Geopolitical Intelligence ────────────────────
 with tab2:
-    st.markdown('<div class="sec-label">02 · Geopolitical Intelligence</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sec-title">Z-Score Composite & GeoFactor v4.0 (σ-normalised)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-label">02 · Geopolitical Analysis</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-title">Z-Score Composite & GeoFactor Estimation (σ-normalised)</div>', unsafe_allow_html=True)
 
-    # Dual axis — using yaxis2 approach (no "undefined" bug)
     fig_geo=dual_axis_fig(380)
     fig_geo.add_trace(go.Scatter(x=zsc.index,y=zsc.values,name="Z-Score Composite",
         line=dict(color=C["blue"],width=2.2),
-        fill="tozeroy",fillcolor="rgba(58,95,138,0.07)"))
+        fill="tozeroy",fillcolor="rgba(58,95,138,0.04)"))
     fig_geo.add_trace(go.Scatter(x=gf.index,y=gf.values,name="GeoFactor (σ)",
         line=dict(color=C["navy"],width=2.8),yaxis="y2"))
     for y in [1.5,-1.5]:
@@ -759,20 +755,19 @@ with tab2:
     fig_geo.add_shape(type="line",x0=zsc.index.min(),x1=zsc.index.max(),
         y0=0,y1=0,line=dict(dash="solid",color="#C4BDAF",width=0.8),yref="y")
     fig_geo.update_layout(yaxis_title="Z-Score",yaxis2_title="GeoFactor (σ)",
-        title="Geopolitical Risk Signals")
+        title="Geopolitical Risk Signals Extraction")
     st.plotly_chart(fig_geo, use_container_width=True)
 
-    # Fertilizer + NatGas
     col_a,col_b=st.columns(2)
     with col_a:
         ng_vol=returns["natgas"].rolling(20).std()*np.sqrt(252)*100
         fig_f=dual_axis_fig(310)
         fig_f.add_trace(go.Scatter(x=fi.index,y=fi.values,name="Fertilizer Stress",
-            fill="tozeroy",fillcolor="rgba(95,107,71,0.1)",line=dict(color=C["sage"],width=2.2)))
+            fill="tozeroy",fillcolor="rgba(95,107,71,0.05)",line=dict(color=C["sage"],width=2.2)))
         fig_f.add_trace(go.Scatter(x=ng_vol.index,y=ng_vol.values,name="NatGas Vol %",
             line=dict(color=C["teal"],width=1.8,dash="dash"),yaxis="y2"))
         fig_f.update_layout(yaxis_title="Fert Index",yaxis2_title="NatGas Vol %",
-            title="Fertilizer Stress + NatGas Volatility")
+            title="Fertilizer Stress + NatGas Volatility Indices")
         st.plotly_chart(fig_f, use_container_width=True)
         bs_str=f" · ⚠ Black Swan ×{bs:.2f}" if bs>1.2 else ""
         st.markdown(f'<div class="info-block">Urea ${usda["urea_price"]:.1f}/t · DAP ${usda["dap_price"]:.0f}/t{bs_str} · {usda["source"]}</div>',unsafe_allow_html=True)
@@ -786,12 +781,11 @@ with tab2:
             y=(gs["silver_gold"].dropna()/sgb).values,name="Silver/Gold Ratio",
             line=dict(color=C["silver"],width=1.8,dash="dash"),yaxis="y2"))
         fig_g.update_layout(yaxis_title="Gold/Real Yield (norm)",
-            yaxis2_title="Silver/Gold (norm)",title="Gold Signals — Real Yield + Silver/Gold")
+            yaxis2_title="Silver/Gold (norm)",title="Gold Macro Signals — Real Yield Basis")
         st.plotly_chart(fig_g, use_container_width=True)
 
-    # Agricultural
     st.markdown('<div class="swiss-div"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="sec-title" style="font-size:1.1rem;">Agricultural Commodities — Indexed from War Start</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-title" style="font-size:1.1rem;">Agricultural Commodities — Indexed from Regime Inception</div>', unsafe_allow_html=True)
     fig_ag=qfig(280)
     for asset,color,label in [("wheat",C["navy"],"Wheat"),("corn",C["blue"],"Corn"),("soy",C["gray"],"Soy")]:
         bv=float(prices[asset].iloc[0]); rel=(prices[asset]/bv*100).dropna()
@@ -803,17 +797,17 @@ with tab2:
 
 # ── TAB 3 · Monte Carlo ──────────────────────────────────
 with tab3:
-    war_n="  ⚑ War Boost" if S.get("returns") is not None and returns["wheat"].tail(20).mean()>0.005 else ""
-    bs_n=f"  ⚠ Fert BS ×{bs:.2f}" if bs>1.2 else ""
+    war_n="  ⚑ Regime Drift Adjusted" if S.get("returns") is not None and returns["wheat"].tail(20).mean()>0.005 else ""
+    bs_n=f"  ⚠ Stress Multiplier ×{bs:.2f}" if bs>1.2 else ""
     st.markdown('<div class="sec-label">03 · Probabilistic Forecast</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="sec-title">Monte Carlo · EVT+DCC · {mc_sims:,} paths × {mc_steps}d{war_n}{bs_n}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="sec-title">Predictive Distribution Simulation · EVT+DCC Process · {mc_sims:,} Scenarios{war_n}{bs_n}</div>', unsafe_allow_html=True)
 
     x_ax=list(range(mc_steps+1))
     fig_mc=qfig(480)
     fig_mc.add_trace(go.Scatter(x=x_ax+x_ax[::-1],y=list(fan[95])+list(fan[5][::-1]),
-        fill="toself",fillcolor="rgba(196,189,175,0.20)",line=dict(width=0),name="WTI 90% CI"))
+        fill="toself",fillcolor="rgba(196,189,175,0.15)",line=dict(width=0),name="WTI 90% CI"))
     fig_mc.add_trace(go.Scatter(x=x_ax+x_ax[::-1],y=list(fan[75])+list(fan[25][::-1]),
-        fill="toself",fillcolor="rgba(158,148,136,0.30)",line=dict(width=0),name="WTI 50% CI"))
+        fill="toself",fillcolor="rgba(158,148,136,0.20)",line=dict(width=0),name="WTI 50% CI"))
     fig_mc.add_trace(go.Scatter(x=x_ax,y=list(fb[50]),name=f"Brent P50 → ${fb[50][-1]:.2f}",
         line=dict(color=C["blue"],width=2.2,dash="dash")))
     fig_mc.add_trace(go.Scatter(x=x_ax,y=list(fan[50]),name=f"WTI P50 → ${fan[50][-1]:.2f}",
@@ -825,40 +819,40 @@ with tab3:
     fig_mc.add_hline(y=wti0,line_dash="dash",line_color="#8C8377",line_width=1.4,
         annotation_text=f"Current ${wti0:.2f}",annotation_font=dict(family="DM Mono",size=10,color="#8C8377"))
     fig_mc.add_hline(y=40,line_dash="dot",line_color=C["rust"],line_width=1.4,
-        annotation_text="Stress $40",annotation_font=dict(family="DM Mono",size=10,color=C["rust"]))
+        annotation_text="Stress Target $40",annotation_font=dict(family="DM Mono",size=10,color=C["rust"]))
     fig_mc.add_hline(y=150,line_dash="dot",line_color=C["rust"],line_width=1.4,
-        annotation_text="Stress $150",annotation_font=dict(family="DM Mono",size=10,color=C["rust"]))
+        annotation_text="Stress Target $150",annotation_font=dict(family="DM Mono",size=10,color=C["rust"]))
     fig_mc.update_layout(xaxis_title="Trading Days Ahead",yaxis_title="Price (USD/bbl)",yaxis_tickprefix="$")
     st.plotly_chart(fig_mc, use_container_width=True)
 
     c1,c2,c3=st.columns(3)
-    c1.metric("Prob Up 10d",    f"{M['prob_up']:.1f}%")
-    c2.metric("VaR 95% 1d",    f"${M['var95']:+.2f}", f"CVaR ${M['cvar95']:+.2f}")
-    c3.metric("Extreme Probabilities", f"< $40: {M['prob_40']:.2f}%", f"> $150: {M['prob_150']:.2f}%")
+    c1.metric("Regime Growth Probability", f"{M['prob_up']:.1f}%")
+    c2.metric("VaR 95% (1-Day)",    f"${M['var95']:+.2f}", f"Expected Shortfall ${M['cvar95']:+.2f}")
+    c3.metric("Tail Exceedance", f"Tail < $40: {M['prob_40']:.2f}%", f"Tail > $150: {M['prob_150']:.2f}%")
 
 # ── TAB 4 · Quant Statistics ─────────────────────────────
 with tab4:
-    st.markdown('<div class="sec-label">04 · Higher-Order Moments & DCC</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sec-title">Empirical Distribution Statistics</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-label">04 · Distribution Matrix</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-title">Empirical Risk Distribution Parameters</div>', unsafe_allow_html=True)
     c1,c2=st.columns(2)
     with c1:
-        rows=[("Sharpe (Ann.)",f"{S['sharpe']['oil']:.4f}"),
-              ("Sortino (Ann.)",f"{S['sortino']['oil']:.4f}"),
-              ("Skewness",f"{S['skew_oil']:.4f}"),("Excess Kurtosis",f"{S['kurt_oil']:.4f}"),
-              ("GARCH LB5 p",f"{S['gdiag']['LB5']:.4f}" if not np.isnan(S['gdiag']['LB5']) else "n/a"),
-              ("GARCH LB10 p",f"{S['gdiag']['LB10']:.4f}" if not np.isnan(S['gdiag']['LB10']) else "n/a"),
-              ("ARCH LM p",f"{S['gdiag']['ARCH_p']:.4f}" if not np.isnan(S['gdiag']['ARCH_p']) else "n/a")]
-        html='<table class="data-table"><thead><tr><th>WTI Statistic</th><th>Value</th></tr></thead><tbody>'
+        rows=[("Sharpe Ratio (Ann.)",f"{S['sharpe']['oil']:.4f}"),
+              ("Sortino Ratio (Ann.)",f"{S['sortino']['oil']:.4f}"),
+              ("Skewness Coefficient",f"{S['skew_oil']:.4f}"),("Excess Kurtosis",f"{S['kurt_oil']:.4f}"),
+              ("GARCH LB5 Test",f"{S['gdiag']['LB5']:.4f}" if not np.isnan(S['gdiag']['LB5']) else "n/a"),
+              ("GARCH LB10 Test",f"{S['gdiag']['LB10']:.4f}" if not np.isnan(S['gdiag']['LB10']) else "n/a"),
+              ("ARCH LM Test",f"{S['gdiag']['ARCH_p']:.4f}" if not np.isnan(S['gdiag']['ARCH_p']) else "n/a")]
+        html='<table class="data-table"><thead><tr><th>WTI Metric</th><th>Statistical Value</th></tr></thead><tbody>'
         for k,v in rows: html+=f"<tr><td>{k}</td><td><strong>{v}</strong></td></tr>"
         html+="</tbody></table>"; st.markdown(html,unsafe_allow_html=True)
     with c2:
-        rows2=[("DCC α",f"{dcc_a:.4f}"),("DCC β",f"{dcc_b:.4f}"),
-               ("Persistence α+β",f"{dcc_a+dcc_b:.4f}"),
-               ("WTI–Brent ρ (EWMA)",f"{S['corr_ewma']:.4f}"),
-               ("Tail df (dynamic)",f"{tdf_d:.2f}"),
-               ("EVT Upper Shape",f"{S['evt']['upper'][0]:.4f}"),
-               ("EVT Lower Shape",f"{S['evt']['lower'][0]:.4f}")]
-        html='<table class="data-table"><thead><tr><th>DCC & Tail Params</th><th>Value</th></tr></thead><tbody>'
+        rows2=[("DCC Parameter α",f"{dcc_a:.4f}"),("DCC Parameter β",f"{dcc_b:.4f}"),
+               ("Systemic Persistence α+β",f"{dcc_a+dcc_b:.4f}"),
+               ("Cross-Asset Correlation (EWMA)",f"{S['corr_ewma']:.4f}"),
+               ("Dynamic Tail Degrees of Freedom",f"{tdf_d:.2f}"),
+               ("EVT Generalized Pareto Upper Shape",f"{S['evt']['upper'][0]:.4f}"),
+               ("EVT Generalized Pareto Lower Shape",f"{S['evt']['lower'][0]:.4f}")]
+        html='<table class="data-table"><thead><tr><th>Multivariate Infrastructure</th><th>Statistical Value</th></tr></thead><tbody>'
         for k,v in rows2: html+=f"<tr><td>{k}</td><td><strong>{v}</strong></td></tr>"
         html+="</tbody></table>"; st.markdown(html,unsafe_allow_html=True)
 
@@ -867,57 +861,57 @@ with tab4:
     fig_corr=qfig(320)
     cm=S["corr_mx"].values; cols_=list(S["corr_mx"].columns)
     fig_corr.add_trace(go.Heatmap(z=cm,x=cols_,y=cols_,
-        colorscale=[[0,"#7A3F30"],[0.5,"#FDFBF8"],[1,"#0B1628"]],
+        colorscale=[[0,"#7A3F30"],[0.5,"#FFFFFF"],[1,"#0B1628"]],
         zmid=0,text=np.round(cm,3),texttemplate="%{text}",
         textfont=dict(size=10,family="DM Mono,monospace"),showscale=True))
-    fig_corr.update_layout(title="EWMA Correlation Matrix")
+    fig_corr.update_layout(title="EWMA Asset Interdependence Topology")
     st.plotly_chart(fig_corr, use_container_width=True)
 
 # ── TAB 5 · Macro & Stress ───────────────────────────────
 with tab5:
-    st.markdown('<div class="sec-label">05 · Macro Stress</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sec-title">Composite Stress Index</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-label">05 · System Stress Monitoring</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-title">Composite Financial Stress Index</div>', unsafe_allow_html=True)
     if S["stress_idx"] is not None and len(S["stress_idx"])>0:
         fig_st=qfig(340)
         fig_st.add_trace(go.Scatter(x=S["stress_idx"].index,y=S["stress_idx"].values,
-            fill="tozeroy",fillcolor="rgba(122,63,48,0.12)",
+            fill="tozeroy",fillcolor="rgba(122,63,48,0.06)",
             line=dict(color=C["rust"],width=2.2),name="Stress Index"))
         fig_st.add_hline(y=S["stress_idx"].mean(),line_dash="dot",line_color="#8C8377",line_width=1.2,
-            annotation_text="Mean",annotation_font=dict(family="DM Mono",size=9,color="#8C8377"))
-        fig_st.update_layout(title="Composite Macro Stress Index (Vol + Corr + Gold + GeoFactor)")
+            annotation_text="Historical Baseline Mean",annotation_font=dict(family="DM Mono",size=9,color="#8C8377"))
+        fig_st.update_layout(title="Multivariate Macro Stress Metrics (Volatility + Basis Coherence + Factor Drift)")
         st.plotly_chart(fig_st, use_container_width=True)
 
     st.markdown('<div class="swiss-div"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="sec-title" style="font-size:1.1rem;">GeoFactor Weight Calibration (LASSO)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-title" style="font-size:1.1rem;">Risk Factor Contribution Calibration (LASSO)</div>', unsafe_allow_html=True)
     fig_imp=qfig(300)
     fi_df=S["feat_imp"].head(10)
     fig_imp.add_trace(go.Bar(x=fi_df["Importance"],y=fi_df["Feature"],orientation="h",
         marker_color=C["navy"],name="Importance"))
-    fig_imp.update_layout(xaxis_title="Absolute LASSO Weight",yaxis_autorange="reversed",
-        title="Feature Importance — GeoFactor LASSO Calibration")
+    fig_imp.update_layout(xaxis_title="Absolute LASSO Structural Coefficient",yaxis_autorange="reversed",
+        title="Structural Factor Importance Optimization")
     st.plotly_chart(fig_imp, use_container_width=True)
 
 # ── TAB 6 · Institutional Backtest ───────────────────────
 with tab6:
-    st.markdown('<div class="sec-label">06 · Risk Model Validation</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sec-title">Institutional VaR/ES Backtesting</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-label">06 · Risk Infrastructure Verification</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-title">VaR & Expected Shortfall Compliance Backtesting</div>', unsafe_allow_html=True)
     bt=S["bt_res"]
     c1,c2,c3=st.columns(3)
-    c1.metric("Calibration Score",f"{bt['calibration_score']:.4f}")
-    c2.metric("Violations",f"{bt['n_violations']}",f"Obs freq {bt['obs_freq']:.3f} vs {bt['exp_freq']:.2f} exp")
-    c3.metric("Acerbi ES Z",f"{S['es_z']:.4f}" if S['es_z'] is not None and not np.isnan(S['es_z']) else "n/a")
+    c1.metric("Calibration Score", f"{bt['calibration_score']:.4f}")
+    c2.metric("Observed Violations", f"{bt['n_violations']}", f"Frequency {bt['obs_freq']:.3f} vs {bt['exp_freq']:.2f} target")
+    c3.metric("Acerbi Shortfall Metric Z", f"{S['es_z']:.4f}" if S['es_z'] is not None and not np.isnan(S['es_z']) else "n/a")
 
-    rows=[("Kupiec PoF (p-value)",f"{bt['Kupiec_p']:.4f}","Pass ≥0.05" if bt['Kupiec_p']>=0.05 else "Fail"),
-          ("Christoffersen (p-value)",f"{bt['Christoffersen_p']:.4f}","Pass ≥0.05" if bt['Christoffersen_p']>=0.05 else "Fail"),
-          ("Dynamic Quantile (p-value)",f"{bt['DQ_p']:.4f}","Pass ≥0.05" if bt['DQ_p']>=0.05 else "Fail")]
-    html='<table class="data-table"><thead><tr><th>Test</th><th>p-value</th><th>Result</th></tr></thead><tbody>'
+    rows=[("Kupiec Proportion of Failures (PoF)",f"{bt['Kupiec_p']:.4f}","Acceptable" if bt['Kupiec_p']>=0.05 else "Reject"),
+          ("Christoffersen Independence Test",f"{bt['Christoffersen_p']:.4f}","Acceptable" if bt['Christoffersen_p']>=0.05 else "Reject"),
+          ("Manganelli-Engle Dynamic Quantile (DQ)",f"{bt['DQ_p']:.4f}","Acceptable" if bt['DQ_p']>=0.05 else "Reject")]
+    html='<table class="data-table"><thead><tr><th>Statistical Hypothesis Framework</th><th>Asymptotic p-value</th><th>Validation Decision</th></tr></thead><tbody>'
     for k,v,r in rows: html+=f"<tr><td>{k}</td><td><strong>{v}</strong></td><td>{r}</td></tr>"
     html+="</tbody></table>"; st.markdown(html,unsafe_allow_html=True)
 
 # ── TAB 7 · ML Benchmarks ────────────────────────────────
 with tab7:
-    st.markdown('<div class="sec-label">07 · Machine Learning</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sec-title">Out-of-Sample Benchmarking — RandomForest · XGBoost · LightGBM</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-label">07 · Machine Learning Benchmarks</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-title">Out-of-Sample Machine Learning Performance Comparison</div>', unsafe_allow_html=True)
     c1,c2=st.columns([1,1])
     with c1:
         bm=S["ml_metrics"]
@@ -927,36 +921,36 @@ with tab7:
                 rows.append((name,f"{vals['RMSE']:.6f}",f"{vals['MAE']:.6f}"))
             else:
                 rows.append((name,str(vals.get("RMSE","—")),str(vals.get("MAE","—"))))
-        html='<table class="data-table"><thead><tr><th>Model</th><th>RMSE</th><th>MAE</th></tr></thead><tbody>'
+        html='<table class="data-table"><thead><tr><th>Model Architecture</th><th>Root Mean Squared Error</th><th>Mean Absolute Error</th></tr></thead><tbody>'
         for a,b_,c_ in rows: html+=f"<tr><td>{a}</td><td><strong>{b_}</strong></td><td>{c_}</td></tr>"
         html+="</tbody></table>"; st.markdown(html,unsafe_allow_html=True)
     with c2:
         if S["shap_fig"] is not None:
-            st.markdown('<div class="sec-label">SHAP Global Feature Importance</div>', unsafe_allow_html=True)
+            st.markdown('<div class="sec-label">SHAP Global Equilibrium Interpretation</div>', unsafe_allow_html=True)
             st.pyplot(S["shap_fig"])
         else:
-            st.info("SHAP analysis unavailable.")
+            st.info("SHAP matrix interpretation unavailable.")
 
 # ── TAB 8 · Walk-Forward ─────────────────────────────────
 with tab8:
-    st.markdown('<div class="sec-label">08 · Walk-Forward Cross-Validation</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sec-title">Rolling OOS Error — 2yr Train · 3mo Test Windows</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-label">08 · Validation Integrity</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-title">Rolling Out-of-Sample Error Analysis — Walk-Forward Metric Estimation</div>', unsafe_allow_html=True)
     wf=S["wf_df"]
     if not wf.empty:
         st.dataframe(wf,use_container_width=True)
         fig_wf=qfig(300)
         fig_wf.add_trace(go.Bar(x=wf["Window End"],y=wf["OOS RMSE"],
             marker_color=C["navy"],name="OOS RMSE"))
-        fig_wf.update_layout(title="Rolling Window Out-of-Sample RMSE",
-            xaxis_title="Window End",yaxis_title="RMSE")
+        fig_wf.update_layout(title="Rolling Window Multi-Period Errors",
+            xaxis_title="Evaluation Window End",yaxis_title="OOS RMSE")
         st.plotly_chart(fig_wf, use_container_width=True)
     else:
-        st.info("Insufficient data for walk-forward validation.")
+        st.info("Insufficient degrees of freedom for walk-forward validation matrix.")
 
 # ── Footer ──
 st.markdown(f"""
 <div class="footer">
-  <div>◆ GeoQuant v9.5 · EVT+DCC+GARCH-X · {mc_sims:,} MC paths</div>
+  <div>◆ GeoQuant Institutional Terminal · Engine: EVT+DCC+GARCH-X Framework</div>
   <div>Eduardo Moraes · Quant Data Scientist & Economics</div>
-  <div>For professional use only · {now_sp.strftime("%d %b %Y")}</div>
+  <div>Proprietary Infrastructure · {now_sp.strftime("%d %b %Y")}</div>
 </div>""", unsafe_allow_html=True)
