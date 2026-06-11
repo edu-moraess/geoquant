@@ -47,7 +47,8 @@ logging.basicConfig(level=logging.WARNING)
 def ensure_scalar(x):
     """Converte ndarray de tamanho 1 para escalar, mantém outros tipos."""
     if isinstance(x, np.ndarray):
-        if x.size == 1:            return float(x.item())
+        if x.size == 1:
+            return float(x.item())
         else:
             return x.tolist()
     if isinstance(x, (int, float)):
@@ -96,7 +97,8 @@ st.markdown("""
     --gold-light: #D4C094;
     --muted: #7A766E;
     --danger: #8B3A3A;
-    --success: #2D5A3F;    --warning: #B37D14;
+    --success: #2D5A3F;
+    --warning: #B37D14;
 }
 html, body, [data-testid="stAppViewContainer"] {
     background: var(--bg) !important;
@@ -145,7 +147,9 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
     text-transform: uppercase !important;
     padding: .55rem 1.2rem !important;
     width: 100%;
-    transition: background 0.2s;}.stButton button:hover {
+    transition: background 0.2s;
+}
+.stButton button:hover {
     background: var(--accent-light) !important;
 }
 .stProgress > div > div {
@@ -193,8 +197,10 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
     height: 1px;
     background: linear-gradient(90deg, var(--gold) 0%, var(--border) 60%, transparent 100%);
     margin: 1.2rem 0;
-}.info-block {
-    background: var(--surface);    border-left: 2px solid var(--gold);
+}
+.info-block {
+    background: var(--surface);
+    border-left: 2px solid var(--gold);
     padding: .5rem .9rem;
     font-size: .72rem;
     color: var(--text-secondary);
@@ -243,7 +249,8 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
     letter-spacing: .12em;
     color: var(--muted);
     text-transform: uppercase;
-    display: flex;    justify-content: space-between;
+    display: flex;
+    justify-content: space-between;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -290,9 +297,11 @@ def safe_metric_value(val, default=0.0):
 TICKERS = {
     "oil":"CL=F","brent":"BZ=F","natgas":"NG=F","gold":"GC=F","silver":"SI=F",
     "copper":"HG=F","wheat":"ZW=F","corn":"ZC=F","soy":"ZS=F",
-    "dxy":"DX-Y.NYB","eur":"EURUSD=X","tnx":"^TNX","ovx":"^OVX"}
+    "dxy":"DX-Y.NYB","eur":"EURUSD=X","tnx":"^TNX","ovx":"^OVX"
+}
 GEO_W = {"oil_vol":0.15,"gold":0.06,"gold_real":0.06,"dxy":-0.08,"spread":0.06,
-          "fert":0.15,"wheat":0.05,"copper":0.04,"natgas_vol":0.05,"ovx":0.08,          "baltic":0.06,"freightos":0.06,"move":0.05,"fci":-0.05}
+          "fert":0.15,"wheat":0.05,"copper":0.04,"natgas_vol":0.05,"ovx":0.08,
+          "baltic":0.06,"freightos":0.06,"move":0.05,"fci":-0.05}
 ZSC_W = {"oil_gold":0.40,"oil_natgas":0.35,"gold_real":0.25}
 
 PL = dict(
@@ -324,7 +333,6 @@ def dual_axis_fig(h=380):
 # ============================================================
 #   EXTERNAL ADVANCED DATA HARVESTER (FRED + EIA + OILPRICE + GPR)
 # ============================================================
-
 def fetch_fred_macro():
     try:
         url = f"https://api.stlouisfed.org/fred/series/observations?series_id=VIXCLS&api_key={FRED_API_KEY}&file_type=json"
@@ -341,9 +349,11 @@ def fetch_eia_inventories():
         url = f"https://api.eia.gov/v2/petroleum/stoc/wstk/data/?api_key={EIA_API_KEY}&frequency=weekly&data[]=value&facets[series][]=WCRSTUS1"
         res = requests.get(url, timeout=5).json()
         data = res.get("response", {}).get("data", [])
-        if data: return float(data[0].get("value", 420000))    except: pass
+        if data:
+            return float(data[0].get("value", 420000))
+    except:
+        pass
     return 420000.0
-
 
 def fetch_oilprice_spot():
     try:
@@ -390,7 +400,8 @@ def get_api_status():
     """Retorna dicionário com status de cada API (OK, FALLBACK, ERROR)"""
     status = {}
     # FRED
-    try:        url = f"https://api.stlouisfed.org/fred/series/observations?series_id=VIXCLS&api_key={FRED_API_KEY}&file_type=json&limit=1"
+    try:
+        url = f"https://api.stlouisfed.org/fred/series/observations?series_id=VIXCLS&api_key={FRED_API_KEY}&file_type=json&limit=1"
         r = requests.get(url, timeout=3)
         if r.status_code == 200 and "observations" in r.json():
             status["FRED"] = "✅ OK"
@@ -439,7 +450,9 @@ def fill_gaps(s):
         f[valid] = s[valid]
         return f.ffill().bfill()
     except: return s.ffill().bfill()
-def _force_update_fert_csv(path="fertilizer_backup.csv"):    with open(path, "w", newline="") as f:
+
+def _force_update_fert_csv(path="fertilizer_backup.csv"):
+    with open(path, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["date","urea_price","dap_price"])
         w.writerows([["2026-01-15",540,710],["2026-02-15",560,740],["2026-03-15",590,780],
@@ -486,9 +499,11 @@ def gold_signals(prices):
     gr = prices["gold"] / (1 + prices["tnx"].replace(0,np.nan)/100*5.0)
     sg = silver / prices["gold"].replace(0, np.nan)
     return {"gold_real":gr,"silver_gold":sg,"gold_real_ret_roll":np.log(gr/gr.shift(1)).rolling(20).mean(),"silver_gold_roll":np.log(sg/sg.shift(1)).rolling(20).mean()}
+
 def silver_demand_proxy(prices):
     if "copper" not in prices.columns: return pd.Series(0.0, index=prices.index)
-    cr = prices["copper"].pct_change().dropna()    br = prices["brent"].pct_change().dropna()
+    cr = prices["copper"].pct_change().dropna()
+    br = prices["brent"].pct_change().dropna()
     ci = cr.index.intersection(br.index)
     return (0.6*cr[ci]+0.4*br[ci]).rolling(20).mean().reindex(prices.index,method="ffill").fillna(0.0)
 
@@ -534,10 +549,12 @@ def calibrate_weights(returns, prices, gs, fi, sd, macro_proxies, window=60):
         tot = sum(abs(v) for v in w.values())
         return {k: v/tot for k, v in w.items()} if tot > 0 else GEO_W.copy()
     except: return GEO_W.copy()
+
 def build_geofactor(returns, prices, gs, fi, weights, sd, macro_proxies):
     spread = (prices["brent"]-prices["oil"])/prices["brent"].replace(0,np.nan)
     geo = (weights.get("oil_vol",0)*returns["oil"].rolling(20).std() +
-           weights.get("gold",0)*returns["gold"].rolling(20).mean() +           weights.get("gold_real",0)*gs["gold_real_ret_roll"] +
+           weights.get("gold",0)*returns["gold"].rolling(20).mean() +
+           weights.get("gold_real",0)*gs["gold_real_ret_roll"] +
            weights.get("dxy",0)*returns["dxy"].rolling(20).mean() +
            weights.get("spread",0)*spread.rolling(20).mean() +
            weights.get("wheat",0)*returns["wheat"].rolling(20).mean() +
@@ -586,7 +603,8 @@ def conditional_evt(returns, vol, q=0.95, min_obs=30):
     th_up, th_lo = np.percentile(resid, q*100), np.percentile(resid, (1-q)*100)
     exc_up, exc_lo = resid[resid > th_up] - th_up, -resid[resid < th_lo] - th_lo
     shape_up, scale_up = stats.genpareto.fit(exc_up)[0] if len(exc_up)>=10 else 0.2, exc_up.std() if len(exc_up)>0 else 0.1
-    shape_lo, scale_lo = stats.genpareto.fit(exc_lo)[0] if len(exc_lo)>=10 else 0.2, exc_lo.std() if len(exc_lo)>0 else 0.1    return {"upper": (shape_up, scale_up, th_up), "lower": (shape_lo, scale_lo, th_lo), "resid": resid}
+    shape_lo, scale_lo = stats.genpareto.fit(exc_lo)[0] if len(exc_lo)>=10 else 0.2, exc_lo.std() if len(exc_lo)>0 else 0.1
+    return {"upper": (shape_up, scale_up, th_up), "lower": (shape_lo, scale_lo, th_lo), "resid": resid}
 
 def detect_regime(vol, threshold=1.5):
     v = vol.dropna()
@@ -600,7 +618,7 @@ def bayes_shrink(vg, prior_d, n, geofactor=None):
     w = np.clip(np.sqrt(n/252), 0.10, 0.95)
     prior = prior_d * (1.0 + 0.4 * np.tanh(float(geofactor.iloc[-1]))) if (geofactor is not None and len(geofactor) > 0) else prior_d
 
-    # CORREÇÃO CRÍTICA: Garantir retorno escalar explícito se não houver dados
+    # Retorna escalar direto se não houver dados históricos
     if len(vg) == 0:
         return float(prior), {"vga": float(prior)*100, "vsa": float(prior)*100, "w": float(w)}
 
@@ -622,20 +640,25 @@ def fit_dcc(rw, rb, vw, vb):
     def nll(p):
         a, b = p
         if a <= 0 or b <= 0 or a + b >= 1: return 1e10
-        Qt = (1 - a - b) * Qb + a * np.outer(e[t-1], e[t-1]) + b * Qt
-        d = np.sqrt(np.diag(Qt))
-        if d[0] == 0 or d[1] == 0: return 1e10
-        Rt = Qt / np.outer(d, d)
-        Rt = np.clip(Rt, -0.9999, 0.9999)
-        rho_series[t] = Rt[0,1]
-        try:
-            L = np.linalg.cholesky(Rt)
-            z = np.linalg.solve(L, e[t])
-            ll += -0.5 * np.sum(z**2) - np.sum(np.log(np.diag(L)))
-        except: return 1e10
+        Qt = Qb.copy()
+        ll = 0.0
+        for t in range(1, len(e)):
+            Qt = (1 - a - b) * Qb + a * np.outer(e[t-1], e[t-1]) + b * Qt
+            d = np.sqrt(np.diag(Qt))
+            if d[0] == 0 or d[1] == 0: return 1e10
+            Rt = Qt / np.outer(d, d)
+            Rt = np.clip(Rt, -0.9999, 0.9999)
+            rho_series[t] = Rt[0,1]
+            try:
+                L = np.linalg.cholesky(Rt)
+                z = np.linalg.solve(L, e[t])
+                ll += -0.5 * np.sum(z**2) - np.sum(np.log(np.diag(L)))
+            except: return 1e10
+        return -ll
     try:
         res = optimize.minimize(nll, [0.05, 0.93], bounds=[(1e-4, 0.3), (0.7, 0.9999)], method="L-BFGS-B")
-        a, b = (float(res.x[0]), float(res.x[1])) if res.success and (res.x[0]+res.x[1] < 1) else (0.05, 0.93)        rho_series = pd.Series(rho_series, index=c2)
+        a, b = (float(res.x[0]), float(res.x[1])) if res.success and (res.x[0]+res.x[1] < 1) else (0.05, 0.93)
+        rho_series = pd.Series(rho_series, index=c2)
         return a, b, rho_series
     except: return 0.05, 0.93, pd.Series(index=c2)
 
@@ -684,7 +707,8 @@ def run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase, rw, rb, vws, vbs, jpu
             Qt = np.tile(Qb, (sims, 1, 1)).copy()
 
     pu, pd_ = min(jpu * 1.5, 0.20) if bs > 1.2 else jpu, 0.03 * (1.3 if bs > 1.2 else 1.0)
-    pw, pb = np.zeros((sims, steps+1)), np.zeros((sims, steps+1))    pw[:, 0], pb[:, 0] = wti0, brt0
+    pw, pb = np.zeros((sims, steps+1)), np.zeros((sims, steps+1))
+    pw[:, 0], pb[:, 0] = wti0, brt0
     ra = 1 + 0.5 * np.clip(rbase + np.random.normal(0, 0.05, (sims, steps)), -1, 1)
 
     for t in range(steps):
@@ -733,7 +757,8 @@ def run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase, rw, rb, vws, vbs, jpu
 
     mask = (pw[:, 1] - wti0) <= np.percentile(pw[:, 1] - wti0, 5)
 
-    brackets = {        "<50": np.mean(term_wti < 50) * 100,
+    brackets = {
+        "<50": np.mean(term_wti < 50) * 100,
         "50-60": np.mean((term_wti >= 50) & (term_wti < 60)) * 100,
         "60-70": np.mean((term_wti >= 60) & (term_wti < 70)) * 100,
         "70-80": np.mean((term_wti >= 70) & (term_wti < 80)) * 100,
@@ -775,6 +800,7 @@ def backtest_var(returns, var_forecast, alpha=0.05):
     try: dq = 1 - chi2.cdf(Logit(violations, pd.DataFrame({"const": 1, "lag": violations.shift(1).fillna(0)})).fit(disp=0).llr, 2)
     except: dq = 1.0
     return {"n_violations": int(nv), "obs_freq": po, "exp_freq": pe, "Kupiec_p": kp, "Christoffersen_p": cp, "DQ_p": dq, "calibration_score": 1 - np.mean([kp, cp, dq])}
+
 def backtest_es(returns, cvar_val, var_forecast):
     ci = returns.index.intersection(var_forecast.index)
     if len(ci) == 0: return np.nan
@@ -783,6 +809,7 @@ def backtest_es(returns, cvar_val, var_forecast):
     viol = (r < -v).astype(int)
     if viol.sum() == 0 or np.isnan(cv): return np.nan
     return float(((r[viol==1] + v[viol==1]).sum() / (viol.sum() * cv)) - 1)
+
 def walk_forward_validation(returns_series, train_years=2, test_months=3):
     dates = returns_series.index
     ts, qs = int(train_years * 252), int(test_months * 21)
@@ -831,7 +858,8 @@ def benchmark_ml(returns_df, target_col="oil"):
                 pred = mdl.predict(Xte)
                 rmses.append(np.sqrt(mean_squared_error(yte, pred)))
                 maes.append(mean_absolute_error(yte, pred))
-                mapes.append(np.mean(np.abs((yte - pred) / yte.replace(0, 1e-5))) * 100)                dirs.append(np.mean(np.sign(yte) == np.sign(pred)) * 100)
+                mapes.append(np.mean(np.abs((yte - pred) / yte.replace(0, 1e-5))) * 100)
+                dirs.append(np.mean(np.sign(yte) == np.sign(pred)) * 100)
             except: pass
         out[name] = {
             "RMSE": np.mean(rmses) if rmses else np.nan, "MAE": np.mean(maes) if maes else np.nan,
@@ -880,7 +908,8 @@ def fetch_data(start):
 def fetch_live(lw=65.0, lb=68.0):
     api_spot = fetch_oilprice_spot()
     if api_spot > 10.0:
-        return api_spot, api_spot + 3.20    try:
+        return api_spot, api_spot + 3.20
+    try:
         wti = float(yf.Ticker("CL=F").fast_info.get("last_price", 0))
         brt = float(yf.Ticker("BZ=F").fast_info.get("last_price", 0))
         if wti > 0 and brt > 0: return wti, brt
@@ -929,6 +958,7 @@ with st.sidebar:
         <div style='font-family:"Playfair Display",Georgia,serif;font-size:1.3rem;font-weight:300;color:#1E3A5F;letter-spacing:.06em;'>GeoQuant Terminal</div>
         <div style='font-family:"JetBrains Mono",monospace;font-size:.5rem;color:#7A766E;letter-spacing:.14em;margin-top:.3rem;'>Quantitative Research Infrastructure</div>
     </div>""", unsafe_allow_html=True)
+
     def slabel(t):
         st.markdown(f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:.54rem;letter-spacing:.2em;color:#B49450;text-transform:uppercase;margin:.9rem 0 .4rem;">{t}</div>', unsafe_allow_html=True)
     def ssep():
@@ -955,7 +985,7 @@ SCENARIO_MAP = {
     "Base Model (Live)": {"jump_mult": 1.0, "vol_mult": 1.0, "geo_shift": 0.0},
     "Geopolitical Escalation": {"jump_mult": 1.8, "vol_mult": 1.4, "geo_shift": 1.5},
     "Diplomatic Ceasefire": {"jump_mult": 0.3, "vol_mult": 0.7, "geo_shift": -1.2},
-    "Strait of Hormuz closure": {"jump_mult": 3.0, "vol_mult": 2.2, "geo_shift": 3.5},
+    "Strait of Hormuz Closure": {"jump_mult": 3.0, "vol_mult": 2.2, "geo_shift": 3.5},
     "OPEC Supply Shock": {"jump_mult": 1.5, "vol_mult": 1.3, "geo_shift": 1.0},
     "Global Recession": {"jump_mult": 0.5, "vol_mult": 1.2, "geo_shift": -1.8}
 }
@@ -978,7 +1008,8 @@ st.markdown(f"""
     </div>
   </div>
   <div style='text-align:right;'>
-    <div style='display:inline-block;background:#1E3A5F;color:#D4C094;padding:.2rem .7rem;font-family:"JetBrains Mono",monospace;font-size:.55rem;letter-spacing:.18em;text-transform:uppercase;'>⚑ {scen_choice.upper()}</div>    <div style='font-family:"JetBrains Mono",monospace;font-size:.57rem;color:#70695E;letter-spacing:.10em;margin-top:.4rem;'>{now_sp.strftime("%d %B %Y · %H:%M")} (SP)</div>
+    <div style='display:inline-block;background:#1E3A5F;color:#D4C094;padding:.2rem .7rem;font-family:"JetBrains Mono",monospace;font-size:.55rem;letter-spacing:.18em;text-transform:uppercase;'>⚑ {scen_choice.upper()}</div>
+    <div style='font-family:"JetBrains Mono",monospace;font-size:.57rem;color:#70695E;letter-spacing:.10em;margin-top:.4rem;'>{now_sp.strftime("%d %B %Y · %H:%M")} (SP)</div>
     <div style='font-family:"JetBrains Mono",monospace;font-size:.45rem;color:#70695E;margin-top:.2rem;'>{status_badges}</div>
   </div>
 </div>""", unsafe_allow_html=True)
@@ -1027,7 +1058,8 @@ if run_btn or "results" not in st.session_state:
         prices.loc[prices.index[-1], "brent"] = brt0
         returns = np.log(prices / prices.shift(1)).dropna()
 
-        prog.progress(25)        usda = get_usda()
+        prog.progress(25)
+        usda = get_usda()
         bs_mult = fert_black_swan(usda)
         gs = gold_signals(prices)
         sd = silver_demand_proxy(prices)
@@ -1076,6 +1108,7 @@ if run_btn or "results" not in st.session_state:
         regimes_ts = detect_regime(vw)
         dcc_a, dcc_b, dcc_rho = fit_dcc(returns["oil"], returns["brent"], vw, vb_s)
         dcc_rho = ensure_series(dcc_rho)
+
         prog.progress(65)
         rv = returns.loc[gf.index.intersection(returns.index)] if not gf.empty else returns
         try:
@@ -1126,6 +1159,7 @@ if run_btn or "results" not in st.session_state:
         ml_metrics, X_ml, y_ml = benchmark_ml(returns)
         shap_fig, sv, feat_names = run_shap(X_ml, y_ml)
         wf_df = walk_forward_validation(returns["oil"])
+
         p_vals = [gdiag["LB5"], gdiag["LB10"], gdiag["ARCH_p"],
                   bt_res["Kupiec_p"], bt_res["Christoffersen_p"], bt_res["DQ_p"]]
         valid_p = [p for p in p_vals if not np.isnan(p)]
@@ -1174,7 +1208,8 @@ if run_btn or "results" not in st.session_state:
             "regimes_ts": ensure_series(regimes_ts),
             "model_score": ensure_scalar(model_score),
             "vix_fred": ensure_scalar(vix_premium),
-            "eia_stocks": ensure_scalar(eia_stocks),            "macro_proxies": {k: ensure_series(v) if isinstance(v, pd.Series) else v for k, v in macro_proxies.items()},
+            "eia_stocks": ensure_scalar(eia_stocks),
+            "macro_proxies": {k: ensure_series(v) if isinstance(v, pd.Series) else v for k, v in macro_proxies.items()},
             "gpr": ensure_series(gpr_series),
             "cot": ensure_scalar(cot_value),
             "last_update": last_update
@@ -1224,6 +1259,7 @@ t_exec, t_vol, t_geo, t_attr, t_mc, t_stat, t_diag, t_ml, t_modelcard = st.tabs(
 with t_exec:
     st.markdown('<div class="sec-label">Report · Asset Management Grade</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title">Executive Macro & Geopolitical Summary</div>', unsafe_allow_html=True)
+
     gf_last = float(gf.iloc[-1]) if len(gf) > 0 else 0.0
     st_last = float(S["stress_idx"].iloc[-1]) if len(S["stress_idx"]) > 0 else 0.0
     if len(S["regimes_ts"]) > 0:
@@ -1258,7 +1294,7 @@ with t_exec:
         st.markdown('<table class="data-table"><thead><tr><th>WTI Bearish</th><th>Implied Prob</th></tr></thead>'
                     f'<tbody><tr><td>WTI &lt; US$ 60</td><td><strong>{fmt_num(M["wti_l60"], ".1f")}%</strong></tr>'
                     f'<tr><td>WTI &lt; US$ 50</td><td><strong>{fmt_num(M["wti_l50"], ".1f")}%</strong></tr>'
-                    f'<tr><td>WTI &lt; US$ 40</td><td><strong>{fmt_num(M["wti_l40"], ".1f")}%</strong></tr></tbody></tr>', unsafe_allow_html=True)
+                    f'<tr><td>WTI &lt; US$ 40</td><td><strong>{fmt_num(M["wti_l40"], ".1f")}%</strong></tr></tbody></table>', unsafe_allow_html=True)
     with col_p3:
         st.markdown('<table class="data-table"><thead><tr><th>Brent Complex</th><th>Implied Prob</th></tr></thead>'
                     f'<tbody><tr><td>Brent &gt; US$ 90</td><td><strong>{fmt_num(M["brent_90"], ".1f")}%</strong></tr>'
@@ -1272,7 +1308,8 @@ with t_vol:
     delta_vsa_brt = safe_delta(S['db']['vsa'], ".1f")
     c1.metric("WTI Crude Spot", f"${wti0:.2f}", delta=delta_wti)
     c2.metric("Brent Crude", f"${brt0:.2f}", delta=delta_brt)
-    c3.metric("WTI Vol p.a.", f"{M['vol_wti']:.1f}%", delta=delta_vsa_wti)    c4.metric("Brent Vol p.a.", f"{M['vol_brt']:.1f}%", delta=delta_vsa_brt)
+    c3.metric("WTI Vol p.a.", f"{M['vol_wti']:.1f}%", delta=delta_vsa_wti)
+    c4.metric("Brent Vol p.a.", f"{M['vol_brt']:.1f}%", delta=delta_vsa_brt)
 
     fig_vol = qfig(360)
     fig_vol.add_trace(go.Scatter(x=vw.index, y=vw*np.sqrt(252)*100, name="WTI EGARCH Vol", line=dict(color=C["navy"], width=2)))
@@ -1287,7 +1324,6 @@ with t_vol:
         fig_dcc.update_layout(title="Conditional Correlation (DCC) WTI/Brent", yaxis_range=[-1,1])
         st.plotly_chart(fig_dcc, use_container_width=True)
 
-# As demais abas permanecem idênticas ao original (não repetidas aqui para brevidade, mas presentes no fluxo lógico)
 with t_geo: st.write("Geopolitical Intelligence Module Loaded.")
 with t_attr: st.write("GeoFactor Attribution Analysis Ready.")
 with t_mc:
