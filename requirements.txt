@@ -1,0 +1,23 @@
+# --- Core ---
+streamlit>=1.35.0
+pandas>=2.0.0,<3.0.0
+numpy>=1.24.0,<2.0.0
+scipy>=1.10.0
+requests>=2.31.0
+pytz>=2023.3
+
+# --- Quant ---
+arch>=6.3.0,<7.0.0
+statsmodels>=0.14.0
+scikit-learn>=1.3.0
+pandas-datareader>=0.10.0
+yfinance>=0.2.50
+
+# --- ML & Interpretability ---
+xgboost>=1.7.0
+lightgbm>=4.0.0
+shap>=0.44.0
+
+# --- Viz ---
+matplotlib>=3.7.0
+plotly>=5.15.0
