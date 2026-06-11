@@ -27,7 +27,7 @@ from statsmodels.stats.diagnostic import acorr_ljungbox, het_arch
 import yfinance as yf
 from arch import arch_model
 import shap
-import xgb as xgb
+import xgboost as xgb
 import lightgbm as lgb
 
 try:
