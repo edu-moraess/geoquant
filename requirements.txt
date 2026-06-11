@@ -14,7 +14,7 @@ pandas-datareader>=0.10.0
 yfinance>=0.2.50
 
 # --- ML & Interpretability ---
-xgboost>=1.7.0
+xgboost==2.0.3
 lightgbm>=4.0.0
 shap>=0.44.0
 
