@@ -12,7 +12,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import requests, os, csv, logging, warnings
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 from scipy.interpolate import PchipInterpolator
 from scipy import stats, optimize
@@ -280,7 +280,7 @@ with st.sidebar:
 
     sb_sep()
     sb_label("· Regime")
-    war_start = st.date_input("War start", value=datetime(2026, 2, 28))
+    war_start = st.date_input("War start (reference)", value=datetime(2026, 2, 28))
     war_start_str = war_start.strftime("%Y-%m-%d")
 
     sb_sep()
@@ -565,16 +565,20 @@ def run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol,
         "p5":(fan[5][-1]/wti0-1)*100,"p95":(fan[95][-1]/wti0-1)*100,
     }}
 
-# ── Data fetch ──
+# ── Data fetch (CORRIGIDA: usa data dinâmica e fallback robusto) ──
 @st.cache_data(ttl=900, show_spinner=False)
-def fetch_data(start):
-    """Download market data — four fallback strategies."""
+def fetch_data(start_date=None):
+    """
+    Baixa dados de mercado reais usando Yahoo Finance.
+    Se start_date for None, usa 180 dias atrás (garante dados atuais).
+    """
+    if start_date is None:
+        start_date = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d")
     tickers_list = list(TICKERS.values())
     tickers_keys = list(TICKERS.keys())
     errors = []
 
     def _extract_close(raw):
-        """Pull Close prices from any yfinance DataFrame shape."""
         if raw is None or raw.empty:
             return pd.DataFrame()
         if isinstance(raw.columns, pd.MultiIndex):
@@ -588,9 +592,9 @@ def fetch_data(start):
             out = raw.copy()
         return out
 
-    # ── Strategy 1: batch, auto_adjust=True ──
+    # Estratégia 1: batch, auto_adjust=True
     try:
-        raw = yf.download(tickers_list, start=start, progress=False, auto_adjust=True)
+        raw = yf.download(tickers_list, start=start_date, progress=False, auto_adjust=True)
         out = _extract_close(raw)
         if not out.empty and len(out) > 5:
             out.columns = tickers_keys[:len(out.columns)]
@@ -598,9 +602,9 @@ def fetch_data(start):
     except Exception as e:
         errors.append(f"S1: {e}")
 
-    # ── Strategy 2: batch, auto_adjust=False ──
+    # Estratégia 2: batch, auto_adjust=False
     try:
-        raw = yf.download(tickers_list, start=start, progress=False, auto_adjust=False)
+        raw = yf.download(tickers_list, start=start_date, progress=False, auto_adjust=False)
         out = _extract_close(raw)
         if not out.empty and len(out) > 5:
             out.columns = tickers_keys[:len(out.columns)]
@@ -608,7 +612,7 @@ def fetch_data(start):
     except Exception as e:
         errors.append(f"S2: {e}")
 
-    # ── Strategy 3: batch using period instead of start ──
+    # Estratégia 3: período fixo 120d
     try:
         raw = yf.download(tickers_list, period="120d", progress=False, auto_adjust=True)
         out = _extract_close(raw)
@@ -618,12 +622,12 @@ def fetch_data(start):
     except Exception as e:
         errors.append(f"S3: {e}")
 
-    # ── Strategy 4: individual Ticker objects ──
+    # Estratégia 4: tickers individuais
     frames = {}
     for key, ticker_sym in TICKERS.items():
         try:
-            t   = yf.Ticker(ticker_sym)
-            df  = t.history(start=start, auto_adjust=True)
+            t = yf.Ticker(ticker_sym)
+            df = t.history(start=start_date, auto_adjust=True)
             if df.empty:
                 df = t.history(period="120d", auto_adjust=True)
             if not df.empty:
@@ -637,39 +641,36 @@ def fetch_data(start):
         if not out.empty and len(out) > 5:
             return out
 
-    # All strategies failed — store errors in session for display
     st.session_state["fetch_errors"] = errors
     return pd.DataFrame()
 
 
 @st.cache_data(ttl=60, show_spinner=False)
 def fetch_live(last_wti=65.0, last_brt=68.0):
-    """Fetch live prices with three fallback layers."""
-    # Layer 1: fast_info
+    """Busca preços ao vivo com fallback robusto."""
     try:
         w = yf.Ticker("CL=F").fast_info
         b = yf.Ticker("BZ=F").fast_info
-        wti   = float(w["last_price"])
-        brent = float(b["last_price"])
+        wti = float(w.get("last_price", 0))
+        brent = float(b.get("last_price", 0))
         if wti > 0 and brent > 0:
             return wti, brent
     except Exception:
         pass
 
-    # Layer 2: short download
     try:
         d = yf.download(["CL=F", "BZ=F"], period="5d",
                         progress=False, auto_adjust=True, threads=False)
         if isinstance(d.columns, pd.MultiIndex):
             d = d["Close"]
-        wti   = float(d["CL=F"].dropna().iloc[-1])
+        wti = float(d["CL=F"].dropna().iloc[-1])
         brent = float(d["BZ=F"].dropna().iloc[-1])
         if wti > 0 and brent > 0:
             return wti, brent
     except Exception:
         pass
 
-    # Layer 3: use last known close passed in
+    # Fallback: último fechamento dos dados históricos
     return last_wti, last_brt
 
 
@@ -689,28 +690,29 @@ if needs_run:
 
     prog = st.progress(0)
 
-    # 1 · Data
+    # 1 · Data (CORRIGIDO: não passa data fixa, usa 180 dias dinâmicos)
     prog.progress(10)
-    prices = fetch_data(war_start_str)
+    prices = fetch_data()   # <--- CORREÇÃO PRINCIPAL
 
     if prices.empty or len(prices) < 5:
-        loading.empty(); prog.empty()
-        st.error("Nao foi possivel carregar dados de mercado via yfinance.")
+        loading.empty()
+        prog.empty()
+        st.error("❌ Não foi possível carregar dados de mercado reais via Yahoo Finance. Verifique sua conexão ou tente novamente mais tarde.")
         errs = st.session_state.get("fetch_errors", [])
         if errs:
-            with st.expander("Ver erros detalhados"):
+            with st.expander("Detalhes dos erros"):
                 for e in errs:
                     st.code(e)
-        st.info("Tente: (1) aguardar 1 min e clicar Run novamente (2) checar logs no Manage App")
+        st.info("Dica: O Yahoo Finance pode estar temporariamente indisponível. Aguarde alguns minutos e clique em 'Run Full Analysis' novamente.")
         st.stop()
 
-    # Guarantee all expected columns exist
+    # Garantir colunas
     for key in TICKERS:
         if key not in prices.columns:
             prices[key] = np.nan
     prices = prices.ffill().bfill()
 
-    # Live prices — fallback to last close if needed
+    # Preços ao vivo
     last_wti = float(prices["oil"].dropna().iloc[-1])
     last_brt = float(prices["brent"].dropna().iloc[-1])
     wti0, brt0 = fetch_live(last_wti, last_brt)
@@ -719,7 +721,7 @@ if needs_run:
     prices.loc[prices.index[-1], "brent"] = brt0
     returns = np.log(prices / prices.shift(1)).dropna()
 
-    # 2 · Signals
+    # 2 · Sinais
     prog.progress(22)
     usda    = get_usda()
     bs_mult = fert_black_swan(usda)
@@ -778,7 +780,7 @@ if needs_run:
                 sims=mc_sims, steps=mc_steps, bar=mc_bar)
     mc_note.empty(); mc_bar.empty()
 
-    # Correlation
+    # Correlação
     try:
         rj = pd.concat([returns["oil"],returns["brent"]],axis=1).dropna()
         ec = rj.ewm(alpha=0.06).cov(pairwise=True)
