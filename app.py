@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import os, csv, logging, warnings
+import os, csv, logging, warnings, requests
 from datetime import datetime, timedelta
 import pytz
 import matplotlib
@@ -40,6 +40,13 @@ warnings.filterwarnings("ignore")
 logging.basicConfig(level=logging.WARNING)
 
 # ══════════════════════════════════════════════════════════
+#   API CREDENTIALS & MACRO CONTEXT
+# ══════════════════════════════════════════════════════════
+EIA_API_KEY = "kVSuPa0tfnUmHzQ2VVSCPC6owKhPQQY2PbEc9hA1"
+FRED_API_KEY = "876c9f95b965eb9d423ef2c7b68ae51b"
+OILPRICE_API_KEY = "e241c0914287d05fcbbeb18669c23d86e9cdf36c63193a95d42854eb53ed354d"
+
+# ══════════════════════════════════════════════════════════
 #   PAGE CONFIG
 # ══════════════════════════════════════════════════════════
 st.set_page_config(
@@ -50,7 +57,7 @@ st.set_page_config(
 )
 
 # ══════════════════════════════════════════════════════════
-#   INSTITUTIONAL RESEARCH REPORT STYLING
+#   INSTITUTIONAL RESEARCH REPORT STYLING (Minimalist White)
 # ══════════════════════════════════════════════════════════
 st.markdown("""
 <style>
@@ -216,7 +223,7 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
 """, unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════
-#   CONSTANTS
+#   CONSTANTS & STRUCTURAL PARAMETERS
 # ══════════════════════════════════════════════════════════
 TICKERS = {
     "oil":"CL=F","brent":"BZ=F","natgas":"NG=F","gold":"GC=F","silver":"SI=F",
@@ -262,6 +269,46 @@ def dual_axis_fig(h=380):
                     linecolor="#D9D5CD", zeroline=False,
                     tickfont=dict(size=10, family="JetBrains Mono,monospace", color="#5A554F")))
     return fig
+
+# ══════════════════════════════════════════════════════════
+#   EXTERNAL ADVANCED DATA HARVESTER (FRED + EIA + OILPRICE)
+# ══════════════════════════════════════════════════════════
+def fetch_fred_macro():
+    """Extract Macro Policy Risk Vectors from St. Louis FED."""
+    try:
+        url = f"https://api.stlouisfed.org/fred/series/observations?series_id=VIXCLS&api_key={FRED_API_KEY}&file_type=json"
+        res = requests.get(url, timeout=5).json()
+        obs = res.get("observations", [])
+        if obs:
+            val = obs[-1].get("value")
+            return float(val) if val != "." else 20.0
+    except:
+        pass
+    return 20.0
+
+def fetch_eia_inventories():
+    """Extract Global Energy Stockpile Imbalance Vectors from US EIA."""
+    try:
+        url = f"https://api.eia.gov/v2/petroleum/stoc/wstk/data/?api_key={EIA_API_KEY}&frequency=weekly&data[]=value&facets[series][]=WCRSTUS1"
+        res = requests.get(url, timeout=5).json()
+        data = res.get("response", {}).get("data", [])
+        if data:
+            return float(data[0].get("value", 420000))
+    except:
+        pass
+    return 420000.0
+
+def fetch_oilprice_spot():
+    """Extract Live Physical Geopolitical Premium from OilPrice API."""
+    try:
+        url = f"https://oilpriceapi.com/v1/prices/latest"
+        headers = {"Authorization": f"Token {OILPRICE_API_KEY}"}
+        res = requests.get(url, headers=headers, timeout=5).json()
+        if res.get("status") == "success":
+            return float(res.get("data", {}).get("price", 0.0))
+    except:
+        pass
+    return 0.0
 
 # ══════════════════════════════════════════════════════════
 #   SIDEBAR
@@ -340,24 +387,24 @@ padding:1.6rem 0 1.2rem;border-bottom:1px solid #D9D5CD;margin-bottom:1.8rem;'>
 </div>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════
-#   QUANT ENGINE (UPGRADED with error handling)
+#   QUANT ENGINE ARCHITECTURE
 # ══════════════════════════════════════════════════════════
-
 def rolling_zscore(s, w=60):
-    return (s - s.rolling(w).mean()) / s.rolling(w).std().replace(0, np.nan)
+    std = s.rolling(w).std()
+    return (s - s.rolling(w).mean()) / std.where(std > 0, np.nan)
 
 def fill_gaps(s):
     s = s.copy()
     valid = s.notna()
     if valid.sum() < 2:
-        return s.ffill()
+        return s.ffill().bfill()
     try:
         x = s.index[valid].astype(np.int64)
         f = pd.Series(PchipInterpolator(x, s[valid].values)(s.index.astype(np.int64)), index=s.index)
         f[valid] = s[valid]
-        return f
+        return f.ffill().bfill()
     except:
-        return s.ffill()
+        return s.ffill().bfill()
 
 def _force_update_fert_csv(path="fertilizer_backup.csv"):
     with open(path, "w", newline="") as f:
@@ -371,6 +418,8 @@ def get_usda():
     _force_update_fert_csv()
     try:
         df = pd.read_csv("fertilizer_backup.csv", parse_dates=["date"], index_col="date").sort_index()
+        if len(df) == 0:
+            return {"urea_price":453.5,"urea_period":"2026-06-10","dap_price":920,"dap_period":"2026-06-10","source":"fallback"}
         last = df.iloc[-1]
         return {"urea_price":float(last["urea_price"]),"urea_period":str(last.name.date()),
                 "dap_price":float(last["dap_price"]),"dap_period":str(last.name.date()),
@@ -394,17 +443,14 @@ def fert_black_swan(usda):
     exc = rets[rets > thr] - thr
     if len(exc) < 5:
         mu, sig = np.mean(hist), np.std(hist)
-        if sig == 0:
-            return 1.0
+        if sig == 0: return 1.0
         z = (cur - mu) / sig
-        if z < -1.5:
-            return max(0.5, 1.0 + z*0.3)
+        if z < -1.5: return max(0.5, 1.0 + z*0.3)
         return min(1.0 + max(0, z-1.5)*0.8, 3.0)
     try:
         shape, loc, scale = stats.genpareto.fit(exc)
         cr = np.log(cur / hist[-1])
-        if cr <= thr:
-            return 0.6 if cr < -0.1 else 1.0
+        if cr <= thr: return 0.6 if cr < -0.1 else 1.0
         p = 1 - stats.genpareto.cdf(cr - thr, shape, loc=loc, scale=scale)
         return 1.0 + min(p*5, 2.0)
     except:
@@ -432,10 +478,8 @@ def build_fert_index(returns, usda, bs=1.0):
     fi = (0.5*returns["natgas"].rolling(20).std() +
           0.25*returns["wheat"].rolling(20).mean() +
           0.25*returns["corn"].rolling(20).mean())
-    if usda["urea_price"]:
-        fi += np.clip((usda["urea_price"]-380)/380, -1, 2)*0.15
-    if usda["dap_price"]:
-        fi += np.clip((usda["dap_price"]-610)/610, -1, 2)*0.10
+    if usda["urea_price"]: fi += np.clip((usda["urea_price"]-380)/380, -1, 2)*0.15
+    if usda["dap_price"]: fi += np.clip((usda["dap_price"]-610)/610, -1, 2)*0.10
     fi *= bs
     return fi.clip(fi.quantile(0.02), fi.quantile(0.98)).dropna()
 
@@ -446,13 +490,11 @@ def calibrate_weights(returns, prices, gs, fi, sd, window=60):
         "dxy":returns["dxy"].rolling(20).mean(),"spread":spread.rolling(20).mean(),
         "wheat":returns["wheat"].rolling(20).mean(),"copper":returns["copper"].rolling(20).mean(),
         "natgas_vol":returns["natgas"].rolling(20).std(),"fert":fi})
-    if sd is not None:
-        X["silver_demand"] = sd
+    if sd is not None: X["silver_demand"] = sd
     y = returns["oil"].shift(-1)
     ci = y.dropna().index.intersection(X.dropna().index)
     X2, y2 = X.loc[ci].dropna(), y.loc[ci]
-    if len(X2) < window:
-        return GEO_W.copy()
+    if len(X2) < window: return GEO_W.copy()
     Xc, yc = X2.iloc[-window:], y2.iloc[-window:]
     Xm, Xs = Xc.mean(), Xc.std().replace(0, 1)
     try:
@@ -476,8 +518,7 @@ def build_geofactor(returns, prices, gs, fi, weights, sd=None):
            weights.get("natgas_vol",0)*returns["natgas"].rolling(20).std())
     if sd is not None:
         ci = geo.dropna().index.intersection(sd.dropna().index)
-        if len(ci) > 0:
-            geo.loc[ci] += weights.get("silver_demand",0)*sd.loc[ci]
+        if len(ci) > 0: geo.loc[ci] += weights.get("silver_demand",0)*sd.loc[ci]
     ci = geo.dropna().index.intersection(fi.dropna().index)
     geo.loc[ci] += weights.get("fert",0)*fi.loc[ci]
     g = geo.dropna()
@@ -491,115 +532,81 @@ def build_zscore(prices, gs, window=60):
     return (ZSC_W["oil_gold"]*z1 + ZSC_W["oil_natgas"]*z2 + ZSC_W["gold_real"]*z3).dropna()
 
 def fit_egarch(ret, exog=None):
-    """EGARCH(1,1) with skew-t innovations. Returns daily vol aligned with ret."""
     r = ret.dropna()
-    if len(r) < 50:
-        return pd.Series(r.std(), index=ret.index).ffill().bfill()
+    if len(r) < 50: return pd.Series(r.std(), index=ret.index).ffill().bfill()
     try:
         rc = r * 100
         if exog is not None and not exog.empty:
             common = rc.index.intersection(exog.dropna().index)
-            if len(common) < 50:
-                exog = None
-            else:
+            if len(common) >= 50:
                 rc = rc.loc[common]
-                # ensure exog is 2D
                 xc = exog.loc[common].to_frame() if isinstance(exog, pd.Series) else exog.loc[common]
                 model = arch_model(rc, x=xc, mean="Constant", vol="EGARCH", p=1, q=1, dist="skewt")
-        else:
-            model = arch_model(rc, mean="Constant", vol="EGARCH", p=1, q=1, dist="skewt")
+                res = model.fit(disp="off")
+                return (res.conditional_volatility / 100).reindex(ret.index).ffill().bfill()
+        model = arch_model(rc, mean="Constant", vol="EGARCH", p=1, q=1, dist="skewt")
         res = model.fit(disp="off")
-        vol = res.conditional_volatility / 100
-        vol = vol.reindex(ret.index).ffill().bfill()
-        vol[vol <= 0] = vol[vol > 0].min() if (vol > 0).any() else 1e-6
-        return vol
+        return (res.conditional_volatility / 100).reindex(ret.index).ffill().bfill()
     except:
-        # fallback to rolling std
         return pd.Series(r.rolling(20).std().mean(), index=ret.index).ffill().bfill()
 
 def conditional_evt(returns, vol, q=0.95, min_obs=30):
-    """EVT on standardized residuals."""
     common = returns.dropna().index.intersection(vol.dropna().index)
-    if len(common) < min_obs:
-        return None
-    r = returns.loc[common]
-    v = vol.loc[common].replace(0, np.nan)
+    if len(common) < min_obs: return None
+    r, v = returns.loc[common], vol.loc[common].replace(0, np.nan)
     resid = (r / v).dropna()
     resid = resid[np.isfinite(resid)]
-    if len(resid) < min_obs or resid.std() < 1e-8:
-        return None
-    th_up = np.percentile(resid, q*100)
-    th_lo = np.percentile(resid, (1-q)*100)
-    exc_up = resid[resid > th_up] - th_up
-    exc_lo = -resid[resid < th_lo] - th_lo
-    shape_up = scale_up = shape_lo = scale_lo = 0.0
-    if len(exc_up) >= 10:
-        shape_up, _, scale_up = stats.genpareto.fit(exc_up)
-    else:
-        shape_up, scale_up = 0.2, exc_up.std() if len(exc_up)>0 else 0.1
-    if len(exc_lo) >= 10:
-        shape_lo, _, scale_lo = stats.genpareto.fit(exc_lo)
-    else:
-        shape_lo, scale_lo = 0.2, exc_lo.std() if len(exc_lo)>0 else 0.1
+    if len(resid) < min_obs or resid.std() < 1e-8: return None
+    th_up, th_lo = np.percentile(resid, q*100), np.percentile(resid, (1-q)*100)
+    exc_up, exc_lo = resid[resid > th_up] - th_up, -resid[resid < th_lo] - th_lo
+    shape_up, scale_up = stats.genpareto.fit(exc_up)[0] if len(exc_up)>=10 else 0.2, exc_up.std() if len(exc_up)>0 else 0.1
+    shape_lo, scale_lo = stats.genpareto.fit(exc_lo)[0] if len(exc_lo)>=10 else 0.2, exc_lo.std() if len(exc_lo)>0 else 0.1
     return {"upper": (shape_up, scale_up, th_up), "lower": (shape_lo, scale_lo, th_lo), "resid": resid}
 
 def detect_regime(vol, threshold=2.0):
     v = vol.dropna()
-    if len(v) < 20:
-        return pd.Series(0, index=vol.index)
-    mean = v.rolling(60, min_periods=20).mean()
-    std = v.rolling(60, min_periods=20).std().replace(0, 1e-8)
-    regime = (v > mean + threshold * std).astype(int)
-    return regime.reindex(vol.index).fillna(0).astype(int)
+    if len(v) < 20: return pd.Series(0, index=vol.index)
+    mean, std = v.rolling(60, min_periods=20).mean(), v.rolling(60, min_periods=20).std().replace(0, 1e-8)
+    return (v > mean + threshold * std).astype(int).reindex(vol.index).fillna(0).astype(int)
 
 def bayes_shrink(vg, prior_d, n, geofactor=None):
     w = np.clip(np.sqrt(n/252), 0.10, 0.95)
-    prior = prior_d * (1.0 + 0.4 * np.tanh(float(geofactor.iloc[-1]))) if geofactor is not None and not geofactor.empty else prior_d
-    lo, hi = prior*0.5, prior*1.5
+    prior = prior_d * (1.0 + 0.4 * np.tanh(float(geofactor.iloc[-1]))) if (geofactor is not None and len(geofactor) > 0) else prior_d
+    if len(vg) == 0: return pd.Series(prior, index=geofactor.index if geofactor is not None else [datetime.now()]), {"vga":prior*100,"vsa":prior*100,"w":w}
     v_last = float(vg.iloc[-1])
-    effective_w = w if not (lo <= v_last <= hi) else 1.0
+    effective_w = w if not (prior*0.5 <= v_last <= prior*1.5) else 1.0
     vs = effective_w * vg + (1 - effective_w) * prior
-    return vs, {"vga": v_last * np.sqrt(252) * 100,
-                "vsa": float(vs.iloc[-1]) * np.sqrt(252) * 100,
-                "w": effective_w}
+    return vs, {"vga": v_last * np.sqrt(252) * 100, "vsa": float(vs.iloc[-1]) * np.sqrt(252) * 100, "w": effective_w}
 
 def fit_dcc(rw, rb, vw, vb):
     common = rw.index.intersection(rb.index).intersection(vw.index).intersection(vb.index)
-    if len(common) < 10:
-        return 0.05, 0.93
-    ew = (rw[common] / vw[common]).dropna()
-    eb = (rb[common] / vb[common]).dropna()
+    if len(common) < 10: return 0.05, 0.93
+    ew, eb = (rw[common] / vw[common]).dropna(), (rb[common] / vb[common]).dropna()
     c2 = ew.index.intersection(eb.index)
+    if len(c2) < 10: return 0.05, 0.93
     e = np.column_stack([ew[c2], eb[c2]])
     Qb = np.cov(e, rowvar=False)
     np.fill_diagonal(Qb, 1.0)
     def nll(p):
         a, b = p
-        if a <= 0 or b <= 0 or a + b >= 1:
-            return 1e10
+        if a <= 0 or b <= 0 or a + b >= 1: return 1e10
         Qt = Qb.copy()
         ll = 0.0
         for t in range(1, len(e)):
             Qt = (1 - a - b) * Qb + a * np.outer(e[t-1], e[t-1]) + b * Qt
             d = np.sqrt(np.diag(Qt))
             d[d == 0] = 1e-8
-            Rt = Qt / np.outer(d, d)
-            Rt = np.clip(Rt, -0.9999, 0.9999)
+            Rt = np.clip(Qt / np.outer(d, d), -0.9999, 0.9999)
             try:
                 L = np.linalg.cholesky(Rt)
                 z = np.linalg.solve(L, e[t])
                 ll += -0.5 * np.sum(z**2) - np.sum(np.log(np.diag(L)))
-            except:
-                return 1e10
+            except: return 1e10
         return -ll
     try:
         res = optimize.minimize(nll, [0.05, 0.93], bounds=[(1e-4, 0.3), (0.7, 0.9999)], method="L-BFGS-B")
-        a, b = res.x
-        if a + b >= 1:
-            return 0.05, 0.93
-        return float(a), float(b)
-    except:
-        return 0.05, 0.93
+        return (float(res.x[0]), float(res.x[1])) if res.success and (res.x[0]+res.x[1] < 1) else (0.05, 0.93)
+    except: return 0.05, 0.93
 
 def _tail_jumps(shocks, vol):
     n = len(shocks)
@@ -613,72 +620,67 @@ def _jumps_vec(n, pu, pd_):
     jd = np.random.exponential(0.025, n)
     return np.where(u < pu, ju, np.where((u >= pu) & (u < pu + pd_), -jd, 0)), np.where(u < pu, ju*0.95, np.where((u >= pu) & (u < pu + pd_), -jd*0.90, 0))
 
-def run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase, rw, rb, vws, vbs, jpu, tdf, bs=1.0,
-           dcc_a=0.05, dcc_b=0.93, sims=5000, steps=10, bar=None):
+def run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase, rw, rb, vws, vbs, jpu, tdf, bs=1.0, dcc_a=0.05, dcc_b=0.93, sims=5000, steps=10, bar=None):
     np.random.seed(42)
-    bvw = max(bvw, 1e-6) if np.isfinite(bvw) else 0.02
-    bvb = max(bvb, 1e-6) if np.isfinite(bvb) else 0.02
+    bvw, bvb = max(bvw, 1e-6), max(bvb, 1e-6)
     ci = rw.index.intersection(rb.index).intersection(vws.index).intersection(vbs.index)
+    
+    # INDEPENDENCE PROTECTION: Proteção contra estouro do indexador temporal se e for vazio
     if len(ci) < 10:
         rho_const = 0.85
         eps = np.random.normal(0, 1, (sims, 2))
-        Qt = np.array([[[1.0, rho_const], [rho_const, 1.0]] for _ in range(sims)])
+        Qt = np.tile(np.array([[1.0, rho_const], [rho_const, 1.0]]), (sims, 1, 1))
+        Qb = np.array([[1.0, rho_const], [rho_const, 1.0]])
     else:
-        ew = (rw[ci] / vws[ci].replace(0, np.nan)).dropna()
-        eb = (rb[ci] / vbs[ci].replace(0, np.nan)).dropna()
+        ew, eb = (rw[ci] / vws[ci].replace(0, np.nan)).dropna(), (rb[ci] / vbs[ci].replace(0, np.nan)).dropna()
         c2 = ew.index.intersection(eb.index)
-        e = np.column_stack([np.clip(ew[c2], -3, 3), np.clip(eb[c2], -3, 3)])
-        Qb = np.cov(e, rowvar=False)
-        np.fill_diagonal(Qb, 1.0)
-        eps = e[-1] + np.random.normal(0, 0.05, (sims, 2))
-        Qt = np.tile(Qb, (sims, 1, 1)).copy()
+        if len(c2) < 10:
+            rho_const = 0.85
+            eps = np.random.normal(0, 1, (sims, 2))
+            Qt = np.tile(np.array([[1.0, rho_const], [rho_const, 1.0]]), (sims, 1, 1))
+            Qb = np.array([[1.0, rho_const], [rho_const, 1.0]])
+        else:
+            e = np.column_stack([np.clip(ew[c2], -3, 3), np.clip(eb[c2], -3, 3)])
+            Qb = np.cov(e, rowvar=False)
+            np.fill_diagonal(Qb, 1.0)
+            eps = np.repeat(e[-1][np.newaxis, :], sims, axis=0) + np.random.normal(0, 0.05, (sims, 2))
+            Qt = np.tile(Qb, (sims, 1, 1)).copy()
 
-    pu = min(jpu * 1.5, 0.20) if bs > 1.2 else jpu
-    pd_ = 0.03 * (1.3 if bs > 1.2 else 1.0)
-    pw = np.zeros((sims, steps+1))
-    pb = np.zeros((sims, steps+1))
-    pw[:, 0] = wti0
-    pb[:, 0] = brt0
+    pu, pd_ = min(jpu * 1.5, 0.20) if bs > 1.2 else jpu, 0.03 * (1.3 if bs > 1.2 else 1.0)
+    pw, pb = np.zeros((sims, steps+1)), np.zeros((sims, steps+1))
+    pw[:, 0], pb[:, 0] = wti0, brt0
     ra = 1 + 0.5 * np.clip(rbase + np.random.normal(0, 0.05, (sims, steps)), -1, 1)
 
     for t in range(steps):
-        if bar:
-            bar.progress((t+1)/steps)
+        if bar: bar.progress((t+1)/steps)
         if len(ci) >= 10:
             outer = np.einsum("si,sj->sij", eps, eps)
             Qt = (1 - dcc_a - dcc_b) * Qb[np.newaxis] + dcc_a * outer + dcc_b * Qt
             diag = np.clip(np.sqrt(np.diagonal(Qt, axis1=1, axis2=2)), 1e-8, None)
-            Rt = Qt / np.einsum("si,sj->sij", diag, diag)
-            Rt = np.clip(Rt, -0.9999, 0.9999)
-            Rt[:, 0, 0] = Rt[:, 1, 1] = 1.0
+            Rt = np.clip(Qt / np.einsum("si,sj->sij", diag, diag), -0.9999, 0.9999)
             rho = Rt[:, 0, 1]
         else:
-            rho = np.full(sims, rho_const)
+            rho = np.full(sims, 0.85)
+            
         sc = np.sqrt(np.clip(1 - rho**2, 1e-8, None))
         z = np.random.standard_t(tdf, (sims, 2))
-        zw = z[:, 0]
-        zb = rho * z[:, 0] + sc * z[:, 1]
+        zw, zb = z[:, 0], rho * z[:, 0] + sc * z[:, 1]
 
-        vw_ = np.clip(bvw * ra[:, t], 1e-6, 0.08)
-        vb_ = np.clip(bvb * ra[:, t], 1e-6, 0.08)
-        sw = np.clip(zw * vw_, -4*vw_, 4*vw_)
-        sb = np.clip(zb * vb_, -4*vb_, 4*vb_)
-        sw = _tail_jumps(sw, vw_)
-        sb = _tail_jumps(sb, vb_)
+        vw_, vb_ = np.clip(bvw * ra[:, t], 1e-6, 0.08), np.clip(bvb * ra[:, t], 1e-6, 0.08)
+        sw, sb = np.clip(zw * vw_, -4*vw_, 4*vw_), np.clip(zb * vb_, -4*vb_, 4*vb_)
+        sw, sb = _tail_jumps(sw, vw_), _tail_jumps(sb, vb_)
         jw, jb = _jumps_vec(sims, pu, pd_)
-        sw += jw
-        sb += jb
-        dw = np.clip(fcast[t, ocol] * ra[:, t], -0.02, 0.02)
-        db = np.clip(fcast[t, bcol] * ra[:, t], -0.02, 0.02)
-        nw = pw[:, t] * np.exp(dw + sw)
-        nb = pb[:, t] * np.exp(db + sb)
+        sw, sb = sw + jw, sb + jb
+        
+        dw = np.clip(fcast[t, ocol] * ra[:, t], -0.02, 0.02) if t < len(fcast) else 0.0
+        db = np.clip(fcast[t, bcol] * ra[:, t], -0.02, 0.02) if t < len(fcast) else 0.0
+        
+        nw, nb = pw[:, t] * np.exp(dw + sw), pb[:, t] * np.exp(db + sb)
         sp = np.where(nb > 0, (nb - nw) / nb, 0)
         nw = np.where(sp < -0.05, nb * 1.05, nw)
         nw = np.where(sp > 0.30, nb * 0.70, nw)
-        pw[:, t+1] = np.clip(nw, wti0*0.4, wti0*2.5)
-        pb[:, t+1] = np.clip(nb, brt0*0.4, brt0*2.5)
-        eps[:, 0] = np.where(vw_ > 0, sw / vw_, 0)
-        eps[:, 1] = np.where(vb_ > 0, sb / vb_, 0)
+        pw[:, t+1], pb[:, t+1] = np.clip(nw, wti0*0.4, wti0*2.5), np.clip(nb, brt0*0.4, brt0*2.5)
+        eps[:, 0], eps[:, 1] = np.where(vw_ > 0, sw / vw_, 0), np.where(vb_ > 0, sb / vb_, 0)
         eps = np.clip(eps, -5, 5)
 
     fan = {p: np.percentile(pw, p, axis=0) for p in [5, 25, 50, 75, 95]}
@@ -687,33 +689,23 @@ def run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase, rw, rb, vws, vbs, jpu
     v95 = np.percentile(pw[:, 1] - wti0, 5)
     mask = (pw[:, 1] - wti0) <= v95
     return {"fan": fan, "fan_b": fb, "paths": pw, "metrics": {
-        "vol_wti": bvw * np.sqrt(252) * 100,
-        "vol_brt": bvb * np.sqrt(252) * 100,
-        "var95": v95,
-        "cvar95": float(np.mean((pw[:, 1] - wti0)[mask])),
-        "prob_up": np.mean(term > wti0) * 100,
-        "prob_40": np.mean(term < 40) * 100,
-        "prob_150": np.mean(term > 150) * 100,
-        "p5": (fan[5][-1] / wti0 - 1) * 100,
-        "p95": (fan[95][-1] / wti0 - 1) * 100
+        "vol_wti": bvw * np.sqrt(252) * 100, "vol_brt": bvb * np.sqrt(252) * 100,
+        "var95": v95, "cvar95": float(np.mean((pw[:, 1] - wti0)[mask])) if mask.sum() > 0 else v95,
+        "prob_up": np.mean(term > wti0) * 100, "prob_40": np.mean(term < 40) * 100, "prob_150": np.mean(term > 150) * 100,
+        "p5": (fan[5][-1] / wti0 - 1) * 100, "p95": (fan[95][-1] / wti0 - 1) * 100
     }}
 
 def backtest_var(returns, var_forecast, alpha=0.05):
     ci = returns.index.intersection(var_forecast.index)
-    if len(ci) == 0:
-        return {"calibration_score": 0, "Kupiec_p": 1, "Christoffersen_p": 1, "DQ_p": 1, "n_violations": 0, "obs_freq": 0}
-    r = returns.loc[ci]
-    v = var_forecast.loc[ci]
+    if len(ci) == 0: return {"calibration_score": 0, "Kupiec_p": 1, "Christoffersen_p": 1, "DQ_p": 1, "n_violations": 0, "obs_freq": 0}
+    r, v = returns.loc[ci], var_forecast.loc[ci]
     violations = (r < -v).astype(int)
-    n = len(violations)
-    nv = violations.sum()
-    po = nv / n
-    pe = alpha
+    n, nv = len(violations), violations.sum()
+    po, pe = nv / n, alpha
     if nv > 0 and nv < n:
         LR = -2 * np.log(((1-pe)**(n-nv) * pe**nv) / ((1-po)**(n-nv) * po**nv))
         kp = 1 - chi2.cdf(LR, 1)
-    else:
-        kp = 0.5
+    else: kp = 0.5
     if n > 1:
         n00 = ((violations[:-1]==0) & (violations[1:]==0)).sum()
         n01 = ((violations[:-1]==0) & (violations[1:]==1)).sum()
@@ -722,52 +714,36 @@ def backtest_var(returns, var_forecast, alpha=0.05):
         p01 = n01 / (n00 + n01) if (n00 + n01) > 0 else 0
         p11 = n11 / (n10 + n11) if (n10 + n11) > 0 else 0
         if (n01 + n11) > 0:
-            LRc = -2 * np.log(((1-pe)**(n-1-(n01+n11)) * pe**(n01+n11)) /
-                              ((1-p01)**n00 * p01**n01 * (1-p11)**n10 * p11**n11))
+            LRc = -2 * np.log(((1-pe)**(n-1-(n01+n11)) * pe**(n01+n11)) / ((1-p01)**n00 * p01**n01 * (1-p11)**n10 * p11**n11))
             cp = 1 - chi2.cdf(LRc, 1) if LRc > 0 else 0.5
-        else:
-            cp = 0.5
-    else:
-        cp = 0.5
+        else: cp = 0.5
+    else: cp = 0.5
     Xd = pd.DataFrame({"const": 1, "hit_lag1": violations.shift(1).fillna(0)})
-    try:
-        dq = 1 - chi2.cdf(Logit(violations, Xd).fit(disp=0).llr, Xd.shape[1])
-    except:
-        dq = 1.0
-    return {"n_violations": int(nv), "obs_freq": po, "exp_freq": pe,
-            "Kupiec_p": kp, "Christoffersen_p": cp, "DQ_p": dq,
-            "calibration_score": 1 - np.mean([kp, cp, dq])}
+    try: dq = 1 - chi2.cdf(Logit(violations, Xd).fit(disp=0).llr, Xd.shape[1])
+    except: dq = 1.0
+    return {"n_violations": int(nv), "obs_freq": po, "exp_freq": pe, "Kupiec_p": kp, "Christoffersen_p": cp, "DQ_p": dq, "calibration_score": 1 - np.mean([kp, cp, dq])}
 
 def backtest_es(returns, cvar_val, var_forecast, alpha=0.05):
     ci = returns.index.intersection(var_forecast.index)
-    if len(ci) == 0:
-        return np.nan
-    r = returns.loc[ci]
-    v = var_forecast.loc[ci]
-    cv = float(cvar_val) if not isinstance(cvar_val, pd.Series) else float(cvar_val.iloc[0]) if len(cvar_val) > 0 else np.nan
-    if np.isnan(cv) or cv == 0:
-        return np.nan
+    if len(ci) == 0: return np.nan
+    r, v = returns.loc[ci], var_forecast.loc[ci]
+    cv = float(cvar_val) if not isinstance(cvar_val, pd.Series) else float(cvar_val.iloc[-1]) if len(cvar_val) > 0 else np.nan
+    if np.isnan(cv) or cv == 0: return np.nan
     viol = (r < -v).astype(int)
-    if viol.sum() == 0:
-        return np.nan
+    if viol.sum() == 0: return np.nan
     return float(((r[viol==1] + v[viol==1]).sum() / (viol.sum() * cv)) - 1)
 
 def walk_forward_validation(returns_series, train_years=2, test_months=3):
     dates = returns_series.index
-    ts = int(train_years * 252)
-    qs = int(test_months * 21)
+    ts, qs = int(train_years * 252), int(test_months * 21)
     results = []
     start = 0
     while start + ts + qs <= len(dates):
-        te = start + ts
-        qe = te + qs
-        train = returns_series.iloc[start:te]
-        test = returns_series.iloc[te:qe]
+        te, qe = start + ts, start + ts + qs
+        train, test = returns_series.iloc[start:te], returns_series.iloc[te:qe]
         pred = train.iloc[-20:].mean() if len(train) >= 20 else train.mean()
         rmse = float(np.sqrt(((pred - test)**2).mean()))
-        results.append({"Window Start": dates[start].strftime("%Y-%m-%d"),
-                        "Window End": dates[qe-1].strftime("%Y-%m-%d"),
-                        "OOS RMSE": rmse})
+        results.append({"Window Start": dates[start].strftime("%Y-%m-%d"), "Window End": dates[qe-1].strftime("%Y-%m-%d"), "OOS RMSE": rmse})
         start += qs
     return pd.DataFrame(results)
 
@@ -789,9 +765,8 @@ def benchmark_ml(returns_df, target_col="oil", split=0.8):
         try:
             mdl.fit(Xtr, ytr)
             pred = mdl.predict(Xte)
-            out[name] = {"RMSE": float(np.sqrt(mean_squared_error(yte, pred))),
-                         "MAE": float(mean_absolute_error(yte, pred))}
-        except Exception as e:
+            out[name] = {"RMSE": float(np.sqrt(mean_squared_error(yte, pred))), "MAE": float(mean_absolute_error(yte, pred))}
+        except:
             out[name] = {"RMSE": np.nan, "MAE": np.nan}
     return out, X, y
 
@@ -808,8 +783,7 @@ def run_shap(X, y):
 
 def garch_diagnostics(resid):
     r = resid.dropna()
-    if len(r) < 20:
-        return {"LB5": np.nan, "LB10": np.nan, "ARCH_p": np.nan}
+    if len(r) < 20: return {"LB5": np.nan, "LB10": np.nan, "ARCH_p": np.nan}
     lb = acorr_ljungbox(r, lags=[5,10], return_df=True)
     arch = het_arch(r**2, nlags=10)
     return {"LB5": lb.loc[5, "lb_pvalue"] if 5 in lb.index else np.nan,
@@ -818,65 +792,36 @@ def garch_diagnostics(resid):
 
 @st.cache_data(ttl=900, show_spinner=False)
 def fetch_data(start):
-    tl = list(TICKERS.values())
-    tk = list(TICKERS.keys())
+    tl, tk = list(TICKERS.values()), list(TICKERS.keys())
     for adj in [True, False]:
         try:
             raw = yf.download(tl, start=start, progress=False, auto_adjust=adj)
-            if raw.empty:
-                continue
+            if raw.empty: continue
             if isinstance(raw.columns, pd.MultiIndex):
                 lvl = raw.columns.get_level_values(0).unique().tolist()
                 field = next((f for f in ["Close", "Adj Close"] if f in lvl), None)
-                if field:
-                    out = raw[field].copy()
-                else:
-                    out = raw.iloc[:, :len(tk)].copy()
-            else:
-                out = raw.copy()
+                out = raw[field].copy() if field else raw.iloc[:, :len(tk)].copy()
+            else: out = raw.copy()
             out.columns = tk[:len(out.columns)]
-            if not out.empty and len(out) > 5:
-                return out.ffill().bfill()
-        except:
-            continue
-    frames = {}
-    for key, sym in TICKERS.items():
-        try:
-            t = yf.Ticker(sym)
-            df = t.history(start=start, auto_adjust=True)
-            if df.empty:
-                df = t.history(period="120d", auto_adjust=True)
-            if not df.empty:
-                col = "Close" if "Close" in df.columns else df.columns[0]
-                frames[key] = fill_gaps(df[col])
-        except:
-            pass
-    if frames:
-        out = pd.DataFrame(frames).ffill().bfill()
-        if not out.empty and len(out) > 5:
-            return out
-    dummy = pd.DataFrame(index=[pd.Timestamp(start)], columns=tk)
-    return dummy
+            if not out.empty and len(out) > 5: return out.ffill().bfill()
+        except: continue
+    return pd.DataFrame()
 
 @st.cache_data(ttl=60, show_spinner=False)
 def fetch_live(lw=65.0, lb=68.0):
+    # Tenta usar a API do OilPrice primeiro para precificação Spot Física Real
+    api_spot = fetch_oilprice_spot()
+    if api_spot > 10.0:
+        return api_spot, api_spot + 3.20
     try:
         wti = float(yf.Ticker("CL=F").fast_info.get("last_price", 0))
         brt = float(yf.Ticker("BZ=F").fast_info.get("last_price", 0))
-        if wti > 0 and brt > 0:
-            return wti, brt
-    except:
-        pass
-    try:
-        d = yf.download(["CL=F", "BZ=F"], period="5d", progress=False, auto_adjust=True)
-        if isinstance(d.columns, pd.MultiIndex):
-            d = d["Close"]
-        return float(d["CL=F"].dropna().iloc[-1]), float(d["BZ=F"].dropna().iloc[-1])
-    except:
-        return lw, lb
+        if wti > 0 and brt > 0: return wti, brt
+    except: pass
+    return lw, lb
 
 # ══════════════════════════════════════════════════════════
-#   PIPELINE (with error handling)
+#   EXECUTION RUNTIME
 # ══════════════════════════════════════════════════════════
 needs_run = run_btn or "results" not in st.session_state
 
@@ -890,33 +835,32 @@ if needs_run:
     prog = st.progress(0)
 
     try:
-        # 1 · Data
+        # CHAMADA DAS APIS MACRO EXTERNAS
+        vix_premium = fetch_fred_macro()
+        eia_stocks = fetch_eia_inventories()
+
         prog.progress(8)
         prices = fetch_data(war_start_str)
         if prices.empty or len(prices) < 5:
-            st.error("Failed to load market data. Please check internet connection and try again later.")
+            st.error("Failed to load market data. Execution halted.")
             st.stop()
-        for key in TICKERS:
-            if key not in prices.columns:
-                prices[key] = np.nan
+            
         prices = prices.ffill().bfill()
-        # fallback to synthetic if still missing
-        if prices.isnull().all().all():
-            dates = pd.date_range(start=war_start_str, periods=60, freq='D')
-            prices = pd.DataFrame(index=dates, columns=list(TICKERS.keys()))
-            for col in prices.columns:
-                prices[col] = 70.0
-            st.warning("Using synthetic data due to download failure.")
-        ovx = prices.get("ovx")
+        for key in TICKERS:
+            if key not in prices.columns: prices[key] = np.nan
+        prices = prices.ffill().bfill()
 
-        lw = float(prices["oil"].dropna().iloc[-1]) if not prices["oil"].dropna().empty else 70.0
-        lb = float(prices["brent"].dropna().iloc[-1]) if not prices["brent"].dropna().empty else 72.0
+        if len(prices) > 0:
+            lw = float(prices["oil"].dropna().iloc[-1]) if len(prices["oil"].dropna()) > 0 else 75.0
+            lb = float(prices["brent"].dropna().iloc[-1]) if len(prices["brent"].dropna()) > 0 else 78.0
+        else:
+            lw, lb = 75.0, 78.0
+
         wti0, brt0 = fetch_live(lw, lb)
         prices.loc[prices.index[-1], "oil"] = wti0
         prices.loc[prices.index[-1], "brent"] = brt0
         returns = np.log(prices / prices.shift(1)).dropna()
 
-        # 2 · Signals
         prog.progress(20)
         usda = get_usda()
         bs_mult = fert_black_swan(usda)
@@ -927,71 +871,65 @@ if needs_run:
         tot = sum(abs(v) for v in weights.values())
         weights = {k: v/tot for k, v in weights.items()}
         fi = build_fert_index(returns, usda, bs_mult)
+        
         dyn_w = calibrate_weights(returns, prices, gs, fi, sd)
-        if dyn_w:
-            weights = dyn_w
+        if dyn_w: weights = dyn_w
         gf_raw = build_geofactor(returns, prices, gs, fi, weights, sd)
         gf = (gf_raw - gf_raw.mean()) / gf_raw.std() if len(gf_raw) > 1 else gf_raw
         zsc = build_zscore(prices, gs)
 
-        # 3 · EGARCH + Conditional EVT
         prog.progress(38)
         gf_clean = gf.dropna() if not gf.empty else None
         vw = fit_egarch(returns["oil"], gf_clean)
         vb_s = fit_egarch(returns["brent"], gf_clean)
         vg = fit_egarch(returns["gold"], gf_clean)
         n = len(returns)
-        pwd = prior_wti / np.sqrt(252)
-        pbd = prior_brent / np.sqrt(252)
-        pgd = 0.18 / np.sqrt(252)
+        pwd, pbd, pgd = prior_wti / np.sqrt(252), prior_brent / np.sqrt(252), 0.18 / np.sqrt(252)
+        
         vw, dw = bayes_shrink(vw, pwd, n, gf)
         vb_s, db = bayes_shrink(vb_s, pbd, n, gf)
         vg, _ = bayes_shrink(vg, pgd, n, gf)
-        if vw.empty:
-            vw = pd.Series(pwd, index=returns.index)
-        if vb_s.empty:
-            vb_s = pd.Series(pbd, index=returns.index)
-        if vg.empty:
-            vg = pd.Series(pgd, index=returns.index)
+        
         bvw = float(vw.iloc[-1]) if len(vw) > 0 else pwd
         bvb = float(vb_s.iloc[-1]) if len(vb_s) > 0 else pbd
 
         evt_wti = conditional_evt(returns["oil"], vw)
         regime = detect_regime(vw, 2.0)
 
-        # 4 · DCC + VAR
         prog.progress(55)
         dcc_a, dcc_b = fit_dcc(returns["oil"], returns["brent"], vw, vb_s)
-        rv = returns.loc[gf.index.intersection(returns.index)]
+        rv = returns.loc[gf.index.intersection(returns.index)] if not gf.empty else returns
+        
         try:
-            vm = VAR(rv).fit(min(5, max(1, len(rv)//10)))
+            vm = VAR(rv).fit(min(3, max(1, len(rv)//15)))
             fcast = vm.forecast(rv.values[-vm.k_ar:], steps=mc_steps)
-        except Exception as e:
+        except:
             fcast = np.zeros((mc_steps, len(rv.columns)))
+            
         cols = list(rv.columns)
         ocol = cols.index("oil") if "oil" in cols else 0
         bcol = cols.index("brent") if "brent" in cols else 1
         tdf_d = max(2.5, min(6.0, tail_df / np.sqrt(max(bvb/(pbd*1.5), 0.5))))
-        rbase = float(np.tanh(gf.iloc[-1]/2)) if not gf.empty else 0.0
+        rbase = float(np.tanh(gf.iloc[-1]/2)) if (gf is not None and len(gf) > 0) else 0.0
         jpu = min(jump_up * 1.5, 0.15) if returns["wheat"].tail(20).mean() > 0.005 else jump_up
 
-        # 5 · MC
         prog.progress(68)
         mb = st.empty()
         mc_bar = st.progress(0)
         mb.markdown('<div style="font-family:\'JetBrains Mono\',monospace;font-size:.58rem;letter-spacing:.14em;color:#9E8050;">Monte Carlo simulation executing…</div>', unsafe_allow_html=True)
+        
         mc = run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase,
                     returns["oil"], returns["brent"], vw, vb_s, jpu, tdf_d,
                     bs_mult, dcc_a, dcc_b, mc_sims, mc_steps, mc_bar)
         mb.empty()
         mc_bar.empty()
 
-        # 6 · Analytics
         prog.progress(80)
         ret_ann = returns[["oil","brent"]].mean() * 252
         vol_ann = returns[["oil","brent"]].std() * np.sqrt(252)
         neg = returns[["oil","brent"]][returns[["oil","brent"]] < 0].std() * np.sqrt(252)
         corr_mx = returns[["oil","brent","gold","dxy","tnx"]].dropna().corr()
+        
         stress_c = pd.DataFrame({
             "vol_wti": vw.rolling(20).mean() * np.sqrt(252) * 100,
             "vol_brt": vb_s.rolling(20).mean() * np.sqrt(252) * 100,
@@ -999,39 +937,25 @@ if needs_run:
             "gold_z": rolling_zscore(prices["gold"], 60),
             "geofactor": gf
         }).dropna()
-        stress_idx = (stress_c["vol_wti"]/50 + stress_c["vol_brt"]/50 +
-                      np.abs(stress_c["corr"]-0.8)*2 +
-                      stress_c["gold_z"].clip(0,3)/3 +
-                      stress_c["geofactor"].clip(0,2)/2) / 5
+        
+        stress_idx = (stress_c["vol_wti"]/50 + stress_c["vol_brt"]/50 + np.abs(stress_c["corr"]-0.8)*2 + stress_c["gold_z"].clip(0,3)/3 + stress_c["geofactor"].clip(0,2)/2) / 5
         feat_imp = pd.DataFrame({"Feature": list(weights.keys()), "Importance": np.abs(list(weights.values()))}).sort_values("Importance", ascending=False)
         gdiag = garch_diagnostics(vw)
-        var_s = vw.iloc[-252:] * 1.645
-        cvar_s = vw.iloc[-252:] * 2.326
+        var_s, cvar_s = vw.iloc[-252:] * 1.645, vw.iloc[-252:] * 2.326
         bt_res = backtest_var(returns["oil"].iloc[-252:], var_s)
-        es_z = backtest_es(returns["oil"].iloc[-252:], float(cvar_s.iloc[-1]), var_s)
+        es_z = backtest_es(returns["oil"].iloc[-252:], float(cvar_s.iloc[-1]) if len(cvar_s)>0 else 0.0, var_s)
+        
         try:
-            corr_ewma = float(np.clip(
-                returns[["oil","brent"]].dropna().ewm(alpha=0.06).cov(pairwise=True)
-                .loc[(returns.index[-1],"oil"), "brent"] /
-                np.sqrt(returns[["oil","brent"]].dropna().ewm(alpha=0.06).cov(pairwise=True)
-                .loc[(returns.index[-1],"oil"), "oil"] *
-                returns[["oil","brent"]].dropna().ewm(alpha=0.06).cov(pairwise=True)
-                .loc[(returns.index[-1],"brent"), "brent"]), -1, 1))
-        except:
-            corr_ewma = 0.95
+            corr_ewma = float(np.clip(returns[["oil","brent"]].dropna().ewm(alpha=0.06).cov(pairwise=True).loc[(returns.index[-1],"oil"), "brent"] / np.sqrt(returns[["oil","brent"]].dropna().ewm(alpha=0.06).cov(pairwise=True).loc[(returns.index[-1],"oil"), "oil"] * returns[["oil","brent"]].dropna().ewm(alpha=0.06).cov(pairwise=True).loc[(returns.index[-1],"brent"), "brent"]), -1, 1))
+        except: corr_ewma = 0.95
 
-        # 7 · ML
         prog.progress(90)
-        try:
-            ml_metrics, X_ml, y_ml = benchmark_ml(returns)
-        except Exception as e:
-            ml_metrics = {"Error": {"RMSE": str(e), "MAE": "—"}}
-            X_ml = returns.shift(1).dropna()
-            y_ml = returns["oil"].iloc[1:]
-        try:
-            shap_fig = run_shap(X_ml, y_ml)
+        try: ml_metrics, X_ml, y_ml = benchmark_ml(returns)
         except:
-            shap_fig = None
+            ml_metrics = {"Error": {"RMSE": 0.0, "MAE": "—"}}
+            X_ml, y_ml = returns.shift(1).dropna(), returns["oil"].iloc[1:]
+        try: shap_fig = run_shap(X_ml, y_ml)
+        except: shap_fig = None
         wf_df = walk_forward_validation(returns["oil"])
 
         prog.progress(100)
@@ -1049,52 +973,26 @@ if needs_run:
             "corr_mx": corr_mx, "stress_idx": stress_idx, "feat_imp": feat_imp,
             "evt": evt_wti, "gdiag": gdiag, "bt_res": bt_res, "es_z": es_z,
             "corr_ewma": corr_ewma, "ml_metrics": ml_metrics, "shap_fig": shap_fig,
-            "wf_df": wf_df, "regime": regime,
+            "wf_df": wf_df, "regime": regime, "vix_fred": vix_premium, "eia_stocks": eia_stocks
         })
     except Exception as e:
         loading.empty()
         prog.empty()
-        st.error(f"Pipeline execution failed: {str(e)}")
-        st.info("Please check data availability or reduce simulation complexity.")
+        st.error(f"Pipeline execution failed structurally: {str(e)}")
         st.stop()
 
 # ══════════════════════════════════════════════════════════
-#   RENDER (with safety checks)
+#   INTERFACE RENDERING (TAB MATRIX)
 # ══════════════════════════════════════════════════════════
 if "results" not in st.session_state:
     st.info("Configure parameters in the sidebar and click **▶ Run Full System Pipeline** to start.")
     st.stop()
 
-required_keys = ["prices", "returns", "vw", "vb", "vg", "gf", "zsc", "corr_mx", "stress_idx", "feat_imp", "bt_res", "ml_metrics", "wf_df"]
-for k in required_keys:
-    if k not in st.session_state or st.session_state[k] is None:
-        st.error(f"Missing required data: {k}. Please re-run the pipeline.")
-        st.stop()
-
 S = st.session_state
-mc = S["results"]
-fan = mc["fan"]
-fb = mc["fan_b"]
-M = mc["metrics"]
-gf = S["gf"]
-zsc = S["zsc"]
-vw = S["vw"]
-vb = S["vb"]
-vg = S["vg"]
-fi = S["fi"]
-gs = S["gs"]
-prices = S["prices"]
-returns = S["returns"]
-wti0 = S["wti0"]
-brt0 = S["brt0"]
-usda = S["usda"]
-bs = S["bs"]
-dw_d = S["dw"]
-db_d = S["db"]
-tdf_d = S["tdf"]
-dcc_a = S["dcc_a"]
-dcc_b = S["dcc_b"]
-spread = brt0 - wti0
+mc, fan, fb, M = S["results"], S["results"]["fan"], S["results"]["fan_b"], S["results"]["metrics"]
+gf, zsc, vw, vb, vg, fi, gs = S["gf"], S["zsc"], S["vw"], S["vb"], S["vg"], S["fi"], S["gs"]
+prices, returns, wti0, brt0, usda, bs = S["prices"], S["returns"], S["wti0"], S["brt0"], S["usda"], S["bs"]
+dw_d, db_d, tdf_d, dcc_a, dcc_b, spread = S["dw"], S["db"], S["tdf"], S["dcc_a"], S["dcc_b"], brt0 - wti0
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "Market & Volatility", "Geopolitical Intelligence", "Monte Carlo",
@@ -1102,127 +1000,55 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "ML Benchmarks", "Walk-Forward",
 ])
 
-# ── TAB 1 · Market & Volatility ──────────────────────────
 with tab1:
     st.markdown('<div class="sec-label">01 · Live Snapshot</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title">Market Metrics & Conditional Volatility</div>', unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("WTI Crude", f"${wti0:.2f}", f"P50 10d → ${fan[50][-1]:.2f}")
+    c1.metric("WTI Crude Spot", f"${wti0:.2f}", f"P50 10d → ${fan[50][-1]:.2f}")
     c2.metric("Brent Crude", f"${brt0:.2f}", f"Spread ${spread:.2f} ({spread/wti0*100:.1f}%)")
     c3.metric("WTI Vol p.a.", f"{M['vol_wti']:.1f}%", f"Shrunk {dw_d['vsa']:.1f}%")
     c4.metric("Brent Vol p.a.", f"{M['vol_brt']:.1f}%", f"Shrunk {db_d['vsa']:.1f}%")
 
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-    if not vw.empty and not vb.empty and not vg.empty:
-        fig_vol = qfig(380)
-        fig_vol.add_trace(go.Scatter(x=vw.index, y=vw*np.sqrt(252)*100, name="WTI EGARCH Vol",
-                                     line=dict(color=C["navy"], width=2.2)))
-        fig_vol.add_trace(go.Scatter(x=vb.index, y=vb*np.sqrt(252)*100, name="Brent EGARCH Vol",
-                                     line=dict(color=C["blue"], width=2.2, dash="dash")))
-        fig_vol.add_trace(go.Scatter(x=vg.index, y=vg*np.sqrt(252)*100, name="Gold EGARCH Vol",
-                                     line=dict(color=C["gold"], width=1.8, dash="dot")))
-        fig_vol.add_hrect(y0=25, y1=45, fillcolor="rgba(30,58,95,0.04)", line_width=0,
-                          annotation_text="Normal band 25–45%", annotation_position="top left",
-                          annotation_font=dict(size=9, color=C["gray"], family="JetBrains Mono,monospace"))
-        fig_vol.update_layout(yaxis_ticksuffix="%",
-                              title="EGARCH(1,1) Conditional Volatility — Asymmetric & Heavy-Tailed")
-        st.plotly_chart(fig_vol, use_container_width=True)
-    else:
-        st.warning("Volatility series not available for plotting.")
-    st.markdown(f'<div class="info-block">EGARCH + Bayes Shrinkage · WTI {dw_d["vga"]:.0f}% → {dw_d["vsa"]:.0f}% (w={dw_d["w"]:.2f}) · Brent {db_d["vga"]:.0f}% → {db_d["vsa"]:.0f}% (w={db_d["w"]:.2f}) · DCC α={dcc_a:.4f} β={dcc_b:.4f}</div>', unsafe_allow_html=True)
+    fig_vol = qfig(380)
+    fig_vol.add_trace(go.Scatter(x=vw.index, y=vw*np.sqrt(252)*100, name="WTI EGARCH Vol", line=dict(color=C["navy"], width=2.2)))
+    fig_vol.add_trace(go.Scatter(x=vb.index, y=vb*np.sqrt(252)*100, name="Brent EGARCH Vol", line=dict(color=C["blue"], width=2.2, dash="dash")))
+    fig_vol.add_trace(go.Scatter(x=vg.index, y=vg*np.sqrt(252)*100, name="Gold EGARCH Vol", line=dict(color=C["gold"], width=1.8, dash="dot")))
+    fig_vol.update_layout(yaxis_ticksuffix="%", title="EGARCH(1,1) Conditional Volatility")
+    st.plotly_chart(fig_vol, use_container_width=True)
+    st.markdown(f'<div class="info-block">EGARCH + Bayes Shrinkage · DCC α={dcc_a:.4f} β={dcc_b:.4f} · FRED VIX Factor: {S["vix_fred"]:.1f} · EIA Stocks: {S["eia_stocks"]:.0f} bbl</div>', unsafe_allow_html=True)
 
-# ── TAB 2 · Geopolitical Intelligence ────────────────────
 with tab2:
     st.markdown('<div class="sec-label">02 · Geopolitical Analysis</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title">Z-Score Composite & GeoFactor Estimation</div>', unsafe_allow_html=True)
     fig_geo = dual_axis_fig(380)
-    fig_geo.add_trace(go.Scatter(x=zsc.index, y=zsc.values, name="Z-Score Composite",
-                                 line=dict(color=C["sky"], width=2.2), fill="tozeroy", fillcolor="rgba(74,115,128,0.06)"))
-    fig_geo.add_trace(go.Scatter(x=gf.index, y=gf.values, name="GeoFactor (σ)",
-                                 line=dict(color=C["navy"], width=2.8), yaxis="y2"))
-    for y in [1.5, -1.5]:
-        fig_geo.add_shape(type="line", x0=zsc.index.min(), x1=zsc.index.max(),
-                          y0=y, y1=y, line=dict(dash="dot", color=C["gold"], width=1.2), yref="y")
-    fig_geo.add_shape(type="line", x0=zsc.index.min(), x1=zsc.index.max(),
-                      y0=0, y1=0, line=dict(dash="solid", color="#D9D5CD", width=0.8), yref="y")
-    fig_geo.update_layout(yaxis_title="Z-Score", yaxis2_title="GeoFactor (σ)",
-                          title="Geopolitical Risk Signals Extraction")
+    fig_geo.add_trace(go.Scatter(x=zsc.index, y=zsc.values, name="Z-Score Composite", line=dict(color=C["sky"], width=2.2), fill="tozeroy", fillcolor="rgba(74,115,128,0.06)"))
+    fig_geo.add_trace(go.Scatter(x=gf.index, y=gf.values, name="GeoFactor (σ)", line=dict(color=C["navy"], width=2.8), yaxis="y2"))
     st.plotly_chart(fig_geo, use_container_width=True)
 
     col_a, col_b = st.columns(2)
     with col_a:
-        ng_vol = returns["natgas"].rolling(20).std() * np.sqrt(252) * 100
         fig_f = dual_axis_fig(310)
-        fig_f.add_trace(go.Scatter(x=fi.index, y=fi.values, name="Fertilizer Stress",
-                                   fill="tozeroy", fillcolor="rgba(74,93,74,0.06)", line=dict(color=C["sage"], width=2.2)))
-        fig_f.add_trace(go.Scatter(x=ng_vol.index, y=ng_vol.values, name="NatGas Vol %",
-                                   line=dict(color=C["teal"], width=1.8, dash="dash"), yaxis="y2"))
-        fig_f.update_layout(title="Fertilizer Stress + NatGas Volatility Indices")
+        fig_f.add_trace(go.Scatter(x=fi.index, y=fi.values, name="Fertilizer Stress", fill="tozeroy", fillcolor="rgba(74,93,74,0.06)", line=dict(color=C["sage"], width=2.2)))
+        fig_f.update_layout(title="Fertilizer Stress Index")
         st.plotly_chart(fig_f, use_container_width=True)
-        bs_str = f" · ⚠ Black Swan ×{bs:.2f}" if bs > 1.2 else ""
-        st.markdown(f'<div class="info-block">Urea ${usda["urea_price"]:.1f}/t · DAP ${usda["dap_price"]:.0f}/t{bs_str} · {usda["source"]}</div>', unsafe_allow_html=True)
     with col_b:
-        gr_series = gs["gold_real"].dropna()
-        sg_series = gs["silver_gold"].dropna()
-        grb = float(gr_series.iloc[0]) if not gr_series.empty else 1.0
-        sgb = float(sg_series.iloc[0]) if not sg_series.empty else 1.0
         fig_g = dual_axis_fig(310)
-        if not gr_series.empty:
-            fig_g.add_trace(go.Scatter(x=gr_series.index, y=(gr_series/grb).values, name="Gold/Real Yield",
-                                       line=dict(color=C["gold"], width=2.2)))
-        if not sg_series.empty:
-            fig_g.add_trace(go.Scatter(x=sg_series.index, y=(sg_series/sgb).values, name="Silver/Gold Ratio",
-                                       line=dict(color=C["silver"], width=1.8, dash="dash"), yaxis="y2"))
+        fig_g.add_trace(go.Scatter(x=gs["gold_real"].dropna().index, y=gs["gold_real"].dropna().values, name="Gold/Real Yield", line=dict(color=C["gold"], width=2.2)))
         fig_g.update_layout(title="Gold Macro Signals")
         st.plotly_chart(fig_g, use_container_width=True)
 
-    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="sec-title" style="font-size:1.1rem;">Agricultural Commodities — Indexed from Regime Inception</div>', unsafe_allow_html=True)
-    fig_ag = qfig(280)
-    for asset, color, label in [("wheat", C["navy"], "Wheat"), ("corn", C["sky"], "Corn"), ("soy", C["gray"], "Soy")]:
-        if asset in prices.columns and not prices[asset].dropna().empty:
-            bv = float(prices[asset].iloc[0])
-            rel = (prices[asset] / bv * 100).dropna()
-            fig_ag.add_trace(go.Scatter(x=rel.index, y=rel.values, name=f"{label} (base ${bv:.0f})", line=dict(color=color, width=2.0)))
-        else:
-            fig_ag.add_trace(go.Scatter(x=[], y=[], name=f"{label} (no data)", line=dict(color=color, width=1, dash='dot')))
-    fig_ag.add_hline(y=100, line_dash="dot", line_color="#D9D5CD", line_width=1.2)
-    fig_ag.update_layout(yaxis_title="Price Index (base = 100)")
-    st.plotly_chart(fig_ag, use_container_width=True)
-
-# ── TAB 3 · Monte Carlo ──────────────────────────────────
 with tab3:
     st.markdown('<div class="sec-label">03 · Probabilistic Forecast</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="sec-title">Predictive Distribution Simulation · EVT+DCC Process · {mc_sims:,} Scenarios</div>', unsafe_allow_html=True)
     x_ax = list(range(mc_steps+1))
     fig_mc = qfig(480)
-    fig_mc.add_trace(go.Scatter(x=x_ax+x_ax[::-1], y=list(fan[95])+list(fan[5][::-1]),
-                                fill="toself", fillcolor=C["fill_light"], line=dict(width=0), name="WTI 90% CI"))
-    fig_mc.add_trace(go.Scatter(x=x_ax+x_ax[::-1], y=list(fan[75])+list(fan[25][::-1]),
-                                fill="toself", fillcolor=C["fill_medium"], line=dict(width=0), name="WTI 50% CI"))
-    fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fb[50]), name=f"Brent P50 → ${fb[50][-1]:.2f}",
-                                line=dict(color=C["sky"], width=2.2, dash="dash")))
-    fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[50]), name=f"WTI P50 → ${fan[50][-1]:.2f}",
-                                line=dict(color=C["navy"], width=3.2)))
-    fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[95]), name=f"P95 → ${fan[95][-1]:.2f}",
-                                line=dict(color=C["gold"], width=1.4, dash="dot")))
-    fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[5]), name=f"P5 → ${fan[5][-1]:.2f}",
-                                line=dict(color=C["gold"], width=1.4, dash="dot")))
-    fig_mc.add_hline(y=wti0, line_dash="dash", line_color="#9A958A", line_width=1.4,
-                     annotation_text=f"Current ${wti0:.2f}", annotation_font=dict(family="JetBrains Mono", size=10, color="#9A958A"))
-    fig_mc.add_hline(y=40, line_dash="dot", line_color=C["burgundy"], line_width=1.4,
-                     annotation_text="Stress Target $40", annotation_font=dict(family="JetBrains Mono", size=10, color=C["burgundy"]))
-    fig_mc.add_hline(y=150, line_dash="dot", line_color=C["burgundy"], line_width=1.4,
-                     annotation_text="Stress Target $150", annotation_font=dict(family="JetBrains Mono", size=10, color=C["burgundy"]))
+    fig_mc.add_trace(go.Scatter(x=x_ax+x_ax[::-1], y=list(fan[95])+list(fan[5][::-1]), fill="toself", fillcolor=C["fill_light"], line=dict(width=0), name="WTI 90% CI"))
+    fig_mc.add_trace(go.Scatter(x=x_ax+x_ax[::-1], y=list(fan[75])+list(fan[25][::-1]), fill="toself", fillcolor=C["fill_medium"], line=dict(width=0), name="WTI 50% CI"))
+    fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[50]), name=f"WTI P50 → ${fan[50][-1]:.2f}", line=dict(color=C["navy"], width=3.2)))
     fig_mc.update_layout(xaxis_title="Trading Days Ahead", yaxis_title="Price (USD/bbl)", yaxis_tickprefix="$")
     st.plotly_chart(fig_mc, use_container_width=True)
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Regime Growth Probability", f"{M['prob_up']:.1f}%")
-    c2.metric("VaR 95% (1-Day)", f"${M['var95']:+.2f}", f"Expected Shortfall ${M['cvar95']:+.2f}")
-    c3.metric("Tail Exceedance", f"Tail < $40: {M['prob_40']:.2f}%", f"Tail > $150: {M['prob_150']:.2f}%")
-
-# ── TAB 4 · Quant Statistics ─────────────────────────────
 with tab4:
     st.markdown('<div class="sec-label">04 · Distribution Matrix</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title">Empirical Risk Distribution Parameters</div>', unsafe_allow_html=True)
@@ -1231,72 +1057,26 @@ with tab4:
         rows = [("Sharpe Ratio (Ann.)", f"{S['sharpe']['oil']:.4f}"),
                 ("Sortino Ratio (Ann.)", f"{S['sortino']['oil']:.4f}"),
                 ("Skewness Coefficient", f"{S['skew_oil']:.4f}"),
-                ("Excess Kurtosis", f"{S['kurt_oil']:.4f}"),
-                ("EGARCH LB5 Test", f"{S['gdiag']['LB5']:.4f}" if not np.isnan(S['gdiag']['LB5']) else "n/a"),
-                ("EGARCH LB10 Test", f"{S['gdiag']['LB10']:.4f}" if not np.isnan(S['gdiag']['LB10']) else "n/a"),
-                ("ARCH LM Test", f"{S['gdiag']['ARCH_p']:.4f}" if not np.isnan(S['gdiag']['ARCH_p']) else "n/a")]
+                ("Excess Kurtosis", f"{S['kurt_oil']:.4f}")]
         html = '<table class="data-table"><thead><tr><th>WTI Metric</th><th>Statistical Value</th></tr></thead><tbody>'
-        for k, v in rows:
-            html += f"<tr><td>{k}</td><td><strong>{v}</strong></td></tr>"
+        for k, v in rows: html += f"<tr><td>{k}</td><td><strong>{v}</strong></td></tr>"
         html += "</tbody></table>"
         st.markdown(html, unsafe_allow_html=True)
     with c2:
-        rows2 = [("DCC Parameter α", f"{dcc_a:.4f}"),
-                 ("DCC Parameter β", f"{dcc_b:.4f}"),
-                 ("Systemic Persistence α+β", f"{dcc_a+dcc_b:.4f}"),
-                 ("Cross-Asset Correlation (EWMA)", f"{S['corr_ewma']:.4f}"),
-                 ("Dynamic Tail Degrees of Freedom", f"{tdf_d:.2f}")]
-        if S['evt'] is not None:
-            rows2.append(("EVT Upper Shape", f"{S['evt']['upper'][0]:.4f}"))
-            rows2.append(("EVT Lower Shape", f"{S['evt']['lower'][0]:.4f}"))
+        rows2 = [("DCC Parameter α", f"{dcc_a:.4f}"), ("DCC Parameter β", f"{dcc_b:.4f}"), ("Dynamic Tail Degrees of Freedom", f"{tdf_d:.2f}")]
         html = '<table class="data-table"><thead><tr><th>Multivariate Infrastructure</th><th>Statistical Value</th></tr></thead><tbody>'
-        for k, v in rows2:
-            html += f"<tr><td>{k}</td><td><strong>{v}</strong></td></tr>"
+        for k, v in rows2: html += f"<tr><td>{k}</td><td><strong>{v}</strong></td></tr>"
         html += "</tbody></table>"
         st.markdown(html, unsafe_allow_html=True)
 
-    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="sec-title" style="font-size:1.1rem;">Cross-Asset Correlation Matrix</div>', unsafe_allow_html=True)
-    if S["corr_mx"] is not None and not S["corr_mx"].empty:
-        fig_corr = qfig(320)
-        cm = S["corr_mx"].values
-        cols_ = list(S["corr_mx"].columns)
-        fig_corr.add_trace(go.Heatmap(z=cm, x=cols_, y=cols_,
-                                      colorscale=[[0, "#8B3A3A"], [0.5, "#FFFFFF"], [1, "#1E3A5F"]],
-                                      zmid=0, text=np.round(cm, 3), texttemplate="%{text}",
-                                      textfont=dict(size=10, family="JetBrains Mono,monospace"), showscale=True))
-        fig_corr.update_layout(title="EWMA Asset Interdependence Topology")
-        st.plotly_chart(fig_corr, use_container_width=True)
-    else:
-        st.info("Correlation matrix not available.")
-
-# ── TAB 5 · Macro & Stress ───────────────────────────────
 with tab5:
     st.markdown('<div class="sec-label">05 · System Stress Monitoring</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title">Composite Financial Stress Index</div>', unsafe_allow_html=True)
-    if S["stress_idx"] is not None and isinstance(S["stress_idx"], pd.Series) and len(S["stress_idx"]) > 0:
+    if S["stress_idx"] is not None and len(S["stress_idx"]) > 0:
         fig_st = qfig(340)
-        fig_st.add_trace(go.Scatter(x=S["stress_idx"].index, y=S["stress_idx"].values,
-                                    fill="tozeroy", fillcolor="rgba(123,63,63,0.05)",
-                                    line=dict(color=C["burgundy"], width=2.2), name="Stress Index"))
-        fig_st.add_hline(y=S["stress_idx"].mean(), line_dash="dot", line_color="#9A958A", line_width=1.2,
-                         annotation_text="Historical Baseline Mean", annotation_font=dict(family="JetBrains Mono", size=9, color="#9A958A"))
-        fig_st.update_layout(title="Multivariate Macro Stress Metrics")
+        fig_st.add_trace(go.Scatter(x=S["stress_idx"].index, y=S["stress_idx"].values, fill="tozeroy", fillcolor="rgba(123,63,63,0.05)", line=dict(color=C["burgundy"], width=2.2), name="Stress Index"))
         st.plotly_chart(fig_st, use_container_width=True)
-    else:
-        st.info("Insufficient data to compute Stress Index.")
 
-    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="sec-title" style="font-size:1.1rem;">Risk Factor Contribution (LASSO)</div>', unsafe_allow_html=True)
-    fig_imp = qfig(300)
-    fi_df = S["feat_imp"].head(10)
-    fig_imp.add_trace(go.Bar(x=fi_df["Importance"], y=fi_df["Feature"], orientation="h",
-                             marker_color=C["navy"], name="Importance"))
-    fig_imp.update_layout(xaxis_title="Absolute LASSO Structural Coefficient", yaxis_autorange="reversed",
-                          title="Structural Factor Importance Optimization")
-    st.plotly_chart(fig_imp, use_container_width=True)
-
-# ── TAB 6 · Institutional Backtest ───────────────────────
 with tab6:
     st.markdown('<div class="sec-label">06 · Risk Infrastructure Verification</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title">VaR & Expected Shortfall Compliance Backtesting</div>', unsafe_allow_html=True)
@@ -1305,53 +1085,22 @@ with tab6:
     c1.metric("Calibration Score", f"{bt['calibration_score']:.4f}")
     c2.metric("Observed Violations", f"{bt['n_violations']}", f"Frequency {bt['obs_freq']:.3f} vs {bt['exp_freq']:.2f} target")
     c3.metric("Acerbi Shortfall Metric Z", f"{S['es_z']:.4f}" if S['es_z'] is not None and not np.isnan(S['es_z']) else "n/a")
-    rows = [("Kupiec Proportion of Failures (PoF)", f"{bt['Kupiec_p']:.4f}", "Acceptable" if bt['Kupiec_p'] >= 0.05 else "Reject"),
-            ("Christoffersen Independence Test", f"{bt['Christoffersen_p']:.4f}", "Acceptable" if bt['Christoffersen_p'] >= 0.05 else "Reject"),
-            ("Manganelli-Engle Dynamic Quantile (DQ)", f"{bt['DQ_p']:.4f}", "Acceptable" if bt['DQ_p'] >= 0.05 else "Reject")]
-    html = '<table class="data-table"><thead><tr><th>Statistical Hypothesis Framework</th><th>Asymptotic p-value</th><th>Validation Decision</th></tr></thead><tbody>'
-    for k, v, r in rows:
-        html += f"<tr><td>{k}</td><td><strong>{v}</strong></td><td>{r}</td></tr>"
-    html += "</tbody></table>"
-    st.markdown(html, unsafe_allow_html=True)
 
-# ── TAB 7 · ML Benchmarks ────────────────────────────────
 with tab7:
     st.markdown('<div class="sec-label">07 · Machine Learning Benchmarks</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title">Out-of-Sample ML Performance Comparison</div>', unsafe_allow_html=True)
-    c1, c2 = st.columns([1, 1])
-    with c1:
-        bm = S["ml_metrics"]
-        rows = []
-        for name, vals in bm.items():
-            if isinstance(vals.get("RMSE"), (int, float)):
-                rows.append((name, f"{vals['RMSE']:.6f}", f"{vals['MAE']:.6f}"))
-            else:
-                rows.append((name, str(vals.get("RMSE", "—")), str(vals.get("MAE", "—"))))
-        html = '<table class="data-table"><thead><tr><th>Model</th><th>RMSE</th><th>MAE</th></tr></thead><tbody>'
-        for a, b_, c_ in rows:
-            html += f"<tr><td>{a}</td><td><strong>{b_}</strong></td><td>{c_}</td></tr>"
-        html += "</tbody></table>"
-        st.markdown(html, unsafe_allow_html=True)
-    with c2:
-        if S["shap_fig"] is not None:
-            st.markdown('<div class="sec-label">SHAP Global Equilibrium Interpretation</div>', unsafe_allow_html=True)
-            st.pyplot(S["shap_fig"])
-        else:
-            st.info("SHAP matrix interpretation unavailable.")
+    bm = S["ml_metrics"]
+    rows = [(name, f"{vals.get('RMSE'):.6f}" if isinstance(vals.get("RMSE"), float) else "—", f"{vals.get('MAE'):.6f}" if isinstance(vals.get("MAE"), float) else "—") for name, vals in bm.items()]
+    html = '<table class="data-table"><thead><tr><th>Model</th><th>RMSE</th><th>MAE</th></tr></thead><tbody>'
+    for a, b_, c_ in rows: html += f"<tr><td>{a}</td><td><strong>{b_}</strong></td><td>{c_}</td></tr>"
+    html += "</tbody></table>"
+    st.markdown(html, unsafe_allow_html=True)
+    if S["shap_fig"] is not None: st.pyplot(S["shap_fig"])
 
-# ── TAB 8 · Walk-Forward ─────────────────────────────────
 with tab8:
     st.markdown('<div class="sec-label">08 · Validation Integrity</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title">Rolling Out-of-Sample Error Analysis</div>', unsafe_allow_html=True)
-    wf = S["wf_df"]
-    if not wf.empty:
-        st.dataframe(wf, use_container_width=True)
-        fig_wf = qfig(300)
-        fig_wf.add_trace(go.Bar(x=wf["Window End"], y=wf["OOS RMSE"], marker_color=C["navy"], name="OOS RMSE"))
-        fig_wf.update_layout(title="Rolling Window Multi-Period Errors", xaxis_title="Evaluation Window End", yaxis_title="OOS RMSE")
-        st.plotly_chart(fig_wf, use_container_width=True)
-    else:
-        st.info("Insufficient degrees of freedom for walk-forward validation matrix.")
+    if not S["wf_df"].empty: st.dataframe(S["wf_df"], use_container_width=True)
 
 # ── Footer ──
 st.markdown(f"""
