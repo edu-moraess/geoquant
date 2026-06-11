@@ -1106,8 +1106,11 @@ with t_mc:
     st.markdown('<div class="sec-label">Probability Bracket Density Heatmap</div>', unsafe_allow_html=True)
     br_keys = list(mc["brackets"].keys())
     br_vals = list(mc["brackets"].values())
-    fig_heat = go.Figure(data=go.Heatmap(z=[br_vals], x=br_keys, y=["Prob"], colorscale="magma", text=[[f"{v:.1f}%" for v in br_vals]], texttemplate="%{text}"))
-    fig_heat.update_layout(**PL, height=160, margin=dict(t=30, b=20, l=40, r=40))
+    fig_heat = go.Figure(data=go.Heatmap(z=[br_vals], x=br_keys, y=["Probability %"], colorscale="magma", text=[[f"{v:.1f}%" for v in br_vals]], texttemplate="%{text}", colorbar=None))
+    # CORREÇÃO: evitar conflito de argumento 'margin' duplicado
+    heat_layout = PL.copy()
+    heat_layout.pop("margin", None)  # Remove margem padrão para customizar
+    fig_heat.update_layout(**heat_layout, height=160, margin=dict(t=20, b=20))
     st.plotly_chart(fig_heat, use_container_width=True)
 
 # ── TAB 6: QUANT STATISTICS ──
