@@ -63,9 +63,9 @@ st.markdown("""
     --border: #D9D5CD;
     --text: #1C1C1C;
     --text-secondary: #5A554F;
-    --accent: #1E3A5F;        /* navy */
+    --accent: #1E3A5F;
     --accent-light: #2A5080;
-    --gold: #B49450;           /* subdued gold */
+    --gold: #B49450;
     --gold-light: #D4C094;
     --muted: #7A766E;
     --danger: #8B3A3A;
@@ -79,7 +79,6 @@ html, body, [data-testid="stAppViewContainer"] {
     color: var(--text) !important;
 }
 
-/* Sidebar – clean, light, professional */
 [data-testid="stSidebar"] {
     background: var(--surface) !important;
     border-right: 1px solid var(--border) !important;
@@ -88,7 +87,6 @@ html, body, [data-testid="stAppViewContainer"] {
     color: var(--text) !important;
 }
 
-/* Metric cards */
 div[data-testid="stMetric"] {
     background: var(--bg);
     border: 1px solid var(--border);
@@ -110,7 +108,6 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
     color: var(--accent) !important;
 }
 
-/* Buttons */
 .stButton button {
     background: var(--accent) !important;
     color: var(--gold-light) !important;
@@ -131,7 +128,6 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
     background: var(--gold) !important;
 }
 
-/* Tabs */
 [data-testid="stTabs"] [data-baseweb="tab-list"] {
     background: var(--bg);
     border-bottom: 1px solid var(--border);
@@ -152,7 +148,6 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
     border-bottom: 2px solid var(--gold) !important;
 }
 
-/* Typography */
 .sec-label {
     font-family: 'JetBrains Mono', monospace;
     font-size: .52rem;
@@ -249,7 +244,6 @@ PL = dict(
     margin=dict(l=55, r=40, t=50, b=40),
     hoverlabel=dict(bgcolor="#1E3A5F", font_color="#D4C094", font_family="JetBrains Mono,monospace"),
 )
-# Color palette for charts
 C = dict(
     navy="#1E3A5F", navy_light="#2A5080",
     gold="#B49450", gold_light="#D4C094",
@@ -352,7 +346,7 @@ padding:1.4rem 0 1rem;border-bottom:1px solid #D9D5CD;margin-bottom:1.6rem;'>
 </div>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════
-#   QUANT ENGINE (unchanged logic)
+#   QUANT ENGINE
 # ══════════════════════════════════════════════════════════
 def rolling_zscore(s, w=60):
     return (s - s.rolling(w).mean()) / s.rolling(w).std().replace(0, np.nan)
@@ -522,14 +516,43 @@ def build_zscore(prices, gs, window=60):
     z3 = rolling_zscore(gs["gold_real"], w)
     return (ZSC_W["oil_gold"] * z1 + ZSC_W["oil_natgas"] * z2 + ZSC_W["gold_real"] * z3).dropna()
 
-def fit_garch(ret, exog):
-    rc = ret.loc[ret.index.intersection(exog.index)] * 100
-    xc = exog.loc[rc.index]
+def fit_garch(ret, exog, min_obs=30):
+    """
+    Robust GARCH fitting with fallback.
+    `exog` can be a Series or None.
+    """
+    # Ensure ret is a clean Series
+    r = ret.dropna()
+    if len(r) < min_obs:
+        # Not enough data: return constant vol
+        return pd.Series(r.std(), index=ret.index)
+
+    # If exog is provided, align indices
+    if exog is not None and not exog.empty:
+        common_idx = r.index.intersection(exog.dropna().index)
+        if len(common_idx) < min_obs:
+            # Fallback: ignore exog
+            exog = None
+        else:
+            rc = r.loc[common_idx] * 100
+            xc = exog.loc[common_idx]
+    else:
+        rc = r * 100
+        xc = None
+
+    # Try GARCH(1,1) with normal innovations (more stable)
     try:
-        res = arch_model(rc, x=xc, mean="Constant", vol="GARCH", p=1, q=1, dist="skewt").fit(disp="off")
-    except:
-        res = arch_model(rc, mean="Constant", vol="GARCH", p=1, q=1, dist="skewt").fit(disp="off")
-    return res.conditional_volatility / 100
+        if xc is not None:
+            res = arch_model(rc, x=xc, mean="Constant", vol="GARCH", p=1, q=1, dist="normal").fit(disp="off")
+        else:
+            res = arch_model(rc, mean="Constant", vol="GARCH", p=1, q=1, dist="normal").fit(disp="off")
+        vol = res.conditional_volatility / 100
+        # Reindex to original ret index
+        return vol.reindex(ret.index).ffill().bfill()
+    except Exception:
+        # Ultimate fallback: rolling 20-day std
+        roll_vol = r.rolling(20).std()
+        return roll_vol.reindex(ret.index).ffill().bfill()
 
 def bayes_shrink(vg, prior_d, n, geofactor=None):
     w = np.clip(np.sqrt(n / 252), 0.10, 0.95)
@@ -550,7 +573,6 @@ def fit_dcc(rw, rb, vw, vb):
     c2 = ew.index.intersection(eb.index)
     e = np.column_stack([ew[c2], eb[c2]])
     Qb = np.cov(e, rowvar=False)
-
     def nll(p):
         a, b = p
         if a <= 0 or b <= 0 or a + b >= 1:
@@ -570,7 +592,6 @@ def fit_dcc(rw, rb, vw, vb):
             except:
                 return 1e10
         return -ll
-
     res = optimize.minimize(nll, [0.05, 0.93], bounds=[(1e-4, 0.3), (0.7, 0.9999)], method="L-BFGS-B")
     a, b = res.x
     return (0.05, 0.93) if a + b >= 1 else (float(a), float(b))
@@ -903,11 +924,16 @@ if needs_run:
     gf = (gf_raw - gf_raw.mean()) / gf_raw.std() if len(gf_raw) > 1 else gf_raw
     zsc = build_zscore(prices, gs)
 
-    # 3 · GARCH
+    # 3 · GARCH (robust handling)
     prog.progress(38)
-    vw = fit_garch(returns["oil"], gf)
-    vb_s = fit_garch(returns["brent"], gf)
-    vg = fit_garch(returns["gold"], gf)
+    # If geofactor is empty or too short, pass None
+    gf_clean = gf.dropna() if not gf.empty else None
+    if gf_clean is not None and len(gf_clean) < 30:
+        gf_clean = None
+
+    vw = fit_garch(returns["oil"], gf_clean)
+    vb_s = fit_garch(returns["brent"], gf_clean)
+    vg = fit_garch(returns["gold"], gf_clean)
     n = len(returns)
     pwd = prior_wti / np.sqrt(252)
     pbd = prior_brent / np.sqrt(252)
