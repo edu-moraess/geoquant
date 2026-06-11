@@ -226,7 +226,6 @@ TICKERS = {
 }
 GEO_W = {"oil_vol":0.20,"gold":0.08,"gold_real":0.08,"dxy":-0.10,"spread":0.08,
           "fert":0.20,"wheat":0.06,"copper":0.04,"natgas_vol":0.06,"ovx":0.10}
-ZSC_W = {"oil_gold":0.35,"oil_natgas":0.30,"gold_real":0.35}
 
 PL = dict(
     template="plotly_white",
@@ -330,7 +329,7 @@ padding:1.4rem 0 1rem;border-bottom:1px solid #D9D5CD;margin-bottom:1.6rem;'>
 </div>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════
-#   QUANT ENGINE (Upgraded)
+#   QUANT ENGINE (Robust)
 # ══════════════════════════════════════════════════════════
 def rolling_zscore(s, w=60):
     return (s - s.rolling(w).mean()) / s.rolling(w).std().replace(0, np.nan)
@@ -345,57 +344,87 @@ def fill_gaps(s):
     except: return s.ffill()
 
 def fit_egarch(ret, exog=None):
-    """EGARCH(1,1) com inovação skew-t. Retorna vol diária (não percentual)."""
-    r = ret.dropna() * 100
+    """EGARCH(1,1) com inovação skew-t. Retorna vol diária alinhada com ret."""
+    r = ret.dropna()
     if len(r) < 50:
-        return pd.Series(ret.std(), index=ret.index)
+        return pd.Series(r.std(), index=ret.index).ffill().bfill()
     try:
+        rc = r * 100
         if exog is not None:
-            common = r.index.intersection(exog.index)
+            common = rc.index.intersection(exog.dropna().index)
             if len(common) < 50:
                 exog = None
             else:
-                r = r.loc[common]; x = exog.loc[common]
-                model = arch_model(r, x=x, mean="Constant", vol="EGARCH", p=1, q=1, dist="skewt")
+                rc = rc.loc[common]
+                xc = exog.loc[common]
+                model = arch_model(rc, x=xc, mean="Constant", vol="EGARCH", p=1, q=1, dist="skewt")
         else:
-            model = arch_model(r, mean="Constant", vol="EGARCH", p=1, q=1, dist="skewt")
+            model = arch_model(rc, mean="Constant", vol="EGARCH", p=1, q=1, dist="skewt")
         res = model.fit(disp="off")
         vol = res.conditional_volatility / 100
-        return vol.reindex(ret.index).ffill().bfill()
+        vol = vol.reindex(ret.index).ffill().bfill()
+        vol[vol <= 0] = vol[vol > 0].min()
+        return vol
     except:
-        return pd.Series(ret.rolling(20).std().mean(), index=ret.index)
+        return pd.Series(r.rolling(20).std().mean(), index=ret.index).ffill().bfill()
 
-def conditional_evt(returns, vol, q=0.95):
-    """EVT nos resíduos padronizados."""
-    resid = returns / vol.replace(0, np.nan)
-    resid = resid.dropna()
+def conditional_evt(returns, vol, q=0.95, min_obs=30):
+    """EVT nos resíduos padronizados. Retorna parâmetros ou None se impossível."""
+    common = returns.dropna().index.intersection(vol.dropna().index)
+    if len(common) < min_obs:
+        return None
+    r = returns.loc[common]
+    v = vol.loc[common].replace(0, np.nan)
+    resid = (r / v).dropna()
+    resid = resid[np.isfinite(resid)]
+    if len(resid) < min_obs:
+        return None
     th_up = np.percentile(resid, q*100)
     th_lo = np.percentile(resid, (1-q)*100)
     exc_up = resid[resid > th_up] - th_up
     exc_lo = -resid[resid < th_lo] - th_lo
-    shape_up, _, scale_up = stats.genpareto.fit(exc_up) if len(exc_up)>10 else (0.2,0,0.1)
-    shape_lo, _, scale_lo = stats.genpareto.fit(exc_lo) if len(exc_lo)>10 else (0.2,0,0.1)
+    shape_up = scale_up = shape_lo = scale_lo = 0.0
+    if len(exc_up) >= 10:
+        shape_up, _, scale_up = stats.genpareto.fit(exc_up)
+    else:
+        shape_up, scale_up = 0.2, exc_up.std() if len(exc_up)>0 else 0.1
+    if len(exc_lo) >= 10:
+        shape_lo, _, scale_lo = stats.genpareto.fit(exc_lo)
+    else:
+        shape_lo, scale_lo = 0.2, exc_lo.std() if len(exc_lo)>0 else 0.1
     return {"upper": (shape_up, scale_up, th_up), "lower": (shape_lo, scale_lo, th_lo), "resid": resid}
 
 def detect_regime(vol, threshold=2.0):
-    vol_mean = vol.expanding().mean()
-    vol_std = vol.expanding().std()
-    regime = (vol > vol_mean + threshold * vol_std).astype(int)
-    return regime
+    """Detecta regime de estresse baseado em vol diária vs média móvel."""
+    v = vol.dropna()
+    if len(v) < 20:
+        return pd.Series(0, index=vol.index)
+    mean = v.rolling(60, min_periods=20).mean()
+    std = v.rolling(60, min_periods=20).std().replace(0, 1e-8)
+    regime = (v > mean + threshold * std).astype(int)
+    return regime.reindex(vol.index).fillna(0).astype(int)
 
 def build_geofactor(returns, prices, ovx, weights=None):
     if weights is None: weights = GEO_W
     spread = (prices["brent"] - prices["oil"]) / prices["brent"].replace(0, np.nan)
-    geo = (weights.get("oil_vol",0)*returns["oil"].rolling(20).std() +
-           weights.get("gold",0)*returns["gold"].rolling(20).mean() +
-           weights.get("gold_real",0)*gold_signals(prices)["gold_real_ret_roll"] +
-           weights.get("dxy",0)*returns["dxy"].rolling(20).mean() +
-           weights.get("spread",0)*spread.rolling(20).mean() +
-           weights.get("wheat",0)*returns["wheat"].rolling(20).mean() +
-           weights.get("copper",0)*returns["copper"].rolling(20).mean() +
-           weights.get("natgas_vol",0)*returns["natgas"].rolling(20).std())
+    geo = pd.Series(0.0, index=returns.index)
+    if "oil" in returns.columns:
+        geo += weights.get("oil_vol",0) * returns["oil"].rolling(20).std()
+    if "gold" in returns.columns:
+        geo += weights.get("gold",0) * returns["gold"].rolling(20).mean()
+    if "dxy" in returns.columns:
+        geo += weights.get("dxy",0) * returns["dxy"].rolling(20).mean()
+    if "wheat" in returns.columns:
+        geo += weights.get("wheat",0) * returns["wheat"].rolling(20).mean()
+    if "copper" in returns.columns:
+        geo += weights.get("copper",0) * returns["copper"].rolling(20).mean()
+    if "natgas" in returns.columns:
+        geo += weights.get("natgas_vol",0) * returns["natgas"].rolling(20).std()
+    if "brent" in prices.columns and "oil" in prices.columns:
+        geo += weights.get("spread",0) * spread.rolling(20).mean()
     if ovx is not None:
-        geo += weights.get("ovx",0)*ovx.pct_change().rolling(20).mean()
+        ovx_ret = ovx.pct_change().rolling(20).mean()
+        geo += weights.get("ovx",0) * ovx_ret.reindex(geo.index, method="ffill").fillna(0)
     return geo.dropna()
 
 def gold_signals(prices):
@@ -430,19 +459,19 @@ def fit_dcc(rw, rb, vw, vb):
     a,b=res.x
     return (0.05,0.93) if a+b>=1 else (float(a),float(b))
 
-def run_mc(wti0, brt0, vol_wti, vol_brt, dcc_a, dcc_b, regime_prob, steps, sims, evt_params):
+def run_mc(wti0, brt0, vol_wti, vol_brt, dcc_a, dcc_b, regime_prob, steps, sims):
     np.random.seed(42)
-    rho_base = np.clip(dcc_b/(1-dcc_a), -0.9, 0.9)
+    rho_base = np.clip(dcc_b/(1-dcc_a), -0.9, 0.9) if dcc_a!=0 else 0.9
     pw = np.zeros((sims, steps+1)); pb = np.zeros((sims, steps+1))
     pw[:,0]=wti0; pb[:,0]=brt0
+    prob = max(0, min(1, regime_prob))
     for t in range(steps):
-        rho = rho_base + 0.2*(2*regime_prob-1)
+        rho = rho_base + 0.2*(2*prob-1)
         z = np.random.standard_t(5, (sims,2))
-        zw = z[:,0]; zb = rho*z[:,0] + np.sqrt(1-rho**2)*z[:,1]
-        # adiciona saltos nos regimes estressados
-        jump = np.random.binomial(1, regime_prob*0.1, sims) * np.random.exponential(0.05, sims)
-        ret_w = np.clip(zw * vol_wti * np.sqrt(1/252) + jump, -0.1, 0.1)
-        ret_b = np.clip(zb * vol_brt * np.sqrt(1/252) + jump*0.9, -0.1, 0.1)
+        zw = z[:,0]; zb = rho*z[:,0] + np.sqrt(max(0,1-rho**2))*z[:,1]
+        jump = np.random.binomial(1, prob*0.1, sims) * np.random.exponential(0.05, sims)
+        ret_w = np.clip(zw * vol_wti * np.sqrt(1/252) + jump, -0.15, 0.15)
+        ret_b = np.clip(zb * vol_brt * np.sqrt(1/252) + jump*0.9, -0.15, 0.15)
         pw[:,t+1] = pw[:,t] * (1+ret_w)
         pb[:,t+1] = pb[:,t] * (1+ret_b)
     fan = {p: np.percentile(pw, p, axis=0) for p in [5,25,50,75,95]}
@@ -451,7 +480,7 @@ def run_mc(wti0, brt0, vol_wti, vol_brt, dcc_a, dcc_b, regime_prob, steps, sims,
 
 def backtest_var(returns, var_forecast, alpha=0.05):
     common = returns.index.intersection(var_forecast.index)
-    if len(common) < 20: return {"score":0}
+    if len(common) < 20: return None
     r = returns.loc[common]; v = var_forecast.loc[common]
     viol = (r < -v).astype(int)
     n=len(viol); nv=viol.sum(); pe=alpha; po=nv/n
@@ -459,13 +488,15 @@ def backtest_var(returns, var_forecast, alpha=0.05):
         LR = -2*np.log(((1-pe)**(n-nv)*pe**nv)/((1-po)**(n-nv)*po**nv))
         kp = 1-chi2.cdf(LR,1)
     else: kp=0.5
-    n00=((viol[:-1]==0)&(viol[1:]==0)).sum(); n01=((viol[:-1]==0)&(viol[1:]==1)).sum()
-    n10=((viol[:-1]==1)&(viol[1:]==0)).sum(); n11=((viol[:-1]==1)&(viol[1:]==1)).sum()
-    p01=n01/(n00+n01) if (n00+n01)>0 else 0
-    p11=n11/(n10+n11) if (n10+n11)>0 else 0
-    LRc=-2*np.log(((1-pe)**(n-1-(n01+n11))*pe**(n01+n11))/
-                 ((1-p01)**n00*p01**n01*(1-p11)**n10*p11**n11)) if (n01+n11)>0 else 0
-    cp=1-chi2.cdf(LRc,1) if LRc>0 else 0.5
+    if n>1:
+        n00=((viol[:-1]==0)&(viol[1:]==0)).sum(); n01=((viol[:-1]==0)&(viol[1:]==1)).sum()
+        n10=((viol[:-1]==1)&(viol[1:]==0)).sum(); n11=((viol[:-1]==1)&(viol[1:]==1)).sum()
+        p01=n01/(n00+n01) if (n00+n01)>0 else 0
+        p11=n11/(n10+n11) if (n10+n11)>0 else 0
+        LRc=-2*np.log(((1-pe)**(n-1-(n01+n11))*pe**(n01+n11))/
+                     ((1-p01)**n00*p01**n01*(1-p11)**n10*p11**n11)) if (n01+n11)>0 else 0
+        cp=1-chi2.cdf(LRc,1) if LRc>0 else 0.5
+    else: cp=0.5
     X=pd.DataFrame({"const":1,"hit":viol.shift(1).fillna(0)})
     try: dq=1-chi2.cdf(Logit(viol,X).fit(disp=0).llr,X.shape[1])
     except: dq=1.0
@@ -479,7 +510,9 @@ def walk_forward_validation(returns, train_days=504, step_days=63):
         mu = train.mean()
         rmse = np.sqrt(((mu - test)**2).mean())
         results.append((returns.index[start], returns.index[start+train_days+20], rmse))
-    return pd.DataFrame(results, columns=["Train Start","Test End","RMSE"])
+    if results:
+        return pd.DataFrame(results, columns=["Train Start","Test End","RMSE"])
+    return pd.DataFrame()
 
 @st.cache_data(ttl=900)
 def fetch_data(start="2018-01-01"):
@@ -493,92 +526,87 @@ def fetch_data(start="2018-01-01"):
 #   PIPELINE
 # ══════════════════════════════════════════════════════════
 if run_btn or "results" not in st.session_state:
-    prog = st.progress(0)
-    prices = fetch_data(data_start.strftime("%Y-%m-%d"))
-    prices = prices.ffill().bfill()
-    returns = np.log(prices/prices.shift(1)).dropna()
-    ovx = prices["ovx"] if "ovx" in prices.columns else None
+    with st.spinner("Calibrando modelos..."):
+        prices = fetch_data(data_start.strftime("%Y-%m-%d"))
+        prices = prices.ffill().bfill()
+        returns = np.log(prices/prices.shift(1)).dropna()
+        ovx = prices.get("ovx")
 
-    # EGARCH
-    gf = build_geofactor(returns, prices, ovx)
-    gf_std = (gf - gf.mean()) / gf.std()
-    vw = fit_egarch(returns["oil"], gf_std)
-    vb = fit_egarch(returns["brent"], gf_std)
+        gf = build_geofactor(returns, prices, ovx)
+        gf_std = (gf - gf.mean()) / gf.std() if len(gf)>1 else gf
 
-    # Conditional EVT
-    evt_wti = conditional_evt(returns["oil"], vw)
-    evt_brt = conditional_evt(returns["brent"], vb)
+        vw = fit_egarch(returns["oil"], gf_std)
+        vb = fit_egarch(returns["brent"], gf_std)
 
-    # Regime detection
-    regime = detect_regime(vw*100, vol_threshold)  # vol já está em % anualizada? não, é diária, multiplicamos por 100*√252? Vamos usar vol diária mesmo
+        evt_wti = conditional_evt(returns["oil"], vw)
+        evt_brt = conditional_evt(returns["brent"], vb)
 
-    # DCC
-    dcc_a, dcc_b = fit_dcc(returns["oil"], returns["brent"], vw, vb)
+        regime = detect_regime(vw, vol_threshold)
+        if regime.sum() == 0:
+            regime.iloc[-1] = 0  # garante série não vazia
 
-    # Monte Carlo
-    fan, fb, _ = run_mc(
-        wti0=float(prices["oil"].iloc[-1]),
-        brt0=float(prices["brent"].iloc[-1]),
-        vol_wti=float(vw.iloc[-1]*np.sqrt(252)),
-        vol_brt=float(vb.iloc[-1]*np.sqrt(252)),
-        dcc_a=dcc_a, dcc_b=dcc_b,
-        regime_prob=regime.iloc[-1] if len(regime)>0 else 0.0,
-        steps=mc_steps, sims=mc_sims,
-        evt_params=evt_wti
-    )
+        dcc_a, dcc_b = fit_dcc(returns["oil"], returns["brent"], vw, vb)
 
-    # Backtests
-    var_95 = vw * 1.645
-    bt_all = backtest_var(returns["oil"], var_95)
-    bt_calm = backtest_var(returns["oil"][regime==0], var_95[regime==0]) if regime.sum()>0 else {}
-    bt_stress = backtest_var(returns["oil"][regime==1], var_95[regime==1]) if regime.sum()>0 else {}
+        fan, fb, _ = run_mc(
+            wti0=float(prices["oil"].iloc[-1]),
+            brt0=float(prices["brent"].iloc[-1]),
+            vol_wti=float(vw.iloc[-1]*np.sqrt(252)),
+            vol_brt=float(vb.iloc[-1]*np.sqrt(252)),
+            dcc_a=dcc_a, dcc_b=dcc_b,
+            regime_prob=float(regime.iloc[-1]) if len(regime)>0 else 0.0,
+            steps=mc_steps, sims=mc_sims
+        )
 
-    # Machine Learning
-    features = pd.DataFrame({
-        "oil_lag1": returns["oil"].shift(1),
-        "brent_lag1": returns["brent"].shift(1),
-        "vol_egarch": vw,
-        "gf": gf_std,
-        "ovx": ovx.pct_change() if ovx is not None else 0,
-        "spread": (prices["brent"] - prices["oil"]) / prices["brent"],
-    }).dropna()
-    target = returns["oil"].loc[features.index]
-    split = int(len(features)*0.8)
-    X_tr, X_te = features.iloc[:split], features.iloc[split:]
-    y_tr, y_te = target.iloc[:split], target.iloc[split:]
-    models = {
-        "RandomForest": RandomForestRegressor(n_estimators=100, random_state=42),
-        "XGBoost": xgb.XGBRegressor(n_estimators=100, random_state=42),
-    }
-    ml_scores = {}
-    for name, mdl in models.items():
-        mdl.fit(X_tr, y_tr)
-        pred = mdl.predict(X_te)
-        ml_scores[name] = {
-            "RMSE": np.sqrt(mean_squared_error(y_te, pred)),
-            "MAE": mean_absolute_error(y_te, pred)
+        var_95 = vw * 1.645
+        bt_all = backtest_var(returns["oil"], var_95)
+        if regime.sum() > 0 and bt_all is not None:
+            bt_calm = backtest_var(returns["oil"][regime==0], var_95[regime==0])
+            bt_stress = backtest_var(returns["oil"][regime==1], var_95[regime==1])
+        else:
+            bt_calm = bt_stress = None
+
+        features = pd.DataFrame({
+            "oil_lag1": returns["oil"].shift(1),
+            "brent_lag1": returns["brent"].shift(1),
+            "vol_egarch": vw,
+            "gf": gf_std,
+            "spread": (prices["brent"] - prices["oil"]) / prices["brent"],
+        }).dropna()
+        target = returns["oil"].loc[features.index]
+        split = int(len(features)*0.8)
+        X_tr, X_te = features.iloc[:split], features.iloc[split:]
+        y_tr, y_te = target.iloc[:split], target.iloc[split:]
+        models = {
+            "RandomForest": RandomForestRegressor(n_estimators=100, random_state=42),
+            "XGBoost": xgb.XGBRegressor(n_estimators=100, random_state=42),
         }
+        ml_scores = {}
+        for name, mdl in models.items():
+            mdl.fit(X_tr, y_tr)
+            pred = mdl.predict(X_te)
+            ml_scores[name] = {
+                "RMSE": np.sqrt(mean_squared_error(y_te, pred)),
+                "MAE": mean_absolute_error(y_te, pred)
+            }
 
-    # Walk-Forward
-    wf = walk_forward_validation(returns["oil"])
+        wf = walk_forward_validation(returns["oil"])
 
-    # Store
-    st.session_state.update({
-        "prices": prices, "returns": returns, "vw": vw, "vb": vb,
-        "fan": fan, "fb": fb, "gf": gf_std,
-        "regime": regime, "bt_all": bt_all, "bt_calm": bt_calm, "bt_stress": bt_stress,
-        "ml_scores": ml_scores, "wf": wf,
-        "dcc_a": dcc_a, "dcc_b": dcc_b,
-        "evt": evt_wti, "ovx": ovx
-    })
-    prog.empty()
-
-if "prices" not in st.session_state:
-    st.stop()
+        st.session_state.update({
+            "prices": prices, "returns": returns, "vw": vw, "vb": vb,
+            "fan": fan, "fb": fb, "gf": gf_std,
+            "regime": regime, "bt_all": bt_all, "bt_calm": bt_calm, "bt_stress": bt_stress,
+            "ml_scores": ml_scores, "wf": wf,
+            "dcc_a": dcc_a, "dcc_b": dcc_b,
+            "evt": evt_wti, "ovx": ovx,
+            "results": True
+        })
 
 # ══════════════════════════════════════════════════════════
 #   RENDER
 # ══════════════════════════════════════════════════════════
+if "prices" not in st.session_state:
+    st.stop()
+
 S = st.session_state
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "Market Intelligence", "Geopolitical Risk", "Monte Carlo",
@@ -593,7 +621,9 @@ with tab1:
     c4.metric("OVX", f"{S['ovx'].iloc[-1]:.1f}" if S['ovx'] is not None else "N/A")
     fig = qfig()
     fig.add_trace(go.Scatter(x=S['vw'].index, y=S['vw']*np.sqrt(252)*100, name="EGARCH Vol"))
-    fig.add_trace(go.Scatter(x=S['regime'].index, y=S['regime']*50, name="Stress Regime", yaxis="y2"))
+    if S['regime'].sum()>0:
+        fig.add_trace(go.Scatter(x=S['regime'].index, y=S['regime']*S['vw'].max()*np.sqrt(252)*100*0.5,
+                                 name="Stress Regime", yaxis="y2"))
     st.plotly_chart(fig, use_container_width=True)
 
 with tab2:
@@ -602,18 +632,27 @@ with tab2:
     st.plotly_chart(fig2, use_container_width=True)
 
 with tab3:
-    st.write("Fan charts omitted for brevity (already implemented in full code)")
+    fig3 = qfig()
+    x = list(range(len(S['fan'][50])))
+    fig3.add_trace(go.Scatter(x=x, y=S['fan'][50], name="WTI P50"))
+    fig3.add_trace(go.Scatter(x=x, y=S['fb'][50], name="Brent P50", line=dict(dash="dash")))
+    st.plotly_chart(fig3, use_container_width=True)
 
 with tab4:
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("VaR Calibration Score", f"{S['bt_all'].get('score', S['bt_all'].get('Kupiec_p',0)):.2f}")
-    st.write("Stress regime backtest:", S['bt_stress'])
+    if S['bt_all']:
+        st.metric("Calibration Score", f"{1 - np.mean([S['bt_all']['Kupiec_p'], S['bt_all']['Christoffersen_p'], S['bt_all']['DQ_p']]):.2f}")
+        st.write("All periods:", S['bt_all'])
+        if S['bt_calm']: st.write("Calm regime:", S['bt_calm'])
+        if S['bt_stress']: st.write("Stress regime:", S['bt_stress'])
 
 with tab5:
-    st.write(S['ml_scores'])
+    st.dataframe(pd.DataFrame(S['ml_scores']).T)
 
 with tab6:
-    st.dataframe(S['wf'])
+    if not S['wf'].empty:
+        st.dataframe(S['wf'])
+        fig_wf = qfig(300)
+        fig_wf.add_trace(go.Bar(x=S['wf']["Test End"], y=S['wf']["RMSE"]))
+        st.plotly_chart(fig_wf, use_container_width=True)
 
 st.markdown("<div class='footer'>GeoQuant v2.0 · EGARCH + Conditional EVT · Eduardo Moraes</div>", unsafe_allow_html=True)
