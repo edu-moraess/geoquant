@@ -27,7 +27,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 # ----------------------------------------------------------------------
-st.set_page_config(page_title="GeoQuant · Institutional Research", page_icon="", layout="wide")
+st.set_page_config(page_title="GeoQuant · Research", page_icon="", layout="wide")
 # ----------------------------------------------------------------------
 # CONFIGURATION
 TICKERS = {
