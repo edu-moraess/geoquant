@@ -488,14 +488,9 @@ def fetch_live(last_wti=65.0, last_brt=68.0):
     return last_wti, last_brt
 
 # =============================================================================
-# INSTITUTIONAL FUNCTIONS (CORRIGIDAS)
+# INSTITUTIONAL FUNCTIONS
 # =============================================================================
 def backtest_var(returns, var_forecast, alpha=0.05):
-    """
-    returns: pandas Series de retornos
-    var_forecast: pandas Series de VaR (valores positivos, ex: 1.645 * sigma)
-    """
-    # Alinha os índices das duas séries
     common_idx = returns.index.intersection(var_forecast.index)
     if len(common_idx) == 0:
         return {
@@ -532,7 +527,7 @@ def backtest_var(returns, var_forecast, alpha=0.05):
         p_cc = 1 - chi2.cdf(LR_cc, df=1) if LR_cc>0 else 0.5
     else:
         LR_cc, p_cc = 0, 0.5
-    # Dynamic Quantile test
+    # DQ test
     X = pd.DataFrame({'const': 1, 'hit_lag1': violations.shift(1).fillna(0)})
     try:
         model = Logit(violations, X).fit(disp=0)
@@ -794,30 +789,36 @@ if "results" in st.session_state:
         st.subheader("Stress Indices")
         col_a, col_b = st.columns(2)
         with col_a:
-            if fi is not None and len(fi)>5:
+            st.markdown("**Fertilizer Stress & Natural Gas Volatility**")
+            if fi is not None and len(fi) > 5:
                 ng_vol = returns["natgas"].rolling(20).std() * np.sqrt(252) * 100
-                fig_f = quant_subplots(secondary=True, height=380)
+                fig_f = quant_subplots(secondary=True, height=450)
                 fig_f.add_trace(go.Scatter(x=fi.index, y=fi.values, name="Fertilizer Stress", fill="tozeroy",
-                                           fillcolor="rgba(95,107,71,0.1)", line=dict(color=COLORS["fertilizer"], width=2)), secondary_y=False)
-                fig_f.add_trace(go.Scatter(x=ng_vol.index, y=ng_vol.values, name="NatGas Vol",
-                                           line=dict(color=COLORS["natgas"], width=1.8, dash="dash")), secondary_y=True)
-                fig_f.update_yaxes(title_text="Fert Index", secondary_y=False)
-                fig_f.update_yaxes(title_text="NatGas Vol %", secondary_y=True)
+                                           fillcolor="rgba(95,107,71,0.1)", line=dict(color=COLORS["fertilizer"], width=2.5)), secondary_y=False)
+                fig_f.add_trace(go.Scatter(x=ng_vol.index, y=ng_vol.values, name="NatGas Volatility",
+                                           line=dict(color=COLORS["natgas"], width=2, dash="dash")), secondary_y=True)
+                fig_f.update_yaxes(title_text="Fertilizer Index", secondary_y=False, title_font=dict(size=10))
+                fig_f.update_yaxes(title_text="NatGas Vol %", secondary_y=True, title_font=dict(size=10))
+                fig_f.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                 st.plotly_chart(fig_f, use_container_width=True)
+            else:
+                st.info("Fertilizer data not available.")
             bs_str = f" · Black Swan x{bs:.2f}" if bs > 1.2 else (" · Deflation" if bs < 0.8 else "")
             st.caption(f"Urea ${usda.get('urea_price',0):.1f}/t  ·  DAP ${usda.get('dap_price',0):.0f}/t  ·  {usda.get('source','')}{bs_str}")
         with col_b:
+            st.markdown("**Gold / Real Yield & Silver / Gold Ratio**")
             if gs is not None and not gs["gold_real"].dropna().empty:
                 gr_b = float(gs["gold_real"].dropna().iloc[0])
                 sg_b = float(gs["silver_gold"].dropna().iloc[0])
-                fig_g = quant_subplots(secondary=True, height=380)
+                fig_g = quant_subplots(secondary=True, height=450)
                 fig_g.add_trace(go.Scatter(x=gs["gold_real"].dropna().index, y=(gs["gold_real"].dropna()/gr_b).values,
-                                           name="Gold/Real Yield", line=dict(color=COLORS["gold"], width=2)), secondary_y=False)
+                                           name="Gold / Real Yield", line=dict(color=COLORS["gold"], width=2.5)), secondary_y=False)
                 fig_g.add_trace(go.Scatter(x=gs["silver_gold"].dropna().index, y=(gs["silver_gold"].dropna()/sg_b).values,
-                                           name="Silver/Gold", line=dict(color=COLORS["silver"], width=1.8, dash="dash")), secondary_y=True)
-                fig_g.add_hline(y=1.0, line_dash="dot", line_color="#9CA3AF")
-                fig_g.update_yaxes(title_text="Gold/Real Yield (norm)", secondary_y=False)
-                fig_g.update_yaxes(title_text="Silver/Gold (norm)", secondary_y=True)
+                                           name="Silver / Gold", line=dict(color=COLORS["silver"], width=2, dash="dash")), secondary_y=True)
+                fig_g.add_hline(y=1.0, line_dash="dot", line_color="#9CA3AF", line_width=1.5)
+                fig_g.update_yaxes(title_text="Gold/Real Yield (norm)", secondary_y=False, title_font=dict(size=10))
+                fig_g.update_yaxes(title_text="Silver/Gold (norm)", secondary_y=True, title_font=dict(size=10))
+                fig_g.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                 st.plotly_chart(fig_g, use_container_width=True)
             else:
                 st.info("Gold signals not available.")
@@ -950,13 +951,11 @@ if "results" in st.session_state:
     with tab6:
         st.subheader("VaR Backtesting – Kupiec, Christoffersen, DQ")
         if 'returns' in st.session_state and 'vw' in st.session_state:
-            # Pega os últimos 252 dias úteis (aproximadamente 1 ano)
             ret_series = returns['oil'].iloc[-252:]
-            var_series = vw.iloc[-252:] * 1.645  # VaR 95%
-            # Alinha os índices explicitamente (garantia extra)
+            var_series = vw.iloc[-252:] * 1.645
             common_idx = ret_series.index.intersection(var_series.index)
             if len(common_idx) < 50:
-                st.warning("Dados insuficientes para backtest (mínimo 50 observações).")
+                st.warning("Insufficient data for backtest (minimum 50 observations).")
             else:
                 bt_res = backtest_var(ret_series, var_series, alpha=0.05)
                 st.metric("Model Calibration Score", f"{bt_res['calibration_score']:.3f}", delta=">0.9 good" if bt_res['calibration_score']>0.9 else "needs improvement")
@@ -971,7 +970,6 @@ if "results" in st.session_state:
                     st.write(f"Stat: {bt_res['DQ_stat']:.3f}, p-value: {bt_res['DQ_p']:.3f}")
                     st.write(f"Violations: {bt_res['n_violations']} / {len(common_idx)} (obs. freq {bt_res['obs_freq']:.3f})")
                 fig_viol = quant_fig(300)
-                # Reconstruir violações alinhadas
                 r_aligned = ret_series.loc[common_idx]
                 v_aligned = var_series.loc[common_idx]
                 viol = (r_aligned < -v_aligned).astype(int)
@@ -982,20 +980,16 @@ if "results" in st.session_state:
 
     with tab7:
         st.subheader("Institutional Executive Dashboard")
-        # Predictive power do GeoFactor (lag 1)
         pred = geofactor_predictive_power(gf, returns['oil'], lags=[1])
         ic_val = pred['lag_1']['IC'] if 'lag_1' in pred else 0
         st.metric("GeoFactor Predictive Power (IC lag1)", f"{ic_val:.3f}")
-        # Regime classification
         regime_metrics = regime_classification(gf, threshold=0.5, volatility_series=vw*np.sqrt(252)*100, quantile=0.75)
         st.metric("Regime Detection F1 Score", f"{regime_metrics['f1']:.2f}")
-        # Feature importance
         if feature_importance is not None:
             st.subheader("Feature Importance (LASSO weights)")
             fig_imp = go.Figure(go.Bar(x=feature_importance['importance'], y=feature_importance['feature'], orientation='h'))
             fig_imp.update_layout(height=400, title="Marginal Contribution to GeoFactor")
             st.plotly_chart(fig_imp, use_container_width=True)
-        # Confidence score (recalcula se disponível)
         if 'returns' in st.session_state and 'vw' in st.session_state:
             ret_series = returns['oil'].iloc[-252:]
             var_series = vw.iloc[-252:] * 1.645
@@ -1006,7 +1000,7 @@ if "results" in st.session_state:
             else:
                 confidence = 0.5
             st.progress(confidence, text=f"Overall Model Confidence: {confidence:.0%}")
-            st.caption("Confidence is derived from VaR backtesting p‑values (Kupiec, Christoffersen, DQ).")
+            st.caption("Confidence derived from VaR backtesting p‑values (Kupiec, Christoffersen, DQ).")
 
     st.divider()
     st.caption(f"GeoQuant · EVT + DCC + GARCH-X · {mc_sims:,} MC paths · Eduardo Moraes · Quant Data Scientist & Economics · {now_sp.strftime('%d %b %Y')}")
