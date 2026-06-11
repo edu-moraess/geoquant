@@ -781,6 +781,7 @@ with st.sidebar:
     <div style='padding:1.3rem 0 1.1rem;border-bottom:1px solid #D9D5CD;margin-bottom:1.3rem;'>
         <div style='font-family:"JetBrains Mono",monospace;font-size:.5rem;letter-spacing:.26em;color:#B49450;text-transform:uppercase;margin-bottom:.4rem;'>◆ Edumetria</div>
         <div style='font-family:"Playfair Display",Georgia,serif;font-size:1.3rem;font-weight:300;color:#1E3A5F;letter-spacing:.06em;'>GeoQuant Terminal</div>
+        <div style='font-family:"JetBrains Mono",monospace;font-size:.5rem;color:#7A766E;letter-spacing:.14em;margin-top:.3rem;'>Quantitative Research Infrastructure</div>
     </div>""", unsafe_allow_html=True)
 
     def slabel(t):
@@ -826,7 +827,7 @@ st.markdown(f"""
       <span style='font-family:"JetBrains Mono",monospace;font-size:.85rem;color:#B49450;letter-spacing:.2em;'>◆◆◆</span>
       <div>
         <div style='font-family:"Playfair Display",Georgia,serif;font-size:1.9rem;font-weight:300;color:#1E3A5F;letter-spacing:.06em;line-height:1;'>GeoQuant · Research Terminal</div>
-        <div style='font-family:"JetBrains Mono",monospace;font-size:.55rem;color:#70695E;letter-spacing:.2em;text-transform:uppercase;margin-top:.3rem;'>Macro Geopolitical Quant Model v3.5 · Institutional Analytics Platform</div>
+        <div style='font-family:"JetBrains Mono",monospace;font-size:.55rem;color:#70695E;letter-spacing:.2em;text-transform:uppercase;margin-top:.3rem;'>Macro Geopolitical Quant · Institutional Analytics Platform</div>
       </div>
     </div>
   </div>
@@ -1183,7 +1184,7 @@ with t_ml:
 # ── FOOTER ──
 st.markdown(f"""
 <div class="footer">
-  <div>◆ GeoQuant Institutional Terminal v3.5 · Engine: Conditional EVT + DCC-GARCH-X</div>
+  <div>◆ GeoQuant Institutional Terminal · Engine: Conditional EVT + DCC-GARCH-X</div>
   <div>Eduardo Moraes · Quant Data Scientist & Economics</div>
   <div>Proprietary Research Infrastructure · {now_sp.strftime("%Y")}</div>
 </div>""", unsafe_allow_html=True)
