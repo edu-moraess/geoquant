@@ -488,10 +488,26 @@ def fetch_live(last_wti=65.0, last_brt=68.0):
     return last_wti, last_brt
 
 # =============================================================================
-# INSTITUTIONAL FUNCTIONS (backtest, stress, sensitivity, etc.)
+# INSTITUTIONAL FUNCTIONS (CORRIGIDAS)
 # =============================================================================
 def backtest_var(returns, var_forecast, alpha=0.05):
-    violations = (returns < -var_forecast).astype(int)
+    """
+    returns: pandas Series de retornos
+    var_forecast: pandas Series de VaR (valores positivos, ex: 1.645 * sigma)
+    """
+    # Alinha os índices das duas séries
+    common_idx = returns.index.intersection(var_forecast.index)
+    if len(common_idx) == 0:
+        return {
+            "n_violations": 0, "obs_freq": 0, "exp_freq": alpha,
+            "Kupiec_LR": 0, "Kupiec_p": 1,
+            "Christoffersen_LR": 0, "Christoffersen_p": 1,
+            "DQ_stat": 0, "DQ_p": 1,
+            "calibration_score": 0
+        }
+    r = returns.loc[common_idx]
+    v = var_forecast.loc[common_idx]
+    violations = (r < -v).astype(int)
     n = len(violations)
     n_viol = violations.sum()
     p_obs = n_viol / n
@@ -749,7 +765,7 @@ if "results" in st.session_state:
     feature_importance = st.session_state.get("feature_importance")
     spread = brt0 - wti0
 
-    # TABS: including new institutional ones
+    # TABS
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "Market & Risk", "Geopolitical", "Monte Carlo", "Quant Stats",
         "Macro & Corr", "Institutional Backtest", "Executive Dashboard"
@@ -934,41 +950,63 @@ if "results" in st.session_state:
     with tab6:
         st.subheader("VaR Backtesting – Kupiec, Christoffersen, DQ")
         if 'returns' in st.session_state and 'vw' in st.session_state:
+            # Pega os últimos 252 dias úteis (aproximadamente 1 ano)
             ret_series = returns['oil'].iloc[-252:]
-            var_series = vw.iloc[-252:] * 1.645  # 95% VaR
-            bt_res = backtest_var(ret_series, var_series, alpha=0.05)
-            st.metric("Model Calibration Score", f"{bt_res['calibration_score']:.3f}", delta=">0.9 good" if bt_res['calibration_score']>0.9 else "needs improvement")
-            col_a,col_b = st.columns(2)
-            with col_a:
-                st.write("**Kupiec (PF)**")
-                st.write(f"LR: {bt_res['Kupiec_LR']:.3f}, p-value: {bt_res['Kupiec_p']:.3f}")
-                st.write("**Christoffersen (CC)**")
-                st.write(f"LR: {bt_res['Christoffersen_LR']:.3f}, p-value: {bt_res['Christoffersen_p']:.3f}")
-            with col_b:
-                st.write("**Dynamic Quantile**")
-                st.write(f"Stat: {bt_res['DQ_stat']:.3f}, p-value: {bt_res['DQ_p']:.3f}")
-                st.write(f"Violations: {bt_res['n_violations']} / {len(ret_series)} (obs. freq {bt_res['obs_freq']:.3f})")
-            fig_viol = quant_fig(300)
-            viol = (ret_series < -var_series).astype(int)
-            fig_viol.add_trace(go.Scatter(x=ret_series.index, y=viol, mode='markers', name='VaR Violations'))
-            st.plotly_chart(fig_viol, use_container_width=True)
+            var_series = vw.iloc[-252:] * 1.645  # VaR 95%
+            # Alinha os índices explicitamente (garantia extra)
+            common_idx = ret_series.index.intersection(var_series.index)
+            if len(common_idx) < 50:
+                st.warning("Dados insuficientes para backtest (mínimo 50 observações).")
+            else:
+                bt_res = backtest_var(ret_series, var_series, alpha=0.05)
+                st.metric("Model Calibration Score", f"{bt_res['calibration_score']:.3f}", delta=">0.9 good" if bt_res['calibration_score']>0.9 else "needs improvement")
+                col_a,col_b = st.columns(2)
+                with col_a:
+                    st.write("**Kupiec (PF)**")
+                    st.write(f"LR: {bt_res['Kupiec_LR']:.3f}, p-value: {bt_res['Kupiec_p']:.3f}")
+                    st.write("**Christoffersen (CC)**")
+                    st.write(f"LR: {bt_res['Christoffersen_LR']:.3f}, p-value: {bt_res['Christoffersen_p']:.3f}")
+                with col_b:
+                    st.write("**Dynamic Quantile**")
+                    st.write(f"Stat: {bt_res['DQ_stat']:.3f}, p-value: {bt_res['DQ_p']:.3f}")
+                    st.write(f"Violations: {bt_res['n_violations']} / {len(common_idx)} (obs. freq {bt_res['obs_freq']:.3f})")
+                fig_viol = quant_fig(300)
+                # Reconstruir violações alinhadas
+                r_aligned = ret_series.loc[common_idx]
+                v_aligned = var_series.loc[common_idx]
+                viol = (r_aligned < -v_aligned).astype(int)
+                fig_viol.add_trace(go.Scatter(x=common_idx, y=viol, mode='markers', name='VaR Violations'))
+                st.plotly_chart(fig_viol, use_container_width=True)
         else:
             st.info("Run full analysis first.")
 
     with tab7:
         st.subheader("Institutional Executive Dashboard")
-        st.metric("GeoFactor Predictive Power (IC lag1)", f"{geofactor_predictive_power(gf, returns['oil'], lags=[1])['lag_1']['IC']:.3f}")
+        # Predictive power do GeoFactor (lag 1)
+        pred = geofactor_predictive_power(gf, returns['oil'], lags=[1])
+        ic_val = pred['lag_1']['IC'] if 'lag_1' in pred else 0
+        st.metric("GeoFactor Predictive Power (IC lag1)", f"{ic_val:.3f}")
+        # Regime classification
         regime_metrics = regime_classification(gf, threshold=0.5, volatility_series=vw*np.sqrt(252)*100, quantile=0.75)
         st.metric("Regime Detection F1 Score", f"{regime_metrics['f1']:.2f}")
+        # Feature importance
         if feature_importance is not None:
             st.subheader("Feature Importance (LASSO weights)")
             fig_imp = go.Figure(go.Bar(x=feature_importance['importance'], y=feature_importance['feature'], orientation='h'))
             fig_imp.update_layout(height=400, title="Marginal Contribution to GeoFactor")
             st.plotly_chart(fig_imp, use_container_width=True)
-        st.subheader("Model Confidence Dashboard")
-        confidence_score = bt_res['calibration_score'] if 'bt_res' in locals() else 0.5
-        st.progress(confidence_score, text=f"Overall Model Confidence: {confidence_score:.0%}")
-        st.caption("Confidence is derived from VaR backtesting p‑values (Kupiec, Christoffersen, DQ).")
+        # Confidence score (recalcula se disponível)
+        if 'returns' in st.session_state and 'vw' in st.session_state:
+            ret_series = returns['oil'].iloc[-252:]
+            var_series = vw.iloc[-252:] * 1.645
+            common_idx = ret_series.index.intersection(var_series.index)
+            if len(common_idx) > 50:
+                bt_res = backtest_var(ret_series, var_series, alpha=0.05)
+                confidence = bt_res['calibration_score']
+            else:
+                confidence = 0.5
+            st.progress(confidence, text=f"Overall Model Confidence: {confidence:.0%}")
+            st.caption("Confidence is derived from VaR backtesting p‑values (Kupiec, Christoffersen, DQ).")
 
     st.divider()
     st.caption(f"GeoQuant · EVT + DCC + GARCH-X · {mc_sims:,} MC paths · Eduardo Moraes · Quant Data Scientist & Economics · {now_sp.strftime('%d %b %Y')}")
