@@ -16,6 +16,7 @@ yfinance>=0.2.50
 # --- Aprendizado de Máquina Dinâmico & Interpretabilidade ---
 torch>=2.0.0
 xgboost>=2.0.0
+lightgbm>=4.0.0
 shap>=0.44.0
 
 # --- Visualização de Dados & Relatórios Institucionais ---
