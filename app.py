@@ -321,10 +321,7 @@ C = dict(
 )
 
 def qfig(h=480):
-    """Altura institucional padrão 480px, podendo aumentar para 560 nos principais"""
-    fig = go.Figure()
-    fig.update_layout(**PL, height=h)
-    return fig
+    fig = go.Figure(); fig.update_layout(**PL, height=h); return fig
 
 def dual_axis_fig(h=480):
     fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -436,7 +433,7 @@ def get_api_status():
     return status
 
 # ============================================================
-#   QUANT ENGINE ARCHITECTURE (mantida sem alterações)
+#   QUANT ENGINE ARCHITECTURE
 # ============================================================
 def rolling_zscore(s, w=60):
     std = s.rolling(w).std()
@@ -453,7 +450,37 @@ def fill_gaps(s):
         return f.ffill().bfill()
     except: return s.ffill().bfill()
 
+# ============================================================
+#   NOVA FUNÇÃO: World Bank Commodity API (gratuita)
+# ============================================================
+@st.cache_data(ttl=86400, show_spinner=False)
+def fetch_wb_fertilizer(series_id):
+    """
+    Busca preços mensais de fertilizantes do World Bank Pink Sheet.
+    series_id: 'UREA' ou 'DAP'.
+    Retorna pd.Series com índice datetime e valores em USD/ton.
+    """
+    try:
+        url = f"https://api.worldbank.org/v2/en/indicator/{series_id}?format=json"
+        resp = requests.get(url, timeout=10)
+        data = resp.json()
+        # A estrutura é [metadata, [{countryiso, date, value, ...}, ...]]
+        if len(data) < 2 or data[1] is None:
+            return pd.Series(dtype=float)
+        records = data[1]
+        dates, values = [], []
+        for r in records:
+            if r["value"] is not None:
+                dates.append(pd.to_datetime(r["date"]))
+                values.append(float(r["value"]))
+        if not dates:
+            return pd.Series(dtype=float)
+        return pd.Series(values, index=dates).sort_index()
+    except:
+        return pd.Series(dtype=float)
+
 def _force_update_fert_csv(path="fertilizer_backup.csv"):
+    # Mantido como fallback caso a API falhe
     with open(path, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["date","urea_price","dap_price"])
@@ -462,15 +489,50 @@ def _force_update_fert_csv(path="fertilizer_backup.csv"):
                      ["2026-05-12",857,920],["2026-06-01",860,925],["2026-06-10",453.5,920]])
 
 def get_usda():
+    """Obtém preços atuais de ureia e DAP, preferencialmente via World Bank, com fallback para CSV."""
+    # Tenta World Bank primeiro
+    urea_wb = fetch_wb_fertilizer("UREA")
+    dap_wb = fetch_wb_fertilizer("DAP")
+
+    urea_val = None
+    dap_val = None
+    source = "World Bank"
+
+    if len(urea_wb) > 0:
+        # Pega o último valor disponível (que pode ter defasagem de ~1 mês)
+        urea_val = urea_wb.iloc[-1]
+    if len(dap_wb) > 0:
+        dap_val = dap_wb.iloc[-1]
+
+    # Se ambos foram obtidos, retorna
+    if urea_val is not None and dap_val is not None:
+        return {
+            "urea_price": urea_val,
+            "urea_period": str(urea_wb.index[-1].date()),
+            "dap_price": dap_val,
+            "dap_period": str(dap_wb.index[-1].date()),
+            "source": source
+        }
+
+    # Fallback para CSV local
     _force_update_fert_csv()
     try:
         df = pd.read_csv("fertilizer_backup.csv", parse_dates=["date"], index_col="date").sort_index()
-        if len(df) == 0: return {"urea_price":453.5,"urea_period":"2026-06-10","dap_price":920,"dap_period":"2026-06-10","source":"fallback"}
+        if len(df) == 0:
+            return {"urea_price":453.5,"urea_period":"2026-06-10","dap_price":920,"dap_period":"2026-06-10","source":"fallback"}
         last = df.iloc[-1]
-        return {"urea_price":float(last["urea_price"]),"urea_period":str(last.name.date()),"dap_price":float(last["dap_price"]),"dap_period":str(last.name.date()),"source":"Green Markets / CRU"}
-    except: return {"urea_price":453.5,"urea_period":"2026-06-10","dap_price":920,"dap_period":"2026-06-10","source":"fallback"}
+        return {
+            "urea_price": float(last["urea_price"]),
+            "urea_period": str(last.name.date()),
+            "dap_price": float(last["dap_price"]),
+            "dap_period": str(last.name.date()),
+            "source": "fallback"
+        }
+    except:
+        return {"urea_price":453.5,"urea_period":"2026-06-10","dap_price":920,"dap_period":"2026-06-10","source":"fallback"}
 
 def fert_black_swan(usda):
+    # A função continua usando o backup CSV como base histórica para EVT
     _force_update_fert_csv()
     try:
         df = pd.read_csv("fertilizer_backup.csv", parse_dates=["date"], index_col="date")
@@ -1166,7 +1228,8 @@ if run_btn or "results" not in st.session_state:
             "macro_proxies": {k: ensure_series(v) if isinstance(v, pd.Series) else v for k, v in macro_proxies.items()},
             "gpr": ensure_series(gpr_series),
             "cot": ensure_scalar(cot_value),
-            "last_update": last_update
+            "last_update": last_update,
+            "fert_source": usda.get("source", "fallback")
         })
     except Exception as e:
         loading.empty()
@@ -1195,7 +1258,7 @@ gf = S["gf"]
 
 st.markdown(f"""
 <div style="font-family:'JetBrains Mono',monospace; font-size:0.6rem; color:var(--muted); text-align:right; margin-bottom:1rem;">
-Data Freshness: <strong>{S.get('last_update', 'Unknown')}</strong> · Spot Update Interval: 10s
+Data Freshness: <strong>{S.get('last_update', 'Unknown')}</strong> · Spot Update Interval: 10s · Fert Source: <strong>{S.get('fert_source', 'Unknown')}</strong>
 </div>""", unsafe_allow_html=True)
 
 csv_data = export_results_to_csv(mc, moments, fan, S["weights"], S["macro_proxies"])
@@ -1254,7 +1317,7 @@ with t_exec:
                     f'<tr><td>Brent &gt; US$ 100</td><td><strong>{fmt_num(M["brent_100"], ".1f")}%</strong></tr></tbody></table>', unsafe_allow_html=True)
 
 # ============================================================
-#   MARKET & VOLATILITY (com gráficos melhorados de ouro e fertilizantes)
+#   MARKET & VOLATILITY
 # ============================================================
 with t_vol:
     st.markdown('<div class="sec-label">01 · Risk Metrics</div>', unsafe_allow_html=True)
@@ -1268,7 +1331,6 @@ with t_vol:
     c3.metric("WTI Vol p.a.", f"{M['vol_wti']:.1f}%", delta=delta_vsa_wti)
     c4.metric("Brent Vol p.a.", f"{M['vol_brt']:.1f}%", delta=delta_vsa_brt)
 
-    # Gráfico de Volatilidade EGARCH
     fig_vol = qfig(480)
     fig_vol.add_trace(go.Scatter(x=vw.index, y=vw*np.sqrt(252)*100, name="WTI EGARCH Vol",
                                  line=dict(color=C["navy"], width=2.8), hovertemplate=hover_vol))
@@ -1279,7 +1341,6 @@ with t_vol:
     fig_vol.update_layout(yaxis_ticksuffix="%", title="EGARCH(1,1) Filtering Engine (Exogenous GeoFactor Multi-Regime)")
     st.plotly_chart(fig_vol, use_container_width=True)
 
-    # DCC Correlation
     if "dcc_rho" in S and not S["dcc_rho"].empty:
         fig_dcc = qfig(380)
         fig_dcc.add_trace(go.Scatter(x=S["dcc_rho"].index, y=S["dcc_rho"].values, name="DCC Correlation (WTI/Brent)",
@@ -1287,12 +1348,10 @@ with t_vol:
         fig_dcc.update_layout(title="Conditional Correlation (DCC) WTI/Brent", yaxis_range=[-1,1])
         st.plotly_chart(fig_dcc, use_container_width=True)
 
-    # ---- NOVOS GRÁFICOS: Ouro com bandas de regime e Fertilizantes ----
     st.markdown('<div class="sec-label">Precious Metals & Agricultural Inputs</div>', unsafe_allow_html=True)
     col_gold, col_fert = st.columns(2)
 
     with col_gold:
-        # Preço do Ouro com bandas de regime (±1σ, ±2σ)
         gold_price = S["prices"]["gold"].dropna()
         if len(gold_price) > 30:
             gold_ma = gold_price.rolling(60, min_periods=20).mean()
@@ -1301,9 +1360,7 @@ with t_vol:
             gold_lower1 = gold_ma - gold_std
             gold_upper2 = gold_ma + 2*gold_std
             gold_lower2 = gold_ma - 2*gold_std
-
             fig_gold = qfig(480)
-            # Bandas preenchidas
             fig_gold.add_trace(go.Scatter(x=gold_price.index, y=gold_upper2, mode='lines', line=dict(width=0),
                                           showlegend=False, hoverinfo='skip'))
             fig_gold.add_trace(go.Scatter(x=gold_price.index, y=gold_lower2, mode='lines', line=dict(width=0),
@@ -1312,11 +1369,9 @@ with t_vol:
                                           showlegend=False, hoverinfo='skip'))
             fig_gold.add_trace(go.Scatter(x=gold_price.index, y=gold_lower1, mode='lines', line=dict(width=0),
                                           fill='tonexty', fillcolor='rgba(180,148,80,0.12)', showlegend=False, hoverinfo='skip'))
-            # Linha do preço
             fig_gold.add_trace(go.Scatter(x=gold_price.index, y=gold_price, name="Gold Price",
                                           line=dict(color=C["gold"], width=3.0),
                                           hovertemplate="Date: %{x|%d %b %Y}<br>Gold: $%{y:.2f}"))
-            # Anotação do nível atual
             last_gold = gold_price.iloc[-1]
             last_ma = gold_ma.iloc[-1]
             sigma_pos = (last_gold - last_ma) / gold_std.iloc[-1] if not np.isnan(gold_std.iloc[-1]) else 0
@@ -1330,42 +1385,43 @@ with t_vol:
             st.info("Insufficient gold data for regime bands")
 
     with col_fert:
-        # Fertilizantes: Urea + DAP (do backup)
-        try:
-            df_fert = pd.read_csv("fertilizer_backup.csv", parse_dates=["date"], index_col="date").sort_index()
-            if len(df_fert) > 2:
-                urea = df_fert["urea_price"].dropna()
-                dap = df_fert["dap_price"].dropna()
-                fig_fert = make_subplots(specs=[[{"secondary_y": True}]])
-                fig_fert.add_trace(go.Scatter(x=urea.index, y=urea, name="Urea",
-                                              line=dict(color=C["rust"], width=2.8),
-                                              hovertemplate="Date: %{x|%d %b %Y}<br>Urea: $%{y:.2f}"),
-                                   secondary_y=False)
-                fig_fert.add_trace(go.Scatter(x=dap.index, y=dap, name="DAP",
-                                              line=dict(color=C["navy_light"], width=2.8, dash="dash"),
-                                              hovertemplate="Date: %{x|%d %b %Y}<br>DAP: $%{y:.2f}"),
-                                   secondary_y=True)
-                # Anotações dos valores atuais
-                if len(urea) > 0:
-                    fig_fert.add_annotation(x=urea.index[-1], y=urea.iloc[-1],
-                                            text=f"Urea ${urea.iloc[-1]:.0f}",
-                                            showarrow=True, arrowhead=2, ax=30, ay=-20,
-                                            font=dict(color=C["rust"], size=10))
-                if len(dap) > 0:
-                    fig_fert.add_annotation(x=dap.index[-1], y=dap.iloc[-1],
-                                            text=f"DAP ${dap.iloc[-1]:.0f}",
-                                            showarrow=True, arrowhead=2, ax=30, ay=20,
-                                            font=dict(color=C["navy_light"], size=10))
-                fig_fert.update_layout(**PL, height=480, title="Fertilizer Prices (Urea & DAP)",
-                                       yaxis_title="Urea (USD/ton)", yaxis2_title="DAP (USD/ton)")
-                st.plotly_chart(fig_fert, use_container_width=True)
-            else:
-                st.info("Fertilizer data insufficient")
-        except:
-            st.info("Fertilizer backup unavailable")
+        # Gráfico de fertilizantes: usa dados do World Bank (ou CSV) e exibe série temporal
+        urea_series = fetch_wb_fertilizer("UREA")
+        dap_series = fetch_wb_fertilizer("DAP")
+        if len(urea_series) == 0:
+            # Fallback para CSV se API falhar
+            _force_update_fert_csv()
+            df = pd.read_csv("fertilizer_backup.csv", parse_dates=["date"], index_col="date").sort_index()
+            urea_series = df["urea_price"]
+            dap_series = df["dap_price"]
+        if len(urea_series) > 0 and len(dap_series) > 0:
+            fig_fert = make_subplots(specs=[[{"secondary_y": True}]])
+            fig_fert.add_trace(go.Scatter(x=urea_series.index, y=urea_series, name="Urea",
+                                          line=dict(color=C["rust"], width=2.8),
+                                          hovertemplate="Date: %{x|%d %b %Y}<br>Urea: $%{y:.2f}"),
+                               secondary_y=False)
+            fig_fert.add_trace(go.Scatter(x=dap_series.index, y=dap_series, name="DAP",
+                                          line=dict(color=C["navy_light"], width=2.8, dash="dash"),
+                                          hovertemplate="Date: %{x|%d %b %Y}<br>DAP: $%{y:.2f}"),
+                               secondary_y=True)
+            if len(urea_series) > 0:
+                fig_fert.add_annotation(x=urea_series.index[-1], y=urea_series.iloc[-1],
+                                        text=f"Urea ${urea_series.iloc[-1]:.0f}",
+                                        showarrow=True, arrowhead=2, ax=30, ay=-20,
+                                        font=dict(color=C["rust"], size=10))
+            if len(dap_series) > 0:
+                fig_fert.add_annotation(x=dap_series.index[-1], y=dap_series.iloc[-1],
+                                        text=f"DAP ${dap_series.iloc[-1]:.0f}",
+                                        showarrow=True, arrowhead=2, ax=30, ay=20,
+                                        font=dict(color=C["navy_light"], size=10))
+            fig_fert.update_layout(**PL, height=480, title="Fertilizer Prices (Urea & DAP)",
+                                   yaxis_title="Urea (USD/ton)", yaxis2_title="DAP (USD/ton)")
+            st.plotly_chart(fig_fert, use_container_width=True)
+        else:
+            st.info("Fertilizer data unavailable")
 
 # ============================================================
-#   GEOPOLITICAL INTELLIGENCE (GPR + WTI overlay com zonas de regime)
+#   GEOPOLITICAL INTELLIGENCE
 # ============================================================
 with t_geo:
     st.markdown('<div class="sec-label">02 · Geopolitical Intelligence</div>', unsafe_allow_html=True)
@@ -1378,13 +1434,11 @@ with t_geo:
     col_g2.metric("VIX (FRED)", f"{vix_fred:.2f}")
     col_g3.metric("COT Net Specs (proxy)", f"{cot_val:,.0f}")
 
-    # Gráfico dual: GPR + WTI com áreas de regime
     gpr_series = S["gpr"]
     wti_price = S["prices"]["oil"].dropna()
     common_idx = gpr_series.dropna().index.intersection(wti_price.index)
     if len(common_idx) > 10:
         fig_geo = make_subplots(specs=[[{"secondary_y": True}]])
-        # Áreas de regime (GPR > 100 = tensão, GPR > 150 = crise)
         fig_geo.add_trace(go.Scatter(x=common_idx, y=[100]*len(common_idx), mode='lines',
                                      line=dict(width=0), showlegend=False, hoverinfo='skip'))
         fig_geo.add_trace(go.Scatter(x=common_idx, y=[150]*len(common_idx), mode='lines',
@@ -1393,12 +1447,10 @@ with t_geo:
         fig_geo.add_trace(go.Scatter(x=common_idx, y=[max(gpr_series.max(), 200)]*len(common_idx),
                                      mode='lines', line=dict(width=0), fill='tonexty',
                                      fillcolor='rgba(180,148,80,0.25)', showlegend=False, hoverinfo='skip'))
-        # GPR
         fig_geo.add_trace(go.Scatter(x=common_idx, y=gpr_series[common_idx], name="GPR (FRED)",
                                      line=dict(color=C["rust"], width=2.8),
                                      hovertemplate="Date: %{x|%d %b %Y}<br>GPR: %{y:.1f}"),
                           secondary_y=False)
-        # WTI
         fig_geo.add_trace(go.Scatter(x=common_idx, y=wti_price[common_idx], name="WTI Price",
                                      line=dict(color=C["navy"], width=2.5, dash="dot"),
                                      hovertemplate="Date: %{x|%d %b %Y}<br>WTI: $%{y:.2f}"),
@@ -1418,7 +1470,6 @@ with t_attr:
     weights_sorted = sorted(S["weights"].items(), key=lambda x: abs(x[1]), reverse=True)
     df_weights = pd.DataFrame(weights_sorted, columns=["Factor", "Weight"])
     st.markdown('<div class="data-table">' + df_weights.to_html(index=False) + '</div>', unsafe_allow_html=True)
-
     fig_attr = qfig(420)
     fig_attr.add_trace(go.Bar(x=df_weights["Factor"], y=df_weights["Weight"],
                               marker_color=C["navy"], hovertemplate=hover_bar))
@@ -1426,14 +1477,12 @@ with t_attr:
     st.plotly_chart(fig_attr, use_container_width=True)
 
 # ============================================================
-#   MONTE CARLO FAN CHART (com fills e linhas mais grossas)
+#   MONTE CARLO FAN CHART
 # ============================================================
 with t_mc:
     st.markdown('<div class="sec-label">04 · Monte Carlo Fan Chart</div>', unsafe_allow_html=True)
     fig_mc = qfig(520)
     x_days = list(range(mc_steps+1))
-
-    # Preenchimentos entre bandas
     fig_mc.add_trace(go.Scatter(x=x_days, y=fan[1], mode='lines', line=dict(width=0), showlegend=False, hoverinfo='skip'))
     fig_mc.add_trace(go.Scatter(x=x_days, y=fan[99], mode='lines', line=dict(width=0),
                                 fill='tonexty', fillcolor='rgba(30,58,95,0.05)', showlegend=False, hoverinfo='skip'))
@@ -1446,20 +1495,15 @@ with t_mc:
     fig_mc.add_trace(go.Scatter(x=x_days, y=fan[25], mode='lines', line=dict(width=0), showlegend=False, hoverinfo='skip'))
     fig_mc.add_trace(go.Scatter(x=x_days, y=fan[75], mode='lines', line=dict(width=0),
                                 fill='tonexty', fillcolor='rgba(30,58,95,0.18)', showlegend=False, hoverinfo='skip'))
-
-    # Linha central (P50) mais grossa
     fig_mc.add_trace(go.Scatter(x=x_days, y=fan[50], name="P50 (Median)", line=dict(color=C["navy"], width=3.2),
                                 hovertemplate=hover_percentile))
-    # Percentis extremos como linhas tracejadas
     fig_mc.add_trace(go.Scatter(x=x_days, y=fan[1], name="P01", line=dict(color=C["silver"], width=1.2, dash="dot"),
                                 hovertemplate=hover_percentile))
     fig_mc.add_trace(go.Scatter(x=x_days, y=fan[99], name="P99", line=dict(color=C["silver"], width=1.2, dash="dot"),
                                 hovertemplate=hover_percentile))
-
     fig_mc.update_layout(title="WTI Price Distribution Fan Chart", xaxis_title="Days Forward", yaxis_title="USD/bbl",
                          hovermode="x unified")
     st.plotly_chart(fig_mc, use_container_width=True)
-
     st.markdown(f"""
     <div class="diag-card">
         Mean: {fmt_num(moments['mean'], '.2f')} | Median: {fmt_num(moments['median'], '.2f')} | Mode: {fmt_num(moments['mode'], '.2f')}<br>
@@ -1475,7 +1519,6 @@ with t_stat:
     c1.metric("WTI Sharpe (ann.)", f"{S['sharpe']['oil']:.2f}" if isinstance(S['sharpe'], pd.Series) else f"{S['sharpe']:.2f}")
     c2.metric("Brent Sharpe (ann.)", f"{S['sharpe']['brent']:.2f}" if isinstance(S['sharpe'], pd.Series) else f"{S['sharpe']:.2f}")
     c3.metric("Sortino Ratio", f"{S['sortino']['oil']:.2f}" if isinstance(S['sortino'], pd.Series) else f"{S['sortino']:.2f}")
-
     st.markdown('<div class="sec-title">Correlation Matrix</div>', unsafe_allow_html=True)
     st.dataframe(S["corr_mx"].style.background_gradient(cmap='Blues'), use_container_width=True)
 
@@ -1520,7 +1563,7 @@ with t_modelcard:
     <b>Monte Carlo:</b> 5,000–30,000 paths, t-Student copula, tail jumps, DCC correlation<br>
     <b>Backtesting:</b> Walk-Forward, VaR/ES, Kupiec, Christoffersen, DQ tests<br>
     <b>ML:</b> Random Forest, XGBoost, LightGBM with TimeSeriesSplit cross-validation<br>
-    <b>Data Sources:</b> Yahoo Finance, FRED (GPR, VIX), EIA (inventories), OilPriceAPI, CFTC COT proxy
+    <b>Data Sources:</b> Yahoo Finance, FRED (GPR, VIX), EIA (inventories), OilPriceAPI, World Bank (fertilizers), CFTC COT proxy
     </div>
     """, unsafe_allow_html=True)
 
