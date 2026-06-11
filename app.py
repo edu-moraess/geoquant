@@ -50,7 +50,7 @@ st.set_page_config(
 )
 
 # ══════════════════════════════════════════════════════════
-#   INSTITUTIONAL RESEARCH REPORT STYLING (mantido igual)
+#   INSTITUTIONAL RESEARCH REPORT STYLING
 # ══════════════════════════════════════════════════════════
 st.markdown("""
 <style>
@@ -264,7 +264,7 @@ def dual_axis_fig(h=380):
     return fig
 
 # ══════════════════════════════════════════════════════════
-#   SIDEBAR (sem alterações)
+#   SIDEBAR
 # ══════════════════════════════════════════════════════════
 with st.sidebar:
     st.markdown("""
@@ -310,7 +310,7 @@ with st.sidebar:
     </div>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════
-#   HEADER (sem alterações)
+#   HEADER
 # ══════════════════════════════════════════════════════════
 now_sp = datetime.now(pytz.timezone("America/Sao_Paulo"))
 st.markdown(f"""
@@ -557,7 +557,6 @@ def bayes_shrink(vg, prior_d, n, geofactor=None):
     prior = prior_d * (1.0 + 0.4 * np.tanh(float(geofactor.iloc[-1]))) if geofactor is not None and not geofactor.empty else prior_d
     lo, hi = prior*0.5, prior*1.5
     v_last = float(vg.iloc[-1])
-    # dynamic weight: if observed vol within [0.5*prior, 1.5*prior] keep 100% weight, otherwise use prior
     effective_w = w if not (lo <= v_last <= hi) else 1.0
     vs = effective_w * vg + (1 - effective_w) * prior
     return vs, {"vga": v_last * np.sqrt(252) * 100,
@@ -573,7 +572,6 @@ def fit_dcc(rw, rb, vw, vb):
     c2 = ew.index.intersection(eb.index)
     e = np.column_stack([ew[c2], eb[c2]])
     Qb = np.cov(e, rowvar=False)
-    # ensure diagonal = 1
     np.fill_diagonal(Qb, 1.0)
     def nll(p):
         a, b = p
@@ -618,13 +616,10 @@ def _jumps_vec(n, pu, pd_):
 def run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase, rw, rb, vws, vbs, jpu, tdf, bs=1.0,
            dcc_a=0.05, dcc_b=0.93, sims=5000, steps=10, bar=None):
     np.random.seed(42)
-    # sanitize vols
     bvw = max(bvw, 1e-6) if np.isfinite(bvw) else 0.02
     bvb = max(bvb, 1e-6) if np.isfinite(bvb) else 0.02
-    # align for DCC calibration
     ci = rw.index.intersection(rb.index).intersection(vws.index).intersection(vbs.index)
     if len(ci) < 10:
-        # fallback: use constant correlation 0.85
         rho_const = 0.85
         eps = np.random.normal(0, 1, (sims, 2))
         Qt = np.array([[[1.0, rho_const], [rho_const, 1.0]] for _ in range(sims)])
@@ -768,7 +763,6 @@ def walk_forward_validation(returns_series, train_years=2, test_months=3):
         qe = te + qs
         train = returns_series.iloc[start:te]
         test = returns_series.iloc[te:qe]
-        # simple forecast: rolling mean of last 20 days of training
         pred = train.iloc[-20:].mean() if len(train) >= 20 else train.mean()
         rmse = float(np.sqrt(((pred - test)**2).mean()))
         results.append({"Window Start": dates[start].strftime("%Y-%m-%d"),
@@ -826,7 +820,6 @@ def garch_diagnostics(resid):
 def fetch_data(start):
     tl = list(TICKERS.values())
     tk = list(TICKERS.keys())
-    # try auto_adjust first
     for adj in [True, False]:
         try:
             raw = yf.download(tl, start=start, progress=False, auto_adjust=adj)
@@ -846,7 +839,6 @@ def fetch_data(start):
                 return out.ffill().bfill()
         except:
             continue
-    # fallback: ticker by ticker
     frames = {}
     for key, sym in TICKERS.items():
         try:
@@ -863,7 +855,8 @@ def fetch_data(start):
         out = pd.DataFrame(frames).ffill().bfill()
         if not out.empty and len(out) > 5:
             return out
-    return pd.DataFrame()
+    dummy = pd.DataFrame(index=[pd.Timestamp(start)], columns=tk)
+    return dummy
 
 @st.cache_data(ttl=60, show_spinner=False)
 def fetch_live(lw=65.0, lb=68.0):
@@ -903,15 +896,21 @@ if needs_run:
         if prices.empty or len(prices) < 5:
             st.error("Failed to load market data. Please check internet connection and try again later.")
             st.stop()
-        prices = prices.ffill().bfill()
         for key in TICKERS:
             if key not in prices.columns:
                 prices[key] = np.nan
         prices = prices.ffill().bfill()
+        # fallback to synthetic if still missing
+        if prices.isnull().all().all():
+            dates = pd.date_range(start=war_start_str, periods=60, freq='D')
+            prices = pd.DataFrame(index=dates, columns=list(TICKERS.keys()))
+            for col in prices.columns:
+                prices[col] = 70.0
+            st.warning("Using synthetic data due to download failure.")
         ovx = prices.get("ovx")
 
-        lw = float(prices["oil"].dropna().iloc[-1])
-        lb = float(prices["brent"].dropna().iloc[-1])
+        lw = float(prices["oil"].dropna().iloc[-1]) if not prices["oil"].dropna().empty else 70.0
+        lb = float(prices["brent"].dropna().iloc[-1]) if not prices["brent"].dropna().empty else 72.0
         wti0, brt0 = fetch_live(lw, lb)
         prices.loc[prices.index[-1], "oil"] = wti0
         prices.loc[prices.index[-1], "brent"] = brt0
@@ -960,7 +959,7 @@ if needs_run:
         evt_wti = conditional_evt(returns["oil"], vw)
         regime = detect_regime(vw, 2.0)
 
-        # 4 · DCC + VAR (with fallback)
+        # 4 · DCC + VAR
         prog.progress(55)
         dcc_a, dcc_b = fit_dcc(returns["oil"], returns["brent"], vw, vb_s)
         rv = returns.loc[gf.index.intersection(returns.index)]
@@ -968,7 +967,6 @@ if needs_run:
             vm = VAR(rv).fit(min(5, max(1, len(rv)//10)))
             fcast = vm.forecast(rv.values[-vm.k_ar:], steps=mc_steps)
         except Exception as e:
-            # fallback: zero forecast
             fcast = np.zeros((mc_steps, len(rv.columns)))
         cols = list(rv.columns)
         ocol = cols.index("oil") if "oil" in cols else 0
@@ -1061,11 +1059,17 @@ if needs_run:
         st.stop()
 
 # ══════════════════════════════════════════════════════════
-#   RENDER (same as original – unchanged)
+#   RENDER (with safety checks)
 # ══════════════════════════════════════════════════════════
 if "results" not in st.session_state:
     st.info("Configure parameters in the sidebar and click **▶ Run Full System Pipeline** to start.")
     st.stop()
+
+required_keys = ["prices", "returns", "vw", "vb", "vg", "gf", "zsc", "corr_mx", "stress_idx", "feat_imp", "bt_res", "ml_metrics", "wf_df"]
+for k in required_keys:
+    if k not in st.session_state or st.session_state[k] is None:
+        st.error(f"Missing required data: {k}. Please re-run the pipeline.")
+        st.stop()
 
 S = st.session_state
 mc = S["results"]
@@ -1109,19 +1113,22 @@ with tab1:
     c4.metric("Brent Vol p.a.", f"{M['vol_brt']:.1f}%", f"Shrunk {db_d['vsa']:.1f}%")
 
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-    fig_vol = qfig(380)
-    fig_vol.add_trace(go.Scatter(x=vw.index, y=vw*np.sqrt(252)*100, name="WTI EGARCH Vol",
-                                 line=dict(color=C["navy"], width=2.2)))
-    fig_vol.add_trace(go.Scatter(x=vb.index, y=vb*np.sqrt(252)*100, name="Brent EGARCH Vol",
-                                 line=dict(color=C["blue"], width=2.2, dash="dash")))
-    fig_vol.add_trace(go.Scatter(x=vg.index, y=vg*np.sqrt(252)*100, name="Gold EGARCH Vol",
-                                 line=dict(color=C["gold"], width=1.8, dash="dot")))
-    fig_vol.add_hrect(y0=25, y1=45, fillcolor="rgba(30,58,95,0.04)", line_width=0,
-                      annotation_text="Normal band 25–45%", annotation_position="top left",
-                      annotation_font=dict(size=9, color=C["gray"], family="JetBrains Mono,monospace"))
-    fig_vol.update_layout(yaxis_ticksuffix="%",
-                          title="EGARCH(1,1) Conditional Volatility — Asymmetric & Heavy-Tailed")
-    st.plotly_chart(fig_vol, use_container_width=True)
+    if not vw.empty and not vb.empty and not vg.empty:
+        fig_vol = qfig(380)
+        fig_vol.add_trace(go.Scatter(x=vw.index, y=vw*np.sqrt(252)*100, name="WTI EGARCH Vol",
+                                     line=dict(color=C["navy"], width=2.2)))
+        fig_vol.add_trace(go.Scatter(x=vb.index, y=vb*np.sqrt(252)*100, name="Brent EGARCH Vol",
+                                     line=dict(color=C["blue"], width=2.2, dash="dash")))
+        fig_vol.add_trace(go.Scatter(x=vg.index, y=vg*np.sqrt(252)*100, name="Gold EGARCH Vol",
+                                     line=dict(color=C["gold"], width=1.8, dash="dot")))
+        fig_vol.add_hrect(y0=25, y1=45, fillcolor="rgba(30,58,95,0.04)", line_width=0,
+                          annotation_text="Normal band 25–45%", annotation_position="top left",
+                          annotation_font=dict(size=9, color=C["gray"], family="JetBrains Mono,monospace"))
+        fig_vol.update_layout(yaxis_ticksuffix="%",
+                              title="EGARCH(1,1) Conditional Volatility — Asymmetric & Heavy-Tailed")
+        st.plotly_chart(fig_vol, use_container_width=True)
+    else:
+        st.warning("Volatility series not available for plotting.")
     st.markdown(f'<div class="info-block">EGARCH + Bayes Shrinkage · WTI {dw_d["vga"]:.0f}% → {dw_d["vsa"]:.0f}% (w={dw_d["w"]:.2f}) · Brent {db_d["vga"]:.0f}% → {db_d["vsa"]:.0f}% (w={db_d["w"]:.2f}) · DCC α={dcc_a:.4f} β={dcc_b:.4f}</div>', unsafe_allow_html=True)
 
 # ── TAB 2 · Geopolitical Intelligence ────────────────────
@@ -1155,15 +1162,17 @@ with tab2:
         bs_str = f" · ⚠ Black Swan ×{bs:.2f}" if bs > 1.2 else ""
         st.markdown(f'<div class="info-block">Urea ${usda["urea_price"]:.1f}/t · DAP ${usda["dap_price"]:.0f}/t{bs_str} · {usda["source"]}</div>', unsafe_allow_html=True)
     with col_b:
-        grb = float(gs["gold_real"].dropna().iloc[0]) if not gs["gold_real"].dropna().empty else 1
-        sgb = float(gs["silver_gold"].dropna().iloc[0]) if not gs["silver_gold"].dropna().empty else 1
+        gr_series = gs["gold_real"].dropna()
+        sg_series = gs["silver_gold"].dropna()
+        grb = float(gr_series.iloc[0]) if not gr_series.empty else 1.0
+        sgb = float(sg_series.iloc[0]) if not sg_series.empty else 1.0
         fig_g = dual_axis_fig(310)
-        fig_g.add_trace(go.Scatter(x=gs["gold_real"].dropna().index,
-                                   y=(gs["gold_real"].dropna()/grb).values, name="Gold/Real Yield",
-                                   line=dict(color=C["gold"], width=2.2)))
-        fig_g.add_trace(go.Scatter(x=gs["silver_gold"].dropna().index,
-                                   y=(gs["silver_gold"].dropna()/sgb).values, name="Silver/Gold Ratio",
-                                   line=dict(color=C["silver"], width=1.8, dash="dash"), yaxis="y2"))
+        if not gr_series.empty:
+            fig_g.add_trace(go.Scatter(x=gr_series.index, y=(gr_series/grb).values, name="Gold/Real Yield",
+                                       line=dict(color=C["gold"], width=2.2)))
+        if not sg_series.empty:
+            fig_g.add_trace(go.Scatter(x=sg_series.index, y=(sg_series/sgb).values, name="Silver/Gold Ratio",
+                                       line=dict(color=C["silver"], width=1.8, dash="dash"), yaxis="y2"))
         fig_g.update_layout(title="Gold Macro Signals")
         st.plotly_chart(fig_g, use_container_width=True)
 
@@ -1171,9 +1180,12 @@ with tab2:
     st.markdown('<div class="sec-title" style="font-size:1.1rem;">Agricultural Commodities — Indexed from Regime Inception</div>', unsafe_allow_html=True)
     fig_ag = qfig(280)
     for asset, color, label in [("wheat", C["navy"], "Wheat"), ("corn", C["sky"], "Corn"), ("soy", C["gray"], "Soy")]:
-        bv = float(prices[asset].iloc[0]) if not prices[asset].empty else 1
-        rel = (prices[asset] / bv * 100).dropna()
-        fig_ag.add_trace(go.Scatter(x=rel.index, y=rel.values, name=f"{label} (base ${bv:.0f})", line=dict(color=color, width=2.0)))
+        if asset in prices.columns and not prices[asset].dropna().empty:
+            bv = float(prices[asset].iloc[0])
+            rel = (prices[asset] / bv * 100).dropna()
+            fig_ag.add_trace(go.Scatter(x=rel.index, y=rel.values, name=f"{label} (base ${bv:.0f})", line=dict(color=color, width=2.0)))
+        else:
+            fig_ag.add_trace(go.Scatter(x=[], y=[], name=f"{label} (no data)", line=dict(color=color, width=1, dash='dot')))
     fig_ag.add_hline(y=100, line_dash="dot", line_color="#D9D5CD", line_width=1.2)
     fig_ag.update_layout(yaxis_title="Price Index (base = 100)")
     st.plotly_chart(fig_ag, use_container_width=True)
@@ -1245,21 +1257,24 @@ with tab4:
 
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title" style="font-size:1.1rem;">Cross-Asset Correlation Matrix</div>', unsafe_allow_html=True)
-    fig_corr = qfig(320)
-    cm = S["corr_mx"].values
-    cols_ = list(S["corr_mx"].columns)
-    fig_corr.add_trace(go.Heatmap(z=cm, x=cols_, y=cols_,
-                                  colorscale=[[0, "#8B3A3A"], [0.5, "#FFFFFF"], [1, "#1E3A5F"]],
-                                  zmid=0, text=np.round(cm, 3), texttemplate="%{text}",
-                                  textfont=dict(size=10, family="JetBrains Mono,monospace"), showscale=True))
-    fig_corr.update_layout(title="EWMA Asset Interdependence Topology")
-    st.plotly_chart(fig_corr, use_container_width=True)
+    if S["corr_mx"] is not None and not S["corr_mx"].empty:
+        fig_corr = qfig(320)
+        cm = S["corr_mx"].values
+        cols_ = list(S["corr_mx"].columns)
+        fig_corr.add_trace(go.Heatmap(z=cm, x=cols_, y=cols_,
+                                      colorscale=[[0, "#8B3A3A"], [0.5, "#FFFFFF"], [1, "#1E3A5F"]],
+                                      zmid=0, text=np.round(cm, 3), texttemplate="%{text}",
+                                      textfont=dict(size=10, family="JetBrains Mono,monospace"), showscale=True))
+        fig_corr.update_layout(title="EWMA Asset Interdependence Topology")
+        st.plotly_chart(fig_corr, use_container_width=True)
+    else:
+        st.info("Correlation matrix not available.")
 
 # ── TAB 5 · Macro & Stress ───────────────────────────────
 with tab5:
     st.markdown('<div class="sec-label">05 · System Stress Monitoring</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title">Composite Financial Stress Index</div>', unsafe_allow_html=True)
-    if S["stress_idx"] is not None and len(S["stress_idx"]) > 0:
+    if S["stress_idx"] is not None and isinstance(S["stress_idx"], pd.Series) and len(S["stress_idx"]) > 0:
         fig_st = qfig(340)
         fig_st.add_trace(go.Scatter(x=S["stress_idx"].index, y=S["stress_idx"].values,
                                     fill="tozeroy", fillcolor="rgba(123,63,63,0.05)",
@@ -1268,6 +1283,8 @@ with tab5:
                          annotation_text="Historical Baseline Mean", annotation_font=dict(family="JetBrains Mono", size=9, color="#9A958A"))
         fig_st.update_layout(title="Multivariate Macro Stress Metrics")
         st.plotly_chart(fig_st, use_container_width=True)
+    else:
+        st.info("Insufficient data to compute Stress Index.")
 
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title" style="font-size:1.1rem;">Risk Factor Contribution (LASSO)</div>', unsafe_allow_html=True)
