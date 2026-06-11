@@ -1,8 +1,8 @@
 """
 ╔══════════════════════════════════════════════════════════════════╗
-║   MACRO GEOPOLITICAL QUANT MODEL  v4.0-beta — Streamlit Edition  ║
+║   MACRO GEOPOLITICAL QUANT MODEL  —  Streamlit Edition           ║
 ║   Eduardo Moraes | Quant Data Scientist & Economics              ║
-║   Swiss Private Bank Aesthetic · Navy · Gold · Precision         ║
+║   Quantitative Research · Professional · Precision               ║
 ╚══════════════════════════════════════════════════════════════════╝
 """
 
@@ -36,153 +36,185 @@ logger = logging.getLogger(__name__)
 #   PAGE CONFIG
 # ══════════════════════════════════════════════════════════
 st.set_page_config(
-    page_title="GeoQuant · Private Research",
+    page_title="GeoQuant · Quantitative Research",
     page_icon="◆",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # ══════════════════════════════════════════════════════════
-#   SWISS BANK CSS
+#   PROFESSIONAL QUANT STYLE (CSS otimizado)
 # ══════════════════════════════════════════════════════════
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&family=DM+Mono:wght@300;400&family=DM+Sans:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,600;1,300&family=JetBrains+Mono:wght@300;400&display=swap');
 
 :root {
-    --navy:     #0B1628;
-    --navy-mid: #142038;
-    --gold:     #C8A96E;
-    --gold-dim: #9E8050;
-    --cream:    #F5F1EB;
-    --warm-bg:  #FDFBF8;
-    --gray-10:  #EAE6DF;
-    --gray-30:  #C4BDAF;
-    --gray-50:  #8C8377;
-    --text:     #1A1814;
-    --danger:   #7A3F30;
-    --success:  #3D6B4F;
+    --quant-bg:     #0A0F1A;
+    --quant-panel:  #111827;
+    --quant-card:   #1F2937;
+    --quant-gold:   #D4AF37;
+    --quant-gold-dim: #B49450;
+    --quant-blue:   #3B82F6;
+    --quant-blue-light: #60A5FA;
+    --quant-red:    #EF4444;
+    --quant-green:  #10B981;
+    --quant-gray:   #9CA3AF;
+    --quant-text:   #F3F4F6;
+    --quant-border: #374151;
 }
 
 html, body, [data-testid="stAppViewContainer"] {
-    background: var(--warm-bg) !important;
-    font-family: 'DM Sans', 'Helvetica Neue', sans-serif;
+    background: var(--quant-bg) !important;
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
     font-weight: 300;
-    color: var(--text);
+    color: var(--quant-text);
 }
 
 [data-testid="stSidebar"] {
-    background: var(--navy) !important;
-    border-right: 1px solid rgba(200,169,110,0.15);
+    background: var(--quant-panel) !important;
+    border-right: 1px solid var(--quant-border);
 }
-[data-testid="stSidebar"] * { color: var(--cream) !important; }
-[data-testid="stSidebar"] .stSlider > div > div { background: var(--gold-dim) !important; }
+[data-testid="stSidebar"] * { color: var(--quant-text) !important; }
+[data-testid="stSidebar"] .stSlider > div > div { background: var(--quant-gold-dim) !important; }
 
 /* Metric cards */
 div[data-testid="stMetric"] {
-    background: var(--warm-bg);
-    border: 1px solid var(--gray-10);
+    background: var(--quant-card);
+    border: 1px solid var(--quant-border);
+    border-radius: 8px;
     padding: 1rem 1.2rem;
 }
 div[data-testid="stMetric"] label {
-    font-family: 'DM Mono', monospace !important;
-    font-size: 0.58rem !important;
-    letter-spacing: 0.2em !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.6rem !important;
+    letter-spacing: 0.1em !important;
     text-transform: uppercase !important;
-    color: var(--gray-50) !important;
+    color: var(--quant-gray) !important;
 }
 div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
-    font-family: 'Cormorant Garamond', Georgia, serif !important;
-    font-size: 1.7rem !important;
-    font-weight: 300 !important;
-    color: var(--navy) !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 1.8rem !important;
+    font-weight: 500 !important;
+    color: var(--quant-gold) !important;
 }
 div[data-testid="stMetricDelta"] {
-    font-family: 'DM Mono', monospace !important;
-    font-size: 0.65rem !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.7rem !important;
 }
 
 /* Buttons */
 .stButton button {
-    background: var(--navy) !important;
-    color: var(--gold) !important;
+    background: var(--quant-gold-dim) !important;
+    color: var(--quant-bg) !important;
     border: none !important;
-    border-radius: 0 !important;
-    font-family: 'DM Mono', monospace !important;
-    font-size: 0.65rem !important;
-    letter-spacing: 0.18em !important;
-    text-transform: uppercase !important;
-    padding: 0.55rem 1.5rem !important;
+    border-radius: 6px !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    padding: 0.6rem 1.5rem !important;
     width: 100%;
 }
 .stButton button:hover {
-    background: var(--navy-mid) !important;
-    border: 1px solid rgba(200,169,110,0.4) !important;
+    background: var(--quant-gold) !important;
+    color: var(--quant-bg) !important;
+    border: none !important;
 }
 
 /* Progress bar */
-.stProgress > div > div { background: var(--gold) !important; }
+.stProgress > div > div { background: var(--quant-blue) !important; }
 
-/* Selectbox / slider labels */
-.stSlider label, .stSelectbox label, .stDateInput label {
-    font-family: 'DM Mono', monospace !important;
-    font-size: 0.58rem !important;
-    letter-spacing: 0.18em !important;
-    text-transform: uppercase !important;
+/* Tabs */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 1rem;
+    background-color: var(--quant-panel);
+    border-radius: 8px;
+    padding: 0.3rem;
+}
+.stTabs [data-baseweb="tab"] {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--quant-gray);
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+}
+.stTabs [aria-selected="true"] {
+    background-color: var(--quant-gold-dim);
+    color: var(--quant-bg);
 }
 
 /* Expander */
-[data-testid="stExpander"] { border: 1px solid var(--gray-10) !important; border-radius: 0 !important; }
+[data-testid="stExpander"] { 
+    background: var(--quant-panel);
+    border: 1px solid var(--quant-border);
+    border-radius: 8px;
+}
 
-/* Section labels */
+/* Section titles */
 .sec-label {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.58rem;
-    letter-spacing: 0.28em;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
-    color: var(--gold-dim);
+    color: var(--quant-gold-dim);
     margin-bottom: 0.2rem;
 }
 .sec-title {
-    font-family: 'Cormorant Garamond', Georgia, serif;
-    font-size: 1.3rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 1.5rem;
     font-weight: 400;
-    color: var(--navy);
-    letter-spacing: 0.02em;
+    color: var(--quant-text);
     margin-bottom: 1rem;
     padding-bottom: 0.5rem;
-    border-bottom: 1px solid var(--gray-10);
+    border-bottom: 2px solid var(--quant-gold-dim);
 }
-.swiss-divider {
+.divider {
     height: 1px;
-    background: linear-gradient(90deg, var(--gold) 0%, var(--gray-10) 55%, transparent 100%);
-    margin: 2rem 0;
+    background: linear-gradient(90deg, var(--quant-gold) 0%, var(--quant-border) 70%, transparent 100%);
+    margin: 1.5rem 0;
 }
 .info-block {
-    background: var(--cream);
-    border-left: 2px solid var(--gold);
-    padding: 0.7rem 1rem;
-    font-size: 0.76rem;
-    color: var(--gray-50);
-    margin: 0.5rem 0;
+    background: var(--quant-card);
+    border-left: 3px solid var(--quant-blue);
+    border-radius: 6px;
+    padding: 0.8rem 1rem;
+    font-size: 0.8rem;
+    color: var(--quant-gray);
 }
-.data-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+}
 .data-table th {
-    font-family: 'DM Mono', monospace; font-size: 0.56rem;
-    letter-spacing: 0.18em; text-transform: uppercase;
-    color: var(--gray-50); padding: 0.5rem 0.8rem;
-    border-bottom: 1px solid var(--gray-10); background: var(--cream);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--quant-gray);
+    padding: 0.5rem 0.8rem;
+    border-bottom: 1px solid var(--quant-border);
+    background: var(--quant-panel);
 }
-.data-table td { padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--gray-10); font-weight: 300; }
-.data-table tr:hover td { background: var(--cream); }
+.data-table td {
+    padding: 0.5rem 0.8rem;
+    border-bottom: 1px solid var(--quant-border);
+    color: var(--quant-text);
+}
+.data-table tr:hover td { background: var(--quant-card); }
 
 .footer {
-    margin-top: 3rem; padding-top: 1.5rem;
-    border-top: 1px solid var(--gray-10);
-    font-family: 'DM Mono', monospace;
-    font-size: 0.56rem; letter-spacing: 0.15em;
-    color: var(--gray-30); text-transform: uppercase;
-    display: flex; justify-content: space-between;
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--quant-border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    color: var(--quant-gray);
+    display: flex;
+    justify-content: space-between;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -212,37 +244,37 @@ SPREAD_MAX     =  0.30
 FERT_BS_Z_THR  = 1.5
 FERT_EVT_Q     = 0.90
 
-# Swiss Plotly template
-SWISS_LAYOUT = dict(
-    paper_bgcolor="#FDFBF8", plot_bgcolor="#F5F1EB",
-    font=dict(family="DM Sans, Helvetica Neue, sans-serif", color="#1A1814", size=12),
-    title_font=dict(family="Cormorant Garamond, Georgia, serif", size=17, color="#0B1628"),
-    xaxis=dict(gridcolor="#DDD9D1", linecolor="#C4BDAF", zeroline=False,
-               tickfont=dict(size=10, family="DM Mono, monospace")),
-    yaxis=dict(gridcolor="#DDD9D1", linecolor="#C4BDAF", zeroline=False,
-               tickfont=dict(size=10, family="DM Mono, monospace")),
-    legend=dict(bgcolor="rgba(253,251,248,0.92)", bordercolor="#C4BDAF",
-                borderwidth=1, font=dict(size=11)),
-    margin=dict(l=55, r=30, t=55, b=40),
-    hoverlabel=dict(bgcolor="#0B1628", font_color="#C8A96E",
-                    font_family="DM Mono, monospace"),
-)
-C = dict(
-    navy="#0B1628", gold="#C8A96E", gold_dim="#9E8050",
-    blue="#3A5F8A", teal="#2D6B6B", sage="#5F6B47",
-    rust="#7A3F30", gray="#8C8377", silver="#9E9488",
-    fan90="#C4BDAF", fan50="#9E9488",
-)
+# Plotly template: dark + gold accents
+PLOTLY_TEMPLATE = {
+    "layout": {
+        "paper_bgcolor": "#111827",
+        "plot_bgcolor": "#1F2937",
+        "font": {"family": "Inter", "color": "#F3F4F6", "size": 11},
+        "title_font": {"family": "Inter", "size": 14, "color": "#D4AF37"},
+        "xaxis": {"gridcolor": "#374151", "linecolor": "#4B5563", "zerolinecolor": "#4B5563", "tickfont": {"size": 10}},
+        "yaxis": {"gridcolor": "#374151", "linecolor": "#4B5563", "zerolinecolor": "#4B5563", "tickfont": {"size": 10}},
+        "legend": {"bgcolor": "rgba(31,41,55,0.8)", "bordercolor": "#D4AF37", "borderwidth": 1, "font": {"size": 10}},
+        "hoverlabel": {"bgcolor": "#1F2937", "font_color": "#D4AF37", "font_family": "JetBrains Mono"},
+        "margin": {"l": 50, "r": 30, "t": 60, "b": 40},
+    }
+}
 
-def sw_fig(height=360):
+C = {
+    "navy": "#1E3A8A", "gold": "#D4AF37", "gold_dim": "#B49450",
+    "blue": "#3B82F6", "teal": "#14B8A6", "sage": "#10B981",
+    "rust": "#F97316", "gray": "#9CA3AF", "silver": "#94A3B8",
+    "fan90": "#3B82F6", "fan50": "#94A3B8",
+}
+
+def quant_fig(height=450):
     fig = go.Figure()
-    fig.update_layout(**SWISS_LAYOUT, height=height)
+    fig.update_layout(**PLOTLY_TEMPLATE["layout"], height=height)
     return fig
 
-def sw_subplots(rows=1, cols=1, secondary=False, height=360, **kw):
+def quant_subplots(rows=1, cols=1, secondary=False, height=450, **kw):
     specs = [[{"secondary_y": secondary}] * cols for _ in range(rows)]
     fig = make_subplots(rows=rows, cols=cols, specs=specs, **kw)
-    fig.update_layout(**SWISS_LAYOUT, height=height)
+    fig.update_layout(**PLOTLY_TEMPLATE["layout"], height=height)
     return fig
 
 # ══════════════════════════════════════════════════════════
@@ -250,18 +282,18 @@ def sw_subplots(rows=1, cols=1, secondary=False, height=360, **kw):
 # ══════════════════════════════════════════════════════════
 with st.sidebar:
     st.markdown("""
-    <div style='padding:1.4rem 0 1.2rem; border-bottom:1px solid rgba(200,169,110,0.18); margin-bottom:1.4rem;'>
-        <div style='font-family:"DM Mono",monospace;font-size:0.52rem;letter-spacing:0.26em;color:#C8A96E;text-transform:uppercase;margin-bottom:0.5rem;'>◆ Edumetria</div>
-        <div style='font-family:"Cormorant Garamond",Georgia,serif;font-size:1.35rem;font-weight:300;color:#F5F1EB;letter-spacing:0.06em;'>GeoQuant Terminal</div>
-        <div style='font-family:"DM Mono",monospace;font-size:0.52rem;color:rgba(245,241,235,0.35);letter-spacing:0.14em;margin-top:0.3rem;'>v4.0-beta · Research Private</div>
+    <div style='padding:1.2rem 0 1rem; border-bottom:1px solid #374151; margin-bottom:1.2rem;'>
+        <div style='font-family:"JetBrains Mono",monospace;font-size:0.55rem;letter-spacing:0.2em;color:#D4AF37;text-transform:uppercase;margin-bottom:0.3rem;'>◆ EDUMETRIA</div>
+        <div style='font-family:"Inter",sans-serif;font-size:1.3rem;font-weight:300;color:#F3F4F6;'>GeoQuant Terminal</div>
+        <div style='font-family:"JetBrains Mono",monospace;font-size:0.5rem;color:#9CA3AF;margin-top:0.2rem;'>Quantitative Research</div>
     </div>
     """, unsafe_allow_html=True)
 
     def sb_label(txt):
-        st.markdown(f'<div style="font-family:\'DM Mono\',monospace;font-size:0.56rem;letter-spacing:0.2em;color:#C8A96E;text-transform:uppercase;margin:1rem 0 0.5rem;">{txt}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="font-family:\'JetBrains Mono\',monospace;font-size:0.6rem;letter-spacing:0.15em;color:#D4AF37;text-transform:uppercase;margin:1rem 0 0.4rem;">{txt}</div>', unsafe_allow_html=True)
 
     def sb_sep():
-        st.markdown('<div style="height:1px;background:rgba(200,169,110,0.12);margin:0.8rem 0;"></div>', unsafe_allow_html=True)
+        st.markdown('<div style="height:1px;background:#374151;margin:0.6rem 0;"></div>', unsafe_allow_html=True)
 
     sb_label("· Simulation")
     mc_sims  = st.slider("Monte Carlo paths",   1_000, 30_000, 5_000, 1_000)
@@ -287,9 +319,9 @@ with st.sidebar:
     run_btn = st.button("▶  Run Full Analysis")
 
     st.markdown("""
-    <div style='margin-top:2rem;font-family:"DM Mono",monospace;font-size:0.48rem;
-    color:rgba(245,241,235,0.25);letter-spacing:0.1em;line-height:2.2;'>
-    FOR PROFESSIONAL USE ONLY<br>NOT INVESTMENT ADVICE<br>CONFIDENTIAL & PROPRIETARY
+    <div style='margin-top:2rem;font-family:"JetBrains Mono",monospace;font-size:0.45rem;
+    color:#6B7280;letter-spacing:0.1em;line-height:1.8;'>
+    FOR PROFESSIONAL USE ONLY<br>NOT INVESTMENT ADVICE<br>CONFIDENTIAL
     </div>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════
@@ -298,30 +330,31 @@ with st.sidebar:
 now_sp = datetime.now(pytz.timezone("America/Sao_Paulo"))
 st.markdown(f"""
 <div style='display:flex;justify-content:space-between;align-items:flex-start;
-padding:1.8rem 0 1.4rem;border-bottom:1px solid #EAE6DF;margin-bottom:2rem;'>
+padding:1.2rem 0 1rem;border-bottom:2px solid #D4AF37;margin-bottom:1.5rem;'>
   <div>
     <div style='display:flex;align-items:baseline;gap:0.7rem;'>
-      <span style='font-family:"DM Mono",monospace;font-size:0.9rem;color:#C8A96E;letter-spacing:0.2em;'>◆◆◆</span>
+      <span style='font-family:"JetBrains Mono",monospace;font-size:1.2rem;color:#D4AF37;letter-spacing:0.15em;'>◆◆◆</span>
       <div>
-        <div style='font-family:"Cormorant Garamond",Georgia,serif;font-size:2rem;font-weight:300;color:#0B1628;letter-spacing:0.06em;line-height:1;'>GeoQuant · Macro Research</div>
-        <div style='font-family:"DM Mono",monospace;font-size:0.58rem;color:#8C8377;letter-spacing:0.2em;text-transform:uppercase;margin-top:0.3rem;'>Geopolitical Intelligence · Commodity Markets · Private</div>
+        <div style='font-family:"Inter",sans-serif;font-size:2rem;font-weight:400;color:#F3F4F6;letter-spacing:-0.02em;'>GeoQuant · Macro Research</div>
+        <div style='font-family:"JetBrains Mono",monospace;font-size:0.6rem;color:#9CA3AF;letter-spacing:0.15em;text-transform:uppercase;margin-top:0.2rem;'>Geopolitical Intelligence · Commodity Markets · Quantitative</div>
       </div>
     </div>
   </div>
   <div style='text-align:right;'>
-    <div style='display:inline-block;background:#0B1628;color:#C8A96E;padding:0.22rem 0.75rem;
-    font-family:"DM Mono",monospace;font-size:0.58rem;letter-spacing:0.18em;text-transform:uppercase;'>
+    <div style='display:inline-block;background:#D4AF37;color:#0A0F1A;padding:0.2rem 0.8rem;
+    font-family:"JetBrains Mono",monospace;font-size:0.6rem;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;border-radius:4px;'>
     ⚑ WAR REGIME</div>
-    <div style='font-family:"DM Mono",monospace;font-size:0.6rem;color:#8C8377;letter-spacing:0.1em;margin-top:0.5rem;line-height:1.8;'>
-    {now_sp.strftime("%d %B %Y · %H:%M")} (SP)<br>Model v4.0-beta · EVT+DCC+GARCH-X
+    <div style='font-family:"JetBrains Mono",monospace;font-size:0.6rem;color:#9CA3AF;margin-top:0.5rem;line-height:1.5;'>
+    {now_sp.strftime("%d %B %Y · %H:%M")} (SP)<br>Model · EVT+DCC+GARCH-X
     </div>
   </div>
 </div>
 """, unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════
-#   QUANT ENGINE
+#   QUANT ENGINE (TODAS AS FUNÇÕES AUXILIARES)
 # ══════════════════════════════════════════════════════════
+
 def rolling_zscore(s, w=60):
     return (s - s.rolling(w).mean()) / s.rolling(w).std().replace(0, np.nan)
 
@@ -565,13 +598,9 @@ def run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol,
         "p5":(fan[5][-1]/wti0-1)*100,"p95":(fan[95][-1]/wti0-1)*100,
     }}
 
-# ── Data fetch (CORRIGIDA: 365 dias dinâmicos) ──
+# ── Data fetch (365 dias dinâmicos) ──
 @st.cache_data(ttl=900, show_spinner=False)
 def fetch_data(start_date=None):
-    """
-    Baixa dados de mercado reais usando Yahoo Finance.
-    Se start_date for None, usa 365 dias atrás (garante dados suficientes).
-    """
     if start_date is None:
         start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
     tickers_list = list(TICKERS.values())
@@ -592,7 +621,6 @@ def fetch_data(start_date=None):
             out = raw.copy()
         return out
 
-    # Estratégia 1: batch, auto_adjust=True
     try:
         raw = yf.download(tickers_list, start=start_date, progress=False, auto_adjust=True)
         out = _extract_close(raw)
@@ -602,7 +630,6 @@ def fetch_data(start_date=None):
     except Exception as e:
         errors.append(f"S1: {e}")
 
-    # Estratégia 2: batch, auto_adjust=False
     try:
         raw = yf.download(tickers_list, start=start_date, progress=False, auto_adjust=False)
         out = _extract_close(raw)
@@ -612,7 +639,6 @@ def fetch_data(start_date=None):
     except Exception as e:
         errors.append(f"S2: {e}")
 
-    # Estratégia 3: período fixo 120d
     try:
         raw = yf.download(tickers_list, period="120d", progress=False, auto_adjust=True)
         out = _extract_close(raw)
@@ -622,7 +648,6 @@ def fetch_data(start_date=None):
     except Exception as e:
         errors.append(f"S3: {e}")
 
-    # Estratégia 4: tickers individuais
     frames = {}
     for key, ticker_sym in TICKERS.items():
         try:
@@ -644,10 +669,8 @@ def fetch_data(start_date=None):
     st.session_state["fetch_errors"] = errors
     return pd.DataFrame()
 
-
 @st.cache_data(ttl=60, show_spinner=False)
 def fetch_live(last_wti=65.0, last_brt=68.0):
-    """Busca preços ao vivo com fallback robusto."""
     try:
         w = yf.Ticker("CL=F").fast_info
         b = yf.Ticker("BZ=F").fast_info
@@ -657,10 +680,8 @@ def fetch_live(last_wti=65.0, last_brt=68.0):
             return wti, brent
     except Exception:
         pass
-
     try:
-        d = yf.download(["CL=F", "BZ=F"], period="5d",
-                        progress=False, auto_adjust=True, threads=False)
+        d = yf.download(["CL=F", "BZ=F"], period="5d", progress=False, auto_adjust=True, threads=False)
         if isinstance(d.columns, pd.MultiIndex):
             d = d["Close"]
         wti = float(d["CL=F"].dropna().iloc[-1])
@@ -669,10 +690,7 @@ def fetch_live(last_wti=65.0, last_brt=68.0):
             return wti, brent
     except Exception:
         pass
-
-    # Fallback: último fechamento dos dados históricos
     return last_wti, last_brt
-
 
 # ══════════════════════════════════════════════════════════
 #   MAIN PIPELINE
@@ -680,399 +698,343 @@ def fetch_live(last_wti=65.0, last_brt=68.0):
 needs_run = run_btn or "results" not in st.session_state
 
 if needs_run:
-    # ── Loading overlay ──
     loading = st.empty()
     loading.markdown("""
-    <div style='text-align:center;padding:3rem 2rem;background:#F5F1EB;border:1px solid #C4BDAF;margin:1rem 0;'>
-      <div style='font-family:"DM Mono",monospace;font-size:0.58rem;letter-spacing:0.22em;color:#9E8050;text-transform:uppercase;margin-bottom:0.8rem;'>Initialising Research Terminal</div>
-      <div style='font-family:"Cormorant Garamond",Georgia,serif;font-size:1.5rem;color:#0B1628;font-weight:300;'>Loading market data & calibrating model…</div>
+    <div style='text-align:center;padding:2rem;background:#1F2937;border-radius:8px;margin:1rem 0;'>
+      <div style='font-family:"JetBrains Mono",monospace;font-size:0.7rem;letter-spacing:0.15em;color:#D4AF37;'>Initialising Quantitative Terminal</div>
+      <div style='font-family:"Inter",sans-serif;font-size:1.2rem;color:#F3F4F6;margin-top:0.3rem;'>Loading market data & calibrating model…</div>
     </div>""", unsafe_allow_html=True)
-
     prog = st.progress(0)
 
-    # 1 · Data (365 dias dinâmicos)
     prog.progress(10)
     prices = fetch_data()
-
     if prices.empty or len(prices) < 5:
-        loading.empty()
-        prog.empty()
-        st.error("❌ Não foi possível carregar dados de mercado reais via Yahoo Finance. Verifique sua conexão ou tente novamente mais tarde.")
-        errs = st.session_state.get("fetch_errors", [])
-        if errs:
-            with st.expander("Detalhes dos erros"):
-                for e in errs:
-                    st.code(e)
-        st.info("Dica: O Yahoo Finance pode estar temporariamente indisponível. Aguarde alguns minutos e clique em 'Run Full Analysis' novamente.")
+        loading.empty(); prog.empty()
+        st.error("❌ Não foi possível carregar dados de mercado reais. Verifique sua conexão ou tente novamente.")
         st.stop()
 
-    # Garantir colunas
     for key in TICKERS:
         if key not in prices.columns:
             prices[key] = np.nan
     prices = prices.ffill().bfill()
 
-    # Preços ao vivo
     last_wti = float(prices["oil"].dropna().iloc[-1])
     last_brt = float(prices["brent"].dropna().iloc[-1])
     wti0, brt0 = fetch_live(last_wti, last_brt)
-
-    prices.loc[prices.index[-1], "oil"]   = wti0
+    prices.loc[prices.index[-1], "oil"] = wti0
     prices.loc[prices.index[-1], "brent"] = brt0
     returns = np.log(prices / prices.shift(1)).dropna()
 
-    # 2 · Sinais
     prog.progress(22)
-    usda    = get_usda()
+    usda = get_usda()
     bs_mult = fert_black_swan(usda)
-    gs      = gold_signals(prices)
-    sd      = silver_demand_proxy(prices)
+    gs = gold_signals(prices)
+    sd = silver_demand_proxy(prices)
     weights = GEO_WEIGHTS_DEFAULT.copy()
     weights["silver_demand"] = 0.02
     tot = sum(abs(v) for v in weights.values())
-    weights = {k:v/tot for k,v in weights.items()}
-    fi      = build_fert_index(returns, usda, bs_mult)
+    weights = {k: v/tot for k, v in weights.items()}
+    fi = build_fert_index(returns, usda, bs_mult)
 
     prog.progress(35)
     dyn_w = calibrate_weights(returns, prices, gs, fi, sd)
-    if dyn_w: weights = dyn_w
-    gf  = build_geofactor(returns, prices, gs, fi, weights, sd)
+    if dyn_w:
+        weights = dyn_w
+    gf_raw = build_geofactor(returns, prices, gs, fi, weights, sd)
+    # Normalização do GeoFactor
+    gf = (gf_raw - gf_raw.mean()) / gf_raw.std() if len(gf_raw) > 1 else gf_raw
     zsc = build_zscore(prices, gs)
 
-    # 3 · GARCH
     prog.progress(50)
-    vw = fit_garch(returns["oil"],   gf)
+    vw = fit_garch(returns["oil"], gf)
     vb = fit_garch(returns["brent"], gf)
-    vg = fit_garch(returns["gold"],  gf)
-    n  = len(returns)
-    pw_d = prior_wti/np.sqrt(252)
-    pb_d = prior_brent/np.sqrt(252)
-    pg_d = 0.18/np.sqrt(252)
+    vg = fit_garch(returns["gold"], gf)
+    n = len(returns)
+    pw_d = prior_wti / np.sqrt(252)
+    pb_d = prior_brent / np.sqrt(252)
+    pg_d = 0.18 / np.sqrt(252)
     vw, dw = bayes_shrink(vw, pw_d, n, geofactor=gf, label="WTI")
     vb, db = bayes_shrink(vb, pb_d, n, geofactor=gf, label="BRT")
-    vg, _  = bayes_shrink(vg, pg_d, n)
-    bvw = float(vw.iloc[-1]); bvb = float(vb.iloc[-1])
+    vg, _ = bayes_shrink(vg, pg_d, n)
+    bvw = float(vw.iloc[-1])
+    bvb = float(vb.iloc[-1])
 
-    # 4 · DCC + VAR
     prog.progress(65)
     dcc_a, dcc_b = fit_dcc(returns["oil"], returns["brent"], vw, vb)
-    rv    = returns.loc[gf.index.intersection(returns.index)]
-    lags  = min(5, max(1, len(rv)//10))
-    vm    = VAR(rv).fit(lags)
+    rv = returns.loc[gf.index.intersection(returns.index)]
+    lags = min(5, max(1, len(rv)//10))
+    vm = VAR(rv).fit(lags)
     fcast = vm.forecast(rv.values[-vm.k_ar:], steps=mc_steps)
-    cols  = list(rv.columns)
-    ocol  = cols.index("oil"); bcol = cols.index("brent")
-    vr    = bvb / (pb_d*1.5)
-    tdf_d = max(2.5, min(6.0, tail_df / np.sqrt(max(vr,0.5))))
+    cols = list(rv.columns)
+    ocol = cols.index("oil")
+    bcol = cols.index("brent")
+    vr = bvb / (pb_d * 1.5)
+    tdf_d = max(2.5, min(6.0, tail_df / np.sqrt(max(vr, 0.5))))
     rbase = float(np.tanh(gf.iloc[-1]/2)) if not gf.empty else 0.0
-    ws    = (returns["wheat"].tail(20).mean()+returns["natgas"].tail(20).mean())/2
+    ws = (returns["wheat"].tail(20).mean() + returns["natgas"].tail(20).mean()) / 2
     war_t = bool(ws > 0.005)
-    jpu_eff = min(jump_up*1.5, 0.15) if war_t else jump_up
+    jpu_eff = min(jump_up * 1.5, 0.15) if war_t else jump_up
 
-    # 5 · Monte Carlo
     prog.progress(75)
     mc_note = st.empty()
-    mc_note.markdown('<div style="font-family:\'DM Mono\',monospace;font-size:0.6rem;letter-spacing:0.14em;color:#9E8050;">Monte Carlo simulation running…</div>', unsafe_allow_html=True)
+    mc_note.markdown('<div style="font-family:JetBrains Mono;font-size:0.7rem;color:#D4AF37;">Monte Carlo simulation running…</div>', unsafe_allow_html=True)
     mc_bar = st.progress(0)
     mc = run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase,
                 returns["oil"], returns["brent"], vw, vb,
                 jpu_eff, tdf_d, bs=bs_mult, dcc_a=dcc_a, dcc_b=dcc_b,
                 sims=mc_sims, steps=mc_steps, bar=mc_bar)
-    mc_note.empty(); mc_bar.empty()
+    mc_note.empty()
+    mc_bar.empty()
 
-    # Correlação
     try:
-        rj = pd.concat([returns["oil"],returns["brent"]],axis=1).dropna()
+        rj = pd.concat([returns["oil"], returns["brent"]], axis=1).dropna()
         ec = rj.ewm(alpha=0.06).cov(pairwise=True)
         lc = ec.loc[ec.index.get_level_values(0)[-1]]
-        corr = float(np.clip(lc.loc["oil","brent"]/np.sqrt(lc.loc["oil","oil"]*lc.loc["brent","brent"]),-1,1))
-    except: corr = 0.95
+        corr = float(np.clip(lc.loc["oil", "brent"] / np.sqrt(lc.loc["oil", "oil"] * lc.loc["brent", "brent"]), -1, 1))
+    except:
+        corr = 0.95
+
+    # Métricas adicionais
+    ret_ann = returns[["oil", "brent"]].mean() * 252
+    vol_ann = returns[["oil", "brent"]].std() * np.sqrt(252)
+    sharpe = ret_ann / vol_ann
+    downside = returns[["oil", "brent"]][returns[["oil", "brent"]] < 0].std() * np.sqrt(252)
+    sortino = ret_ann / downside
+    skew_oil = returns["oil"].skew()
+    kurt_oil = returns["oil"].kurtosis()
+    skew_brt = returns["brent"].skew()
+    kurt_brt = returns["brent"].kurtosis()
 
     prog.progress(100)
-    loading.empty(); prog.empty()
+    loading.empty()
+    prog.empty()
 
-    # Save state
-    st.session_state.update({"results":mc,"gf":gf,"zsc":zsc,"vw":vw,"vb":vb,"vg":vg,
-        "fi":fi,"gs":gs,"prices":prices,"returns":returns,"wti0":wti0,"brt0":brt0,
-        "usda":usda,"bs":bs_mult,"dw":dw,"db":db,"tdf":tdf_d,"corr":corr,
-        "rbase":rbase,"war_t":war_t,"ws":float(ws),"jpu":jpu_eff,
-        "dcc_a":dcc_a,"dcc_b":dcc_b,"weights":weights})
+    st.session_state.update({
+        "results": mc, "gf": gf, "zsc": zsc, "vw": vw, "vb": vb, "vg": vg,
+        "fi": fi, "gs": gs, "prices": prices, "returns": returns,
+        "wti0": wti0, "brt0": brt0, "usda": usda, "bs": bs_mult,
+        "dw": dw, "db": db, "tdf": tdf_d, "corr": corr, "rbase": rbase,
+        "war_t": war_t, "ws": float(ws), "jpu": jpu_eff, "dcc_a": dcc_a,
+        "dcc_b": dcc_b, "weights": weights,
+        "sharpe": sharpe, "sortino": sortino,
+        "skew_oil": skew_oil, "kurt_oil": kurt_oil,
+        "skew_brt": skew_brt, "kurt_brt": kurt_brt,
+    })
 
-# ── Pull from state ──
-mc     = st.session_state["results"]
-gf     = st.session_state["gf"]
-zsc    = st.session_state["zsc"]
-vw     = st.session_state["vw"]
-vb     = st.session_state["vb"]
-vg     = st.session_state["vg"]
-fi     = st.session_state["fi"]
-gs     = st.session_state["gs"]
+# Recuperar do state
+mc = st.session_state["results"]
+gf = st.session_state["gf"]
+zsc = st.session_state["zsc"]
+vw = st.session_state["vw"]
+vb = st.session_state["vb"]
+vg = st.session_state["vg"]
+fi = st.session_state["fi"]
+gs = st.session_state["gs"]
 prices = st.session_state["prices"]
-returns= st.session_state["returns"]
-wti0   = st.session_state["wti0"]
-brt0   = st.session_state["brt0"]
-usda   = st.session_state["usda"]
-bs     = st.session_state["bs"]
-dw_d   = st.session_state["dw"]
-db_d   = st.session_state["db"]
-tdf_d  = st.session_state["tdf"]
-corr   = st.session_state["corr"]
-rbase  = st.session_state["rbase"]
-war_t  = st.session_state["war_t"]
+returns = st.session_state["returns"]
+wti0 = st.session_state["wti0"]
+brt0 = st.session_state["brt0"]
+usda = st.session_state["usda"]
+bs = st.session_state["bs"]
+dw_d = st.session_state["dw"]
+db_d = st.session_state["db"]
+tdf_d = st.session_state["tdf"]
+corr = st.session_state["corr"]
+rbase = st.session_state["rbase"]
+war_t = st.session_state["war_t"]
 ws_val = st.session_state["ws"]
-jpu    = st.session_state["jpu"]
-dcc_a  = st.session_state["dcc_a"]
-dcc_b  = st.session_state["dcc_b"]
-fan    = mc["fan"]; fan_b = mc["fan_b"]; M = mc["metrics"]
+jpu = st.session_state["jpu"]
+dcc_a = st.session_state["dcc_a"]
+dcc_b = st.session_state["dcc_b"]
+fan = mc["fan"]
+fan_b = mc["fan_b"]
+M = mc["metrics"]
+sharpe = st.session_state.get("sharpe", pd.Series([0,0], index=["oil","brent"]))
+sortino = st.session_state.get("sortino", pd.Series([0,0], index=["oil","brent"]))
+skew_oil = st.session_state.get("skew_oil", 0)
+kurt_oil = st.session_state.get("kurt_oil", 0)
+skew_brt = st.session_state.get("skew_brt", 0)
+kurt_brt = st.session_state.get("kurt_brt", 0)
 
 # ══════════════════════════════════════════════════════════
-#   § 1 · METRICS ROW
+#   INTERFACE COM ABAS
 # ══════════════════════════════════════════════════════════
-st.markdown('<div class="sec-label">01 · Market Snapshot</div>', unsafe_allow_html=True)
-st.markdown('<div class="sec-title">Live Commodity & Risk Metrics</div>', unsafe_allow_html=True)
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 MARKET & RISK", "⚡ GEOPOLITICAL", "🎲 MONTE CARLO", "📊 QUANT STATS", "📋 EXECUTIVE"])
 
-c1,c2,c3,c4,c5,c6 = st.columns(6)
-spread = brt0 - wti0
-with c1: st.metric("WTI Crude",      f"${wti0:.2f}",       f"P50 10d ${fan[50][-1]:.2f}")
-with c2: st.metric("Brent Crude",    f"${brt0:.2f}",       f"Spread ${spread:.2f}")
-with c3: st.metric("WTI Vol p.a.",   f"{M['vol_wti']:.1f}%", f"→ {dw_d['vsa']:.1f}% shrunk")
-with c4: st.metric("GeoFactor",      f"{float(gf.iloc[-1]):.4f}", f"Regime {rbase:+.2f}")
-with c5: st.metric("VaR 95% 1d",     f"${M['var95']:+.2f}", f"CVaR ${M['cvar95']:+.2f}")
-with c6: st.metric("Z-Composite",    f"{float(zsc.iloc[-1]):+.3f}", "War ACTIVE" if war_t else "Subdued")
-
-st.markdown('<div class="swiss-divider"></div>', unsafe_allow_html=True)
-
-# ══════════════════════════════════════════════════════════
-#   § 2 · GEO SIGNALS (COM VERIFICAÇÃO)
-# ══════════════════════════════════════════════════════════
-st.markdown('<div class="sec-label">02 · Geopolitical Intelligence</div>', unsafe_allow_html=True)
-st.markdown('<div class="sec-title">Z-Score Composite & GeoFactor v4.0</div>', unsafe_allow_html=True)
-
-if zsc is None or len(zsc) < 5 or gf is None or len(gf) < 5:
-    st.warning(f"Dados insuficientes para gerar o gráfico. Z-Score: {len(zsc) if zsc is not None else 0} pontos, GeoFactor: {len(gf) if gf is not None else 0} pontos.")
-    st.info("Isso pode ocorrer no primeiro carregamento ou se a janela de dados for muito curta. Tente rodar novamente em alguns segundos.")
-else:
-    fig_geo = sw_subplots(secondary=True, height=340)
-    fig_geo.add_trace(go.Scatter(
-        x=zsc.index, y=zsc.values, name="Z-Score",
-        line=dict(color=C["blue"], width=2.2),
-        fill="tozeroy", fillcolor="rgba(58,95,138,0.07)",
-    ), secondary_y=False)
-    fig_geo.add_trace(go.Scatter(
-        x=gf.index, y=gf.values, name="GeoFactor v4.0",
-        line=dict(color=C["navy"], width=2.8),
-    ), secondary_y=True)
-    fig_geo.add_hline(y=1.5,  line_dash="dot", line_color=C["gold_dim"], line_width=1.3, secondary_y=False)
-    fig_geo.add_hline(y=-1.5, line_dash="dot", line_color=C["gold_dim"], line_width=1.3, secondary_y=False)
-    fig_geo.add_hline(y=0,    line_dash="solid", line_color="#C4BDAF",   line_width=0.8, secondary_y=False)
-    fig_geo.update_yaxes(title_text="Z-Score",    secondary_y=False, **SWISS_LAYOUT["yaxis"])
-    fig_geo.update_yaxes(title_text="GeoFactor",  secondary_y=True,  **SWISS_LAYOUT["yaxis"])
-    st.plotly_chart(fig_geo, use_container_width=True)
-st.markdown('<div class="swiss-divider"></div>', unsafe_allow_html=True)
-
-# ══════════════════════════════════════════════════════════
-#   § 3 · VOLATILITY (COM VERIFICAÇÃO)
-# ══════════════════════════════════════════════════════════
-st.markdown('<div class="sec-label">03 · Volatility Surface</div>', unsafe_allow_html=True)
-st.markdown('<div class="sec-title">GARCH-X + Adaptive Bayesian Shrinkage</div>', unsafe_allow_html=True)
-
-if vw is None or len(vw) < 5:
-    st.warning("Dados de volatilidade insuficientes para gerar o gráfico.")
-else:
-    fig_vol = sw_fig(height=320)
-    fig_vol.add_trace(go.Scatter(x=vw.index, y=vw*np.sqrt(252)*100, name="WTI",   line=dict(color=C["navy"],     width=2.2)))
-    fig_vol.add_trace(go.Scatter(x=vb.index, y=vb*np.sqrt(252)*100, name="Brent", line=dict(color=C["blue"],     width=2.2, dash="dash")))
-    fig_vol.add_trace(go.Scatter(x=vg.index, y=vg*np.sqrt(252)*100, name="Gold",  line=dict(color=C["gold"],     width=2.0, dash="dot")))
-    fig_vol.add_hrect(y0=25, y1=45, fillcolor="rgba(61,107,79,0.05)", line_width=0,
-        annotation_text="Normal band 25–45%", annotation_position="top left",
-        annotation_font=dict(size=10, color=C["gray"], family="DM Mono, monospace"))
-    fig_vol.update_layout(yaxis_ticksuffix="%")
-    st.plotly_chart(fig_vol, use_container_width=True)
-
-st.markdown(f"""
-<div class="info-block">
-<strong>Bayesian Shrinkage</strong> &nbsp;·&nbsp;
-WTI {dw_d['vga']:.0f}% → <strong>{dw_d['vsa']:.0f}%</strong> (w={dw_d['w']:.2f}) &nbsp;·&nbsp;
-Brent {db_d['vga']:.0f}% → <strong>{db_d['vsa']:.0f}%</strong> (w={db_d['w']:.2f}) &nbsp;·&nbsp;
-DCC α={dcc_a:.4f} β={dcc_b:.4f} · persist={(dcc_a+dcc_b):.4f}
-</div>""", unsafe_allow_html=True)
-st.markdown('<div class="swiss-divider"></div>', unsafe_allow_html=True)
-
-# ══════════════════════════════════════════════════════════
-#   § 4 · STRESS INDICES
-# ══════════════════════════════════════════════════════════
-st.markdown('<div class="sec-label">04 · Stress Indices</div>', unsafe_allow_html=True)
-st.markdown('<div class="sec-title">Fertilizer Pressure · Gold Signals</div>', unsafe_allow_html=True)
-
-col_a, col_b = st.columns(2)
-
-with col_a:
-    if fi is None or len(fi) < 5:
-        st.warning("Dados do índice de fertilizantes insuficientes.")
+with tab1:
+    st.markdown('<div class="sec-title">Live Commodity & Risk Metrics</div>', unsafe_allow_html=True)
+    col1, col2, col3, col4 = st.columns(4)
+    spread = brt0 - wti0
+    col1.metric("WTI Crude", f"${wti0:.2f}", f"P50 10d ${fan[50][-1]:.2f}")
+    col2.metric("Brent Crude", f"${brt0:.2f}", f"Spread ${spread:.2f} ({spread/wti0*100:.1f}%)")
+    col3.metric("WTI Vol p.a.", f"{M['vol_wti']:.1f}%", f"Shrunk → {dw_d['vsa']:.1f}%")
+    col4.metric("Brent Vol p.a.", f"{M['vol_brt']:.1f}%", f"Shrunk → {db_d['vsa']:.1f}%")
+    
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-title">Volatility Surface — GARCH-X + Adaptive Bayes</div>', unsafe_allow_html=True)
+    if vw is not None and len(vw) > 5:
+        fig_vol = quant_fig(height=480)
+        fig_vol.add_trace(go.Scatter(x=vw.index, y=vw*np.sqrt(252)*100, name="WTI", line=dict(color=C["blue"], width=2.5)))
+        fig_vol.add_trace(go.Scatter(x=vb.index, y=vb*np.sqrt(252)*100, name="Brent", line=dict(color=C["gold"], width=2.5, dash="dash")))
+        fig_vol.add_trace(go.Scatter(x=vg.index, y=vg*np.sqrt(252)*100, name="Gold", line=dict(color=C["gray"], width=2, dash="dot")))
+        fig_vol.add_hrect(y0=25, y1=45, fillcolor="rgba(16,185,129,0.1)", line_width=0,
+                          annotation_text="Normal band 25–45%", annotation_font=dict(size=10))
+        fig_vol.update_layout(yaxis_ticksuffix="%", title="Annualised Volatility")
+        st.plotly_chart(fig_vol, use_container_width=True)
     else:
-        ng_vol = returns["natgas"].rolling(20).std()*np.sqrt(252)*100
-        fig_f  = sw_subplots(secondary=True, height=310)
-        fig_f.add_trace(go.Scatter(
-            x=fi.index, y=fi.values, name="Fert Stress",
-            fill="tozeroy", fillcolor="rgba(95,107,71,0.1)",
-            line=dict(color=C["sage"], width=2.2)
-        ), secondary_y=False)
-        fig_f.add_trace(go.Scatter(
-            x=ng_vol.index, y=ng_vol.values, name="NatGas Vol",
-            line=dict(color=C["teal"], width=1.8, dash="dash")
-        ), secondary_y=True)
-        fig_f.update_yaxes(title_text="Fert Index",    secondary_y=False, **SWISS_LAYOUT["yaxis"])
-        fig_f.update_yaxes(title_text="NatGas Vol %",  secondary_y=True,  **SWISS_LAYOUT["yaxis"])
-        st.plotly_chart(fig_f, use_container_width=True)
-    bs_str = f" · ⚠ Black Swan ×{bs:.2f}" if bs>1.2 else ""
-    st.markdown(f'<div class="info-block">Urea ${usda["urea_price"]:.0f}/t &nbsp;·&nbsp; DAP ${usda["dap_price"]:.0f}/t{bs_str}<br><span style="font-size:0.62rem;font-family:\'DM Mono\',monospace;">{usda["source"]}</span></div>', unsafe_allow_html=True)
+        st.warning("Dados de volatilidade insuficientes.")
+    
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-title">Stress Indices</div>', unsafe_allow_html=True)
+    col_a, col_b = st.columns(2)
+    with col_a:
+        if fi is not None and len(fi) > 5:
+            ng_vol = returns["natgas"].rolling(20).std() * np.sqrt(252) * 100
+            fig_f = quant_subplots(secondary=True, height=380)
+            fig_f.add_trace(go.Scatter(x=fi.index, y=fi.values, name="Fert Stress", fill="tozeroy",
+                                       fillcolor="rgba(16,185,129,0.1)", line=dict(color=C["sage"], width=2)), secondary_y=False)
+            fig_f.add_trace(go.Scatter(x=ng_vol.index, y=ng_vol.values, name="NatGas Vol",
+                                       line=dict(color=C["teal"], width=1.8, dash="dash")), secondary_y=True)
+            fig_f.update_yaxes(title_text="Fert Index", secondary_y=False)
+            fig_f.update_yaxes(title_text="NatGas Vol %", secondary_y=True)
+            st.plotly_chart(fig_f, use_container_width=True)
+        bs_str = f" · ⚠ Black Swan ×{bs:.2f}" if bs > 1.2 else ""
+        st.markdown(f'<div class="info-block">Urea ${usda["urea_price"]:.0f}/t &nbsp;·&nbsp; DAP ${usda["dap_price"]:.0f}/t{bs_str}<br>{usda["source"]}</div>', unsafe_allow_html=True)
+    with col_b:
+        if gs is not None and not gs["gold_real"].dropna().empty:
+            gr_b = float(gs["gold_real"].dropna().iloc[0])
+            sg_b = float(gs["silver_gold"].dropna().iloc[0])
+            fig_g = quant_subplots(secondary=True, height=380)
+            fig_g.add_trace(go.Scatter(x=gs["gold_real"].dropna().index, y=(gs["gold_real"].dropna()/gr_b).values,
+                                       name="Gold/Real Yield", line=dict(color=C["gold"], width=2)), secondary_y=False)
+            fig_g.add_trace(go.Scatter(x=gs["silver_gold"].dropna().index, y=(gs["silver_gold"].dropna()/sg_b).values,
+                                       name="Silver/Gold", line=dict(color=C["silver"], width=1.8, dash="dash")), secondary_y=True)
+            fig_g.add_hline(y=1.0, line_dash="dot", line_color="#9CA3AF")
+            fig_g.update_yaxes(title_text="Gold/Real Yield (norm)", secondary_y=False)
+            fig_g.update_yaxes(title_text="Silver/Gold (norm)", secondary_y=True)
+            st.plotly_chart(fig_g, use_container_width=True)
+        else:
+            st.warning("Dados de ouro insuficientes.")
 
-with col_b:
-    if gs is None or gs["gold_real"].dropna().empty:
-        st.warning("Dados de ouro insuficientes.")
+with tab2:
+    st.markdown('<div class="sec-title">Z‑Score Composite & GeoFactor (Normalized)</div>', unsafe_allow_html=True)
+    if zsc is not None and len(zsc) > 5 and gf is not None and len(gf) > 5:
+        fig_geo = quant_subplots(secondary=True, height=500)
+        fig_geo.add_trace(go.Scatter(x=zsc.index, y=zsc.values, name="Z-Score Composite",
+                                     line=dict(color=C["blue"], width=2.5), fill="tozeroy",
+                                     fillcolor="rgba(59,130,246,0.1)"), secondary_y=False)
+        fig_geo.add_trace(go.Scatter(x=gf.index, y=gf.values, name="GeoFactor (normalized)",
+                                     line=dict(color=C["gold"], width=3)), secondary_y=True)
+        fig_geo.add_hline(y=1.5, line_dash="dot", line_color=C["gold_dim"], secondary_y=False)
+        fig_geo.add_hline(y=-1.5, line_dash="dot", line_color=C["gold_dim"], secondary_y=False)
+        fig_geo.update_yaxes(title_text="Z-Score", secondary_y=False)
+        fig_geo.update_yaxes(title_text="GeoFactor (σ)", secondary_y=True)
+        st.plotly_chart(fig_geo, use_container_width=True)
     else:
-        gr_b = float(gs["gold_real"].dropna().iloc[0])
-        sg_b = float(gs["silver_gold"].dropna().iloc[0])
-        fig_g = sw_subplots(secondary=True, height=310)
-        fig_g.add_trace(go.Scatter(
-            x=gs["gold_real"].dropna().index,
-            y=(gs["gold_real"].dropna()/gr_b).values,
-            name="Gold/Real Yield", line=dict(color=C["gold"], width=2.2)
-        ), secondary_y=False)
-        fig_g.add_trace(go.Scatter(
-            x=gs["silver_gold"].dropna().index,
-            y=(gs["silver_gold"].dropna()/sg_b).values,
-            name="Silver/Gold", line=dict(color=C["silver"], width=1.8, dash="dash")
-        ), secondary_y=True)
-        fig_g.add_hline(y=1.0, line_dash="dot", line_color="#C4BDAF", line_width=1.2, secondary_y=False)
-        fig_g.update_yaxes(title_text="Gold/Real Yield (norm)", secondary_y=False, **SWISS_LAYOUT["yaxis"])
-        fig_g.update_yaxes(title_text="Silver/Gold (norm)",     secondary_y=True,  **SWISS_LAYOUT["yaxis"])
-        st.plotly_chart(fig_g, use_container_width=True)
+        st.warning("Dados geopolíticos insuficientes.")
+    
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-title">Agricultural Commodities — Indexed from War Start</div>', unsafe_allow_html=True)
+    fig_ag = quant_fig(height=450)
+    for asset, color, label in [("wheat", C["blue"], "Wheat"), ("corn", C["teal"], "Corn"), ("soy", C["gray"], "Soy")]:
+        bv = float(prices[asset].iloc[0])
+        rel = (prices[asset] / bv * 100).dropna()
+        fig_ag.add_trace(go.Scatter(x=rel.index, y=rel.values, name=f"{label} (base ${bv:.0f})", line=dict(color=color, width=2)))
+    fig_ag.add_hline(y=100, line_dash="dot", line_color="#9CA3AF")
+    fig_ag.update_layout(yaxis_title="Price Index (base = 100)")
+    st.plotly_chart(fig_ag, use_container_width=True)
 
-st.markdown('<div class="swiss-divider"></div>', unsafe_allow_html=True)
+with tab3:
+    war_note = " ⚑ War Boost" if war_t else ""
+    bs_note = f" ⚠ Fert BS ×{bs:.2f}" if bs > 1.2 else ""
+    st.markdown(f'<div class="sec-title">Monte Carlo · EVT+DCC · {mc_sims:,} paths × {mc_steps}d{war_note}{bs_note}</div>', unsafe_allow_html=True)
+    if fan is not None and len(fan[50]) > 1:
+        x_ax = list(range(mc_steps + 1))
+        fig_mc = quant_fig(height=550)
+        fig_mc.add_trace(go.Scatter(x=x_ax + x_ax[::-1], y=list(fan[95]) + list(fan[5][::-1]),
+                                    fill="toself", fillcolor="rgba(59,130,246,0.2)", line=dict(width=0), name="WTI 90% CI"))
+        fig_mc.add_trace(go.Scatter(x=x_ax + x_ax[::-1], y=list(fan[75]) + list(fan[25][::-1]),
+                                    fill="toself", fillcolor="rgba(59,130,246,0.4)", line=dict(width=0), name="WTI 50% CI"))
+        fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan_b[50]), name=f"Brent P50 → ${fan_b[50][-1]:.2f}",
+                                    line=dict(color=C["blue"], width=2.5, dash="dash")))
+        fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[50]), name=f"WTI P50 → ${fan[50][-1]:.2f}",
+                                    line=dict(color=C["gold"], width=4)))
+        fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[95]), name=f"P95 → ${fan[95][-1]:.2f}",
+                                    line=dict(color=C["gold_dim"], width=1.5, dash="dot")))
+        fig_mc.add_trace(go.Scatter(x=x_ax, y=list(fan[5]), name=f"P5 → ${fan[5][-1]:.2f}",
+                                    line=dict(color=C["gold_dim"], width=1.5, dash="dot")))
+        fig_mc.add_hline(y=wti0, line_dash="dash", line_color="#9CA3AF", annotation_text=f"Current ${wti0:.2f}")
+        fig_mc.add_hline(y=40, line_dash="dot", line_color="#F97316", annotation_text="Stress $40")
+        fig_mc.add_hline(y=150, line_dash="dot", line_color="#F97316", annotation_text="Stress $150")
+        fig_mc.update_layout(xaxis_title="Trading Days Ahead", yaxis_title="Price (USD/bbl)", yaxis_tickprefix="$")
+        st.plotly_chart(fig_mc, use_container_width=True)
+        
+        col_a, col_b, col_c = st.columns(3)
+        col_a.metric("Prob Up 10d", f"{M['prob_up']:.1f}%")
+        col_b.metric("VaR 95% 1d", f"${M['var95']:+.2f}", delta=f"CVaR ${M['cvar95']:+.2f}")
+        col_c.metric("Prob WTI < $40", f"{M['prob_40']:.3f}%", delta=f"> $150: {M['prob_150']:.3f}%")
+    else:
+        st.warning("Simulação Monte Carlo não disponível.")
 
-# ══════════════════════════════════════════════════════════
-#   § 5 · AGRICULTURAL
-# ══════════════════════════════════════════════════════════
-st.markdown('<div class="sec-label">05 · Agricultural Commodities</div>', unsafe_allow_html=True)
-st.markdown('<div class="sec-title">Wheat · Corn · Soy — Indexed from War Start</div>', unsafe_allow_html=True)
+with tab4:
+    st.markdown('<div class="sec-title">Risk‑Adjusted Performance & Return Moments</div>', unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("#### WTI")
+        st.metric("Sharpe Ratio (ann.)", f"{sharpe['oil']:.2f}")
+        st.metric("Sortino Ratio (ann.)", f"{sortino['oil']:.2f}")
+        st.metric("Skewness", f"{skew_oil:.3f}", delta="neg = left tail risk" if skew_oil < 0 else "pos = right tail")
+        st.metric("Excess Kurtosis", f"{kurt_oil:.3f}", delta=">0 heavy tails" if kurt_oil > 0 else "<0 thin tails")
+    with col2:
+        st.markdown("#### Brent")
+        st.metric("Sharpe Ratio (ann.)", f"{sharpe['brent']:.2f}")
+        st.metric("Sortino Ratio (ann.)", f"{sortino['brent']:.2f}")
+        st.metric("Skewness", f"{skew_brt:.3f}")
+        st.metric("Excess Kurtosis", f"{kurt_brt:.3f}")
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-title">DCC & Correlation Dynamics</div>', unsafe_allow_html=True)
+    st.metric("WTI–Brent Correlation (EWMA)", f"{corr:.4f}")
+    st.metric("DCC α (short‑term shock)", f"{dcc_a:.4f}", delta=f"β (persistence): {dcc_b:.4f}")
+    st.metric("DCC Persistence (α+β)", f"{dcc_a + dcc_b:.4f}", delta=">0.99 highly persistent" if (dcc_a+dcc_b)>0.99 else "moderate persistence")
 
-fig_ag = sw_fig(height=300)
-for asset, color, label in [("wheat",C["navy"],"Wheat"),("corn",C["blue"],"Corn"),("soy",C["gray"],"Soy")]:
-    bv  = float(prices[asset].iloc[0])
-    rel = (prices[asset]/bv*100).dropna()
-    fig_ag.add_trace(go.Scatter(x=rel.index, y=rel.values,
-        name=f"{label}  (base ${bv:.0f})", line=dict(color=color, width=2.0)))
-fig_ag.add_hline(y=100, line_dash="dot", line_color="#C4BDAF", line_width=1.2)
-fig_ag.update_layout(yaxis_title="Price Index (base = 100)")
-st.plotly_chart(fig_ag, use_container_width=True)
+with tab5:
+    st.markdown('<div class="sec-title">Risk Metrics & Model Diagnostics</div>', unsafe_allow_html=True)
+    col_l, col_r = st.columns(2)
+    def render_table(rows, col):
+        with col:
+            html = '<table class="data-table"><thead><tr><th>Indicator</th><th>Value</th></tr></thead><tbody>'
+            for lbl, val in rows:
+                html += f"<tr><td>{lbl}</td><td><strong>{val}</strong></td></tr>"
+            html += "</tbody></table>"
+            st.markdown(html, unsafe_allow_html=True)
+    render_table([
+        ("WTI Crude", f"${wti0:.2f}"), ("Brent Crude", f"${brt0:.2f}"), ("WTI–Brent Spread", f"${spread:.2f} ({spread/wti0*100:.1f}%)"),
+        ("GeoFactor (norm)", f"{float(gf.iloc[-1]):.4f}σ"), ("Risk Regime", f"WAR ({rbase:+.3f})"),
+        ("War Signal", f"{ws_val:.5f} · {'ACTIVE ⚑' if war_t else 'subdued'}"),
+        ("DCC α / β", f"{dcc_a:.4f} / {dcc_b:.4f}  persist={(dcc_a+dcc_b):.4f}"),
+    ], col_l)
+    render_table([
+        ("WTI Vol p.a.", f"{M['vol_wti']:.1f}%"), ("Brent Vol p.a.", f"{M['vol_brt']:.1f}%"),
+        ("WTI–Brent ρ", f"{corr:.4f} (EWMA)"), ("Tail df (dynamic)", f"{tdf_d:.2f}"),
+        ("Prob Up 10d", f"{M['prob_up']:.1f}%"), ("VaR 95% 1d", f"${M['var95']:+.2f}"),
+        ("CVaR 95% 1d", f"${M['cvar95']:+.2f}"), ("Z-Composite", f"{float(zsc.iloc[-1]):+.4f}"),
+        ("Prob WTI < $40", f"{M['prob_40']:.2f}%"), ("Prob WTI > $150", f"{M['prob_150']:.2f}%"),
+    ], col_r)
+    st.markdown(f"""
+    <div class="info-block">
+    <strong>Bayes Shrinkage</strong> &nbsp;·&nbsp;
+    WTI {dw_d['vga']:.0f}% → {dw_d['vsa']:.0f}% (w={dw_d['w']:.2f})
+    &nbsp;·&nbsp; Brent {db_d['vga']:.0f}% → {db_d['vsa']:.0f}% (w={db_d['w']:.2f})
+    &nbsp;·&nbsp; Fertilizer: Urea ${usda['urea_price']:.0f}/t · DAP ${usda['dap_price']:.0f}/t · {usda['source']}
+    {f' · ⚠ Black Swan ×{bs:.2f}' if bs>1.2 else ''}
+    </div>
+    """, unsafe_allow_html=True)
 
-st.markdown('<div class="swiss-divider"></div>', unsafe_allow_html=True)
-
-# ══════════════════════════════════════════════════════════
-#   § 6 · MONTE CARLO FAN (COM VERIFICAÇÃO)
-# ══════════════════════════════════════════════════════════
-war_note = "  ⚑ War Boost" if war_t else ""
-bs_note  = f"  ⚠ Fert BS ×{bs:.2f}" if bs>1.2 else ""
-st.markdown('<div class="sec-label">06 · Probabilistic Forecast</div>', unsafe_allow_html=True)
-st.markdown(f'<div class="sec-title">Monte Carlo · EVT+DCC · {mc_sims:,} paths × {mc_steps}d{war_note}{bs_note}</div>', unsafe_allow_html=True)
-
-if fan is None or len(fan[50]) < 2:
-    st.warning("Resultados do Monte Carlo não disponíveis para exibição. Tente rodar novamente com mais paths ou horizonte menor.")
-else:
-    x_ax = list(range(mc_steps+1))
-    fig_mc = sw_fig(height=500)
-    fig_mc.add_trace(go.Scatter(
-        x=x_ax+x_ax[::-1], y=list(fan[95])+list(fan[5][::-1]),
-        fill="toself", fillcolor="rgba(196,189,175,0.20)",
-        line=dict(width=0), name="WTI 90% CI"))
-    fig_mc.add_trace(go.Scatter(
-        x=x_ax+x_ax[::-1], y=list(fan[75])+list(fan[25][::-1]),
-        fill="toself", fillcolor="rgba(158,148,136,0.30)",
-        line=dict(width=0), name="WTI 50% CI"))
-    fig_mc.add_trace(go.Scatter(
-        x=x_ax, y=list(fan_b[50]),
-        name=f"Brent P50 → ${fan_b[50][-1]:.2f}",
-        line=dict(color=C["blue"], width=2.2, dash="dash")))
-    fig_mc.add_trace(go.Scatter(
-        x=x_ax, y=list(fan[50]),
-        name=f"WTI P50 → ${fan[50][-1]:.2f}",
-        line=dict(color=C["navy"], width=3.5)))
-    fig_mc.add_trace(go.Scatter(
-        x=x_ax, y=list(fan[95]),
-        name=f"P95 → ${fan[95][-1]:.2f}",
-        line=dict(color=C["gold_dim"], width=1.4, dash="dot")))
-    fig_mc.add_trace(go.Scatter(
-        x=x_ax, y=list(fan[5]),
-        name=f"P5 → ${fan[5][-1]:.2f}",
-        line=dict(color=C["gold_dim"], width=1.4, dash="dot")))
-    fig_mc.add_hline(y=wti0,  line_dash="dash",  line_color="#8C8377", line_width=1.4,
-        annotation_text=f"Current ${wti0:.2f}", annotation_font=dict(family="DM Mono",size=10,color="#8C8377"))
-    fig_mc.add_hline(y=40,   line_dash="dot",   line_color=C["rust"],  line_width=1.4,
-        annotation_text="Stress $40",  annotation_font=dict(family="DM Mono",size=10,color=C["rust"]))
-    fig_mc.add_hline(y=150,  line_dash="dot",   line_color=C["rust"],  line_width=1.4,
-        annotation_text="Stress $150", annotation_font=dict(family="DM Mono",size=10,color=C["rust"]))
-    fig_mc.update_layout(
-        xaxis=dict(title="Trading Days Ahead", **SWISS_LAYOUT["xaxis"]),
-        yaxis=dict(title="Price (USD/bbl)", tickprefix="$", **SWISS_LAYOUT["yaxis"]),
-    )
-    st.plotly_chart(fig_mc, use_container_width=True)
-st.markdown('<div class="swiss-divider"></div>', unsafe_allow_html=True)
-
-# ══════════════════════════════════════════════════════════
-#   § 7 · EXECUTIVE SUMMARY
-# ══════════════════════════════════════════════════════════
-st.markdown('<div class="sec-label">07 · Executive Summary</div>', unsafe_allow_html=True)
-st.markdown('<div class="sec-title">Risk Metrics & Model Diagnostics</div>', unsafe_allow_html=True)
-
-col_l, col_r = st.columns(2)
-
-def render_table(rows, col):
-    with col:
-        html = '<table class="data-table"><thead><tr><th>Indicator</th><th>Value</th></tr></thead><tbody>'
-        for lbl, val in rows:
-            html += f"<tr><td>{lbl}</td><td><strong>{val}</strong></td></tr>"
-        html += "</tbody></table>"
-        st.markdown(html, unsafe_allow_html=True)
-
-render_table([
-    ("WTI Crude",        f"${wti0:.2f}"),
-    ("Brent Crude",      f"${brt0:.2f}"),
-    ("WTI–Brent Spread", f"${spread:.2f}  ({spread/wti0*100:.1f}%)"),
-    ("GeoFactor v4.0",   f"{float(gf.iloc[-1]):.5f}"),
-    ("Risk Regime",      f"WAR ({rbase:+.3f})"),
-    ("War Signal",       f"{ws_val:.5f} · {'ACTIVE ⚑' if war_t else 'subdued'}"),
-    ("DCC α / β",        f"{dcc_a:.4f} / {dcc_b:.4f}  persist={(dcc_a+dcc_b):.4f}"),
-], col_l)
-
-render_table([
-    ("WTI Vol p.a.",     f"{M['vol_wti']:.1f}%"),
-    ("Brent Vol p.a.",   f"{M['vol_brt']:.1f}%"),
-    ("WTI–Brent ρ",      f"{corr:.4f}  (EWMA)"),
-    ("Tail df (dynamic)",f"{tdf_d:.2f}"),
-    ("Prob Up 10d",      f"{M['prob_up']:.1f}%"),
-    ("VaR 95% 1d",       f"${M['var95']:+.2f}"),
-    ("CVaR 95% 1d",      f"${M['cvar95']:+.2f}"),
-    ("Z-Composite",      f"{float(zsc.iloc[-1]):+.4f}"),
-    ("Prob WTI < $40",   f"{M['prob_40']:.2f}%"),
-    ("Prob WTI > $150",  f"{M['prob_150']:.2f}%"),
-], col_r)
-
-st.markdown(f"""
-<div style='margin-top:1.2rem;padding:0.9rem 1.2rem;background:#F5F1EB;
-border-left:2px solid #C8A96E;font-family:"DM Mono",monospace;font-size:0.65rem;
-letter-spacing:0.07em;color:#4A4540;'>
-<strong>Bayes Shrinkage</strong> &nbsp;·&nbsp;
-WTI {dw_d['vga']:.0f}% → {dw_d['vsa']:.0f}%
-&nbsp;·&nbsp; Brent {db_d['vga']:.0f}% → {db_d['vsa']:.0f}%
-&nbsp;·&nbsp; Fertilizer: Urea ${usda['urea_price']:.0f}/t · DAP ${usda['dap_price']:.0f}/t · {usda['source']}
-{f"&nbsp;·&nbsp; ⚠ Black Swan ×{bs:.2f}" if bs>1.2 else ""}
-</div>""", unsafe_allow_html=True)
-
-# ── Footer ──
+# Footer
 st.markdown(f"""
 <div class="footer">
-  <div>◆ GeoQuant v4.0-beta · EVT + DCC + GARCH-X · {mc_sims:,} MC paths</div>
+  <div>◆ GeoQuant · EVT + DCC + GARCH-X · {mc_sims:,} MC paths</div>
   <div>Eduardo Moraes · Quant Data Scientist & Economics</div>
   <div>For professional use only · {now_sp.strftime("%d %b %Y")}</div>
-</div>""", unsafe_allow_html=True)
+</div>
+""", unsafe_allow_html=True)
