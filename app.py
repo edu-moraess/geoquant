@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import os, csv, logging, warnings, requests
+import os, csv, logging, warnings, requests, time
 from datetime import datetime, timedelta
 import pytz
 import matplotlib
@@ -21,7 +21,7 @@ from scipy.stats import chi2, skew, kurtosis
 from sklearn.linear_model import LassoCV
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error
-from sklearn.model_selection import TimeSeriesSplit, train_test_split
+from sklearn.model_selection import TimeSeriesSplit
 from statsmodels.tsa.vector_ar.var_model import VAR
 from statsmodels.discrete.discrete_model import Logit
 from statsmodels.stats.diagnostic import acorr_ljungbox, het_arch
@@ -333,7 +333,7 @@ def fetch_oilprice_spot():
     return 0.0
 
 # ══════════════════════════════════════════════════════════
-#   QUANT ENGINE ARCHITECTURE (unchanged logic)
+#   QUANT ENGINE ARCHITECTURE
 # ══════════════════════════════════════════════════════════
 def rolling_zscore(s, w=60):
     std = s.rolling(w).std()
@@ -563,7 +563,9 @@ def _jumps_vec(n, pu, pd_):
     return np.where(u < pu, ju, np.where((u >= pu) & (u < pu + pd_), -jd, 0)), np.where(u < pu, ju*0.95, np.where((u >= pu) & (u < pu + pd_), -jd*0.90, 0))
 
 def run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase, rw, rb, vws, vbs, jpu, tdf, bs=1.0, dcc_a=0.05, dcc_b=0.93, sims=5000, steps=10, bar=None, scenario_mod=None):
-    np.random.seed(42)
+    # Semente dinâmica via session state, garantindo variação a cada execução
+    seed = st.session_state.get("mc_seed", 42)
+    np.random.seed(seed)
     if scenario_mod:
         jpu *= scenario_mod.get("jump_mult", 1.0)
         bvw *= scenario_mod.get("vol_mult", 1.0)
@@ -717,7 +719,6 @@ def benchmark_ml(returns_df, target_col="oil"):
     ci = features.index.intersection(target.index)
     X, y = features.loc[ci], target.loc[ci]
     
-    # Proteção contra datasets muito pequenos
     if len(X) < 10:
         return {
             "RandomForest": {"RMSE": np.nan, "MAE": np.nan, "MAPE": np.nan, "Directional Accuracy": "—"},
@@ -725,8 +726,8 @@ def benchmark_ml(returns_df, target_col="oil"):
             "LightGBM": {"RMSE": np.nan, "MAE": np.nan, "MAPE": np.nan, "Directional Accuracy": "—"}
         }, X, y
     
-    n_splits = min(5, len(X) // 3)  # Garantir splits adequados
-    n_splits = max(2, n_splits)  # Mínimo de 2 splits
+    n_splits = min(5, len(X) // 3)
+    n_splits = max(2, n_splits)
     tscv = TimeSeriesSplit(n_splits=n_splits)
     
     models = {
@@ -775,7 +776,7 @@ def garch_diagnostics(resid):
             "LB10": lb.loc[10, "lb_pvalue"] if 10 in lb.index else np.nan,
             "ARCH_p": arch[1] if len(arch) > 1 else np.nan}
 
-@st.cache_data(ttl=900, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)  # Reduzido para 60s
 def fetch_data(start):
     tl, tk = list(TICKERS.values()), list(TICKERS.keys())
     for adj in [True, False]:
@@ -792,10 +793,11 @@ def fetch_data(start):
         except: continue
     return pd.DataFrame()
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=10, show_spinner=False)  # Reduzido para 10s
 def fetch_live(lw=65.0, lb=68.0):
     api_spot = fetch_oilprice_spot()
-    if api_spot > 10.0: return api_spot, api_spot + 3.20
+    if api_spot > 10.0:
+        return api_spot, api_spot + 3.20
     try:
         wti = float(yf.Ticker("CL=F").fast_info.get("last_price", 0))
         brt = float(yf.Ticker("BZ=F").fast_info.get("last_price", 0))
@@ -867,9 +869,14 @@ st.markdown(f"""
 </div>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════
-#   EXECUTION PIPELINE
+#   EXECUTION PIPELINE (com semente dinâmica e cache refresh)
 # ══════════════════════════════════════════════════════════
 if run_btn or "results" not in st.session_state:
+    # Limpa todos os caches de dados para obter cotações frescas
+    st.cache_data.clear()
+    # Gera nova semente para Monte Carlo
+    st.session_state.mc_seed = int(time.time())
+    
     loading = st.empty()
     loading.markdown("""
     <div style='text-align:center;padding:2.5rem 2rem;background:#FDFBF8;border:1px solid #C4BDAF;margin:1rem 0;'>
@@ -879,10 +886,12 @@ if run_btn or "results" not in st.session_state:
     prog = st.progress(0)
 
     try:
-        vix_premium, eia_stocks = fetch_fred_macro(), fetch_eia_inventories()
+        vix_premium = fetch_fred_macro()
+        eia_stocks = fetch_eia_inventories()
         prog.progress(10)
         
-        prices = fetch_data(war_start.strftime("%Y-%m-%d"))
+        war_start_str = war_start.strftime("%Y-%m-%d")
+        prices = fetch_data(war_start_str)
         if prices.empty or len(prices) < 5:
             st.error("Execution halted: Insufficient historical data extracted from live sources.")
             st.stop()
@@ -892,7 +901,8 @@ if run_btn or "results" not in st.session_state:
             if k not in prices.columns: prices[k] = np.nan
         prices = prices.ffill().bfill()
 
-        lw, lb = float(prices["oil"].dropna().iloc[-1]), float(prices["brent"].dropna().iloc[-1])
+        lw = float(prices["oil"].dropna().iloc[-1]) if not prices["oil"].dropna().empty else 75.0
+        lb = float(prices["brent"].dropna().iloc[-1]) if not prices["brent"].dropna().empty else 78.0
         wti0, brt0 = fetch_live(lw, lb)
         prices.loc[prices.index[-1], "oil"], prices.loc[prices.index[-1], "brent"] = wti0, brt0
         returns = np.log(prices / prices.shift(1)).dropna()
@@ -916,7 +926,10 @@ if run_btn or "results" not in st.session_state:
         vb_s = fit_egarch(returns["brent"], gf_clean)
         vg = fit_egarch(returns["gold"], gf_clean)
         
-        pwd, pbd, pgd = prior_wti / np.sqrt(252), prior_brent / np.sqrt(252), 0.18 / np.sqrt(252)
+        pwd = prior_wti / np.sqrt(252)
+        pbd = prior_brent / np.sqrt(252)
+        pgd = 0.18 / np.sqrt(252)
+        
         vw, dw = bayes_shrink(vw, pwd, len(returns), gf)
         vb_s, db = bayes_shrink(vb_s, pbd, len(returns), gf)
         vg, _ = bayes_shrink(vg, pgd, len(returns), gf)
@@ -933,26 +946,38 @@ if run_btn or "results" not in st.session_state:
         try:
             vm = VAR(rv).fit(min(3, max(1, len(rv)//15)))
             fcast = vm.forecast(rv.values[-vm.k_ar:], steps=mc_steps)
-        except: fcast = np.zeros((mc_steps, len(rv.columns)))
+        except:
+            fcast = np.zeros((mc_steps, len(rv.columns)))
 
         cols = list(rv.columns)
-        ocol, bcol = cols.index("oil") if "oil" in cols else 0, cols.index("brent") if "brent" in cols else 1
+        ocol = cols.index("oil") if "oil" in cols else 0
+        bcol = cols.index("brent") if "brent" in cols else 1
         tdf_d = max(2.5, min(6.0, tail_df / np.sqrt(max(bvb/(pbd*1.5), 0.5))))
         rbase = float(np.tanh(gf.iloc[-1]/2)) if len(gf) > 0 else 0.0
         jpu = min(jump_up * 1.5, 0.15) if returns["wheat"].tail(20).mean() > 0.005 else jump_up
 
         prog.progress(80)
         mc_bar = st.progress(0)
-        mc = run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase, returns["oil"], returns["brent"], vw, vb_s, jpu, tdf_d, bs_mult, dcc_a, dcc_b, mc_sims, mc_steps, mc_bar, SCENARIO_MAP[scen_choice])
+        mc = run_mc(wti0, brt0, bvw, bvb, fcast, ocol, bcol, rbase,
+                    returns["oil"], returns["brent"], vw, vb_s, jpu, tdf_d,
+                    bs_mult, dcc_a, dcc_b, mc_sims, mc_steps, mc_bar,
+                    SCENARIO_MAP[scen_choice])
         mc_bar.empty()
 
         prog.progress(90)
-        ret_ann, vol_ann = returns[["oil","brent"]].mean() * 252, returns[["oil","brent"]].std() * np.sqrt(252)
+        ret_ann = returns[["oil","brent"]].mean() * 252
+        vol_ann = returns[["oil","brent"]].std() * np.sqrt(252)
         neg = returns[["oil","brent"]][returns[["oil","brent"]] < 0].std() * np.sqrt(252)
         corr_mx = returns[["oil","brent","gold","dxy","tnx"]].dropna().corr()
         
-        stress_c = pd.DataFrame({"vol_wti": vw*np.sqrt(252)*100, "vol_brt": vb_s*np.sqrt(252)*100, "corr": returns["oil"].rolling(20).corr(returns["brent"]), "geofactor": gf}).dropna()
-        stress_idx = (stress_c["vol_wti"]/50 + stress_c["vol_brt"]/50 + np.abs(stress_c["corr"]-0.8)*2 + stress_c["geofactor"].clip(0,2)/2) / 4
+        stress_c = pd.DataFrame({
+            "vol_wti": vw*np.sqrt(252)*100,
+            "vol_brt": vb_s*np.sqrt(252)*100,
+            "corr": returns["oil"].rolling(20).corr(returns["brent"]),
+            "geofactor": gf
+        }).dropna()
+        stress_idx = (stress_c["vol_wti"]/50 + stress_c["vol_brt"]/50 +
+                      np.abs(stress_c["corr"]-0.8)*2 + stress_c["geofactor"].clip(0,2)/2) / 4
         
         gdiag = garch_diagnostics(vw)
         bt_res = backtest_var(returns["oil"].iloc[-252:], vw.iloc[-252:]*1.645)
@@ -962,7 +987,8 @@ if run_btn or "results" not in st.session_state:
         shap_fig, sv, feat_names = run_shap(X_ml, y_ml)
         wf_df = walk_forward_validation(returns["oil"])
 
-        p_vals = [gdiag["LB5"], gdiag["LB10"], gdiag["ARCH_p"], bt_res["Kupiec_p"], bt_res["Christoffersen_p"], bt_res["DQ_p"]]
+        p_vals = [gdiag["LB5"], gdiag["LB10"], gdiag["ARCH_p"],
+                  bt_res["Kupiec_p"], bt_res["Christoffersen_p"], bt_res["DQ_p"]]
         valid_p = [p for p in p_vals if not np.isnan(p)]
         model_score = int(np.mean(valid_p) * 100) if valid_p else 85
 
@@ -970,13 +996,22 @@ if run_btn or "results" not in st.session_state:
         loading.empty()
         prog.empty()
 
+        # Timestamp da última atualização dos dados
+        last_update = datetime.now(pytz.timezone("America/Sao_Paulo")).strftime("%d %b %Y %H:%M:%S")
         st.session_state.update({
-            "results": mc, "gf": gf, "zsc": zsc, "vw": vw, "vb": vb_s, "vg": vg, "fi": fi, "gs": gs, "prices": prices, "returns": returns,
-            "wti0": wti0, "brt0": brt0, "usda": usda, "bs": bs_mult, "dw": dw, "db": db, "tdf": tdf_d, "dcc_a": dcc_a, "dcc_b": dcc_b,
-            "weights": weights, "sharpe": ret_ann/vol_ann, "sortino": ret_ann/neg, "corr_mx": corr_mx, "stress_idx": stress_idx,
-            "evt": evt_wti, "gdiag": gdiag, "bt_res": bt_res, "es_z": es_z, "ml_metrics": ml_metrics, "shap_fig": shap_fig,
-            "shap_vals": sv, "feat_names": feat_names, "wf_df": wf_df, "regimes_ts": regimes_ts, "model_score": model_score,
-            "vix_fred": vix_premium, "eia_stocks": eia_stocks, "macro_proxies": macro_proxies
+            "results": mc, "gf": gf, "zsc": zsc, "vw": vw, "vb": vb_s, "vg": vg,
+            "fi": fi, "gs": gs, "prices": prices, "returns": returns,
+            "wti0": wti0, "brt0": brt0, "usda": usda, "bs": bs_mult,
+            "dw": dw, "db": db, "tdf": tdf_d, "dcc_a": dcc_a, "dcc_b": dcc_b,
+            "weights": weights, "sharpe": ret_ann/vol_ann, "sortino": ret_ann/neg,
+            "corr_mx": corr_mx, "stress_idx": stress_idx,
+            "evt": evt_wti, "gdiag": gdiag, "bt_res": bt_res, "es_z": es_z,
+            "ml_metrics": ml_metrics, "shap_fig": shap_fig,
+            "shap_vals": sv, "feat_names": feat_names, "wf_df": wf_df,
+            "regimes_ts": regimes_ts, "model_score": model_score,
+            "vix_fred": vix_premium, "eia_stocks": eia_stocks,
+            "macro_proxies": macro_proxies,
+            "last_update": last_update
         })
     except Exception as e:
         loading.empty()
@@ -1001,6 +1036,11 @@ vb = S["vb"]
 vg = S["vg"]
 zsc = S["zsc"]
 gf = S["gf"]
+
+st.markdown(f"""
+<div style="font-family:'JetBrains Mono',monospace; font-size:0.6rem; color:var(--muted); text-align:right; margin-bottom:1rem;">
+Data Freshness: <strong>{S.get('last_update', 'Unknown')}</strong> · Spot Update Interval: 10s
+</div>""", unsafe_allow_html=True)
 
 t_exec, t_vol, t_geo, t_attr, t_mc, t_stat, t_diag, t_ml = st.tabs([
     "Executive Summary", "Market & Volatility", "Geopolitical Intelligence",
