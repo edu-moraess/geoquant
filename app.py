@@ -45,21 +45,17 @@ logging.basicConfig(level=logging.WARNING)
 #   FUNÇÕES AUXILIARES PARA SANITIZAÇÃO DE TIPOS
 # ============================================================
 def ensure_scalar(x):
-    """Converte ndarray de tamanho 1 para escalar, mantém outros tipos."""
     if isinstance(x, np.ndarray):
         if x.size == 1:
             return float(x.item())
         else:
-            # Se for um array maior, converte para lista e retorna (será tratado depois)
             return x.flatten().tolist()
     if isinstance(x, (int, float)):
         return float(x)
     return x
 
 def ensure_series(s):
-    """Garante que o objeto seja uma Series do pandas, convertendo ndarray se necessário."""
     if isinstance(s, np.ndarray):
-        # Garantir que o array seja 1D
         if s.ndim > 1:
             s = s.flatten()
         return pd.Series(s)
@@ -385,7 +381,6 @@ def fetch_gpr():
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def fetch_cot(ticker="CL"):
-    """Commitment of Traders – proxy de posições líquidas de especuladores (non-commercial)"""
     try:
         wti = yf.download("CL=F", period="5d", progress=False)["Close"]
         if len(wti) > 1:
@@ -401,9 +396,7 @@ def fetch_cot(ticker="CL"):
 #   API STATUS FUNCTION
 # ============================================================
 def get_api_status():
-    """Retorna dicionário com status de cada API (OK, FALLBACK, ERROR)"""
     status = {}
-    # FRED
     try:
         url = f"https://api.stlouisfed.org/fred/series/observations?series_id=VIXCLS&api_key={FRED_API_KEY}&file_type=json&limit=1"
         r = requests.get(url, timeout=3)
@@ -413,7 +406,6 @@ def get_api_status():
             status["FRED"] = "⚠️ FALLBACK"
     except:
         status["FRED"] = "⚠️ FALLBACK"
-    # EIA
     try:
         url = f"https://api.eia.gov/v2/petroleum/stoc/wstk/data/?api_key={EIA_API_KEY}&limit=1"
         r = requests.get(url, timeout=3)
@@ -423,7 +415,6 @@ def get_api_status():
             status["EIA"] = "⚠️ FALLBACK"
     except:
         status["EIA"] = "⚠️ FALLBACK"
-    # OilPrice API
     try:
         url = "https://oilpriceapi.com/v1/prices/latest"
         headers = {"Authorization": f"Token {OILPRICE_API_KEY}"}
@@ -622,7 +613,6 @@ def bayes_shrink(vg, prior_d, n, geofactor=None):
     w = np.clip(np.sqrt(n/252), 0.10, 0.95)
     prior = prior_d * (1.0 + 0.4 * np.tanh(float(geofactor.iloc[-1]))) if (geofactor is not None and len(geofactor) > 0) else prior_d
 
-    # CORREÇÃO CRÍTICA: Garantir retorno escalar explícito se não houver dados
     if len(vg) == 0:
         return float(prior), {"vga": float(prior)*100, "vsa": float(prior)*100, "w": float(w)}
 
@@ -1097,7 +1087,6 @@ if run_btn or "results" not in st.session_state:
         vb_s, db = bayes_shrink(vb_s, pbd, len(returns), gf)
         vg, _ = bayes_shrink(vg, pgd, len(returns), gf)
 
-        # CORREÇÃO CRÍTICA: Extração segura de escalares para bvw e bvb
         if hasattr(vw, 'iloc') and len(vw) > 0:
             bvw = float(vw.iloc[-1])
         else:
@@ -1261,7 +1250,9 @@ t_exec, t_vol, t_geo, t_attr, t_mc, t_stat, t_diag, t_ml, t_modelcard = st.tabs(
     "Model Diagnostics", "Machine Learning Leaderboard", "Model Card"
 ])
 
-# ========== ABAS ==========
+# ============================================================
+#   EXECUTIVE SUMMARY
+# ============================================================
 with t_exec:
     st.markdown('<div class="sec-label">Report · Asset Management Grade</div>', unsafe_allow_html=True)
     st.markdown('<div class="sec-title">Executive Macro & Geopolitical Summary</div>', unsafe_allow_html=True)
@@ -1305,6 +1296,10 @@ with t_exec:
         st.markdown('<table class="data-table"><thead><tr><th>Brent Complex</th><th>Implied Prob</th></tr></thead>'
                     f'<tbody><tr><td>Brent &gt; US$ 90</td><td><strong>{fmt_num(M["brent_90"], ".1f")}%</strong></tr>'
                     f'<tr><td>Brent &gt; US$ 100</td><td><strong>{fmt_num(M["brent_100"], ".1f")}%</strong></tr></tbody></table>', unsafe_allow_html=True)
+
+# ============================================================
+#   MARKET & VOLATILITY
+# ============================================================
 with t_vol:
     st.markdown('<div class="sec-label">01 · Risk Metrics</div>', unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns(4)
@@ -1330,18 +1325,116 @@ with t_vol:
         fig_dcc.update_layout(title="Conditional Correlation (DCC) WTI/Brent", yaxis_range=[-1,1])
         st.plotly_chart(fig_dcc, use_container_width=True)
 
-with t_geo: st.write("Geopolitical Intelligence Module Loaded.")
-with t_attr: st.write("GeoFactor Attribution Analysis Ready.")
+# ============================================================
+#   GEOPOLITICAL INTELLIGENCE
+# ============================================================
+with t_geo:
+    st.markdown('<div class="sec-label">02 · Geopolitical Intelligence</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-title">Geopolitical Risk & Structural Indicators</div>', unsafe_allow_html=True)
+    col_g1, col_g2, col_g3 = st.columns(3)
+    gpr_last = float(S["gpr"].iloc[-1]) if len(S["gpr"]) > 0 else 0.0
+    vix_fred = S["vix_fred"]
+    cot_val = S["cot"]
+    col_g1.metric("GPR Index (FRED)", f"{gpr_last:.1f}")
+    col_g2.metric("VIX (FRED)", f"{vix_fred:.2f}")
+    col_g3.metric("COT Net Specs (proxy)", f"{cot_val:,.0f}")
+
+    fig_gpr = qfig(300)
+    fig_gpr.add_trace(go.Scatter(x=S["gpr"].index, y=S["gpr"].values, name="GPR Historical", line=dict(color=C["rust"], width=2)))
+    fig_gpr.update_layout(title="Geopolitical Risk Index (GPRHIST)")
+    st.plotly_chart(fig_gpr, use_container_width=True)
+
+# ============================================================
+#   GEO FACTOR ATTRIBUTION
+# ============================================================
+with t_attr:
+    st.markdown('<div class="sec-label">03 · GeoFactor Attribution</div>', unsafe_allow_html=True)
+    weights_sorted = sorted(S["weights"].items(), key=lambda x: abs(x[1]), reverse=True)
+    df_weights = pd.DataFrame(weights_sorted, columns=["Factor", "Weight"])
+    st.markdown('<div class="data-table">' + df_weights.to_html(index=False) + '</div>', unsafe_allow_html=True)
+
+    fig_attr = qfig(300)
+    fig_attr.add_trace(go.Bar(x=df_weights["Factor"], y=df_weights["Weight"], marker_color=C["navy"]))
+    fig_attr.update_layout(title="Calibrated GeoFactor Weights (LassoCV)")
+    st.plotly_chart(fig_attr, use_container_width=True)
+
+# ============================================================
+#   MONTE CARLO FAN CHART
+# ============================================================
 with t_mc:
-    fig_mc = qfig(400)
-    for p in [1, 50, 99]:
+    st.markdown('<div class="sec-label">04 · Monte Carlo Fan Chart</div>', unsafe_allow_html=True)
+    fig_mc = qfig(420)
+    for p in [1, 5, 10, 25, 50, 75, 90, 95, 99]:
         fig_mc.add_trace(go.Scatter(x=list(range(mc_steps+1)), y=fan[p], name=f"P{p}", line=dict(width=2 if p==50 else 1, dash='solid' if p==50 else 'dot')))
-    fig_mc.update_layout(title="Monte Carlo Fan Chart (WTI)", xaxis_title="Days", yaxis_title="Price (USD)")
+    fig_mc.update_layout(title="WTI Price Distribution Fan Chart", xaxis_title="Days Forward", yaxis_title="USD/bbl")
     st.plotly_chart(fig_mc, use_container_width=True)
-with t_stat: st.write("Quantitative Statistics Dashboard.")
-with t_diag: st.write("Model Diagnostics & Backtesting Results.")
-with t_ml: st.write("Machine Learning Leaderboard.")
-with t_modelcard: st.write("Model Card & Documentation.")
+
+    st.markdown(f"""
+    <div class="diag-card">
+        Mean: {fmt_num(moments['mean'], '.2f')} | Median: {fmt_num(moments['median'], '.2f')} | Mode: {fmt_num(moments['mode'], '.2f')}<br>
+        Skew: {fmt_num(moments['skew'], '.2f')} | Excess Kurtosis: {fmt_num(moments['kurt'], '.2f')}
+    </div>""", unsafe_allow_html=True)
+
+# ============================================================
+#   QUANT STATISTICS
+# ============================================================
+with t_stat:
+    st.markdown('<div class="sec-label">05 · Quantitative Statistics</div>', unsafe_allow_html=True)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("WTI Sharpe (ann.)", f"{S['sharpe']['oil']:.2f}" if isinstance(S['sharpe'], pd.Series) else f"{S['sharpe']:.2f}")
+    c2.metric("Brent Sharpe (ann.)", f"{S['sharpe']['brent']:.2f}" if isinstance(S['sharpe'], pd.Series) else f"{S['sharpe']:.2f}")
+    c3.metric("Sortino Ratio", f"{S['sortino']['oil']:.2f}" if isinstance(S['sortino'], pd.Series) else f"{S['sortino']:.2f}")
+
+    st.markdown('<div class="sec-title">Correlation Matrix</div>', unsafe_allow_html=True)
+    st.dataframe(S["corr_mx"].style.background_gradient(cmap='Blues'), use_container_width=True)
+
+# ============================================================
+#   MODEL DIAGNOSTICS
+# ============================================================
+with t_diag:
+    st.markdown('<div class="sec-label">06 · Model Diagnostics</div>', unsafe_allow_html=True)
+    bt = S["bt_res"]
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Violations", bt["n_violations"])
+    col2.metric("Kupiec p-value", f"{bt['Kupiec_p']:.3f}")
+    col3.metric("Christoffersen p", f"{bt['Christoffersen_p']:.3f}")
+    col4.metric("DQ p-value", f"{bt['DQ_p']:.3f}")
+
+    gd = S["gdiag"]
+    col5, col6, col7 = st.columns(3)
+    col5.metric("LB(5) p-value", f"{gd['LB5']:.3f}" if not np.isnan(gd['LB5']) else "—")
+    col6.metric("LB(10) p-value", f"{gd['LB10']:.3f}" if not np.isnan(gd['LB10']) else "—")
+    col7.metric("ARCH(10) p", f"{gd['ARCH_p']:.3f}" if not np.isnan(gd['ARCH_p']) else "—")
+
+    st.markdown(f'<div class="info-block">Calibration Score: {S["model_score"]}%</div>', unsafe_allow_html=True)
+
+# ============================================================
+#   MACHINE LEARNING LEADERBOARD
+# ============================================================
+with t_ml:
+    st.markdown('<div class="sec-label">07 · Machine Learning Benchmarking</div>', unsafe_allow_html=True)
+    ml = S["ml_metrics"]
+    df_ml = pd.DataFrame(ml).T.reset_index().rename(columns={"index":"Model"})
+    st.dataframe(df_ml, use_container_width=True)
+
+    st.pyplot(S["shap_fig"], use_container_width=True)
+    st.dataframe(S["wf_df"], use_container_width=True)
+
+# ============================================================
+#   MODEL CARD
+# ============================================================
+with t_modelcard:
+    st.markdown('<div class="sec-label">08 · Model Card</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="info-block">
+    <b>Model:</b> Conditional EVT + DCC-GARCH-X + Bayesian Volatility Shrinkage<br>
+    <b>GeoFactor:</b> LassoCV-Weighted Multi-Asset Structural Index<br>
+    <b>Monte Carlo:</b> 5,000–30,000 paths, t-Student copula, tail jumps, DCC correlation<br>
+    <b>Backtesting:</b> Walk-Forward, VaR/ES, Kupiec, Christoffersen, DQ tests<br>
+    <b>ML:</b> Random Forest, XGBoost, LightGBM with TimeSeriesSplit cross-validation<br>
+    <b>Data Sources:</b> Yahoo Finance, FRED (GPR, VIX), EIA (inventories), OilPriceAPI, CFTC COT proxy
+    </div>
+    """, unsafe_allow_html=True)
 
 # ============================================================
 #   FOOTER
@@ -1351,4 +1444,4 @@ st.markdown(f"""
   <div>◆ GeoQuant Institutional Terminal · Engine: Conditional EVT + DCC-GARCH-X</div>
   <div>Eduardo Moraes · Quant Data Scientist & Economics</div>
   <div>Proprietary Research Infrastructure · {now_sp.strftime("%Y")}</div>
-</div>""", unsafe_allow_html=True) 
+</div>""", unsafe_allow_html=True)
