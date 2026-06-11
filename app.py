@@ -244,9 +244,11 @@ PL = dict(
     hoverlabel=dict(bgcolor="#1E3A5F", font_color="#D4C094", font_family="JetBrains Mono,monospace"),
 )
 C = dict(
-    navy="#1E3A5F", navy_light="#2A5080", gold="#B49450", gold_light="#D4C094",
-    burgundy="#7B3F3F", teal="#2B5F5F", sage="#4A5D4A", gray="#5A554F",
-    silver="#9A958A", sky="#4A7380", rust="#8B5A3A",
+    navy="#1E3A5F", navy_light="#2A5080", blue="#3A5F8A",
+    gold="#B49450", gold_light="#D4C094",
+    burgundy="#7B3F3F", teal="#2B5F5F",
+    sage="#4A5D4A", gray="#5A554F", silver="#9A958A",
+    sky="#4A7380", rust="#8B5A3A",
     fill_light="rgba(30,58,95,0.06)", fill_medium="rgba(30,58,95,0.12)",
 )
 
@@ -861,7 +863,7 @@ if needs_run:
     })
 
 # ══════════════════════════════════════════════════════════
-#   RENDER (Todas as abas originais)
+#   RENDER
 # ══════════════════════════════════════════════════════════
 if "results" not in st.session_state:
     st.info("Configure parameters in the sidebar and click **▶ Run Full System Pipeline** to start.")
@@ -899,6 +901,9 @@ with tab1:
         line=dict(color=C["blue"],width=2.2,dash="dash")))
     fig_vol.add_trace(go.Scatter(x=vg.index,y=vg*np.sqrt(252)*100,name="Gold EGARCH Vol",
         line=dict(color=C["gold"],width=1.8,dash="dot")))
+    fig_vol.add_hrect(y0=25,y1=45,fillcolor="rgba(30,58,95,0.04)",line_width=0,
+        annotation_text="Normal band 25–45%",annotation_position="top left",
+        annotation_font=dict(size=9,color=C["gray"],family="JetBrains Mono,monospace"))
     fig_vol.update_layout(yaxis_ticksuffix="%",
         title="EGARCH(1,1) Conditional Volatility — Asymmetric & Heavy-Tailed")
     st.plotly_chart(fig_vol, use_container_width=True)
@@ -913,7 +918,13 @@ with tab2:
         line=dict(color=C["sky"],width=2.2),fill="tozeroy",fillcolor="rgba(74,115,128,0.06)"))
     fig_geo.add_trace(go.Scatter(x=gf.index,y=gf.values,name="GeoFactor (σ)",
         line=dict(color=C["navy"],width=2.8),yaxis="y2"))
-    fig_geo.update_layout(title="Geopolitical Risk Signals Extraction")
+    for y in [1.5,-1.5]:
+        fig_geo.add_shape(type="line",x0=zsc.index.min(),x1=zsc.index.max(),
+            y0=y,y1=y,line=dict(dash="dot",color=C["gold"],width=1.2),yref="y")
+    fig_geo.add_shape(type="line",x0=zsc.index.min(),x1=zsc.index.max(),
+        y0=0,y1=0,line=dict(dash="solid",color="#D9D5CD",width=0.8),yref="y")
+    fig_geo.update_layout(yaxis_title="Z-Score",yaxis2_title="GeoFactor (σ)",
+        title="Geopolitical Risk Signals Extraction")
     st.plotly_chart(fig_geo, use_container_width=True)
 
     col_a,col_b=st.columns(2)
@@ -964,8 +975,16 @@ with tab3:
         line=dict(color=C["sky"],width=2.2,dash="dash")))
     fig_mc.add_trace(go.Scatter(x=x_ax,y=list(fan[50]),name=f"WTI P50 → ${fan[50][-1]:.2f}",
         line=dict(color=C["navy"],width=3.2)))
+    fig_mc.add_trace(go.Scatter(x=x_ax,y=list(fan[95]),name=f"P95 → ${fan[95][-1]:.2f}",
+        line=dict(color=C["gold"],width=1.4,dash="dot")))
+    fig_mc.add_trace(go.Scatter(x=x_ax,y=list(fan[5]),name=f"P5 → ${fan[5][-1]:.2f}",
+        line=dict(color=C["gold"],width=1.4,dash="dot")))
     fig_mc.add_hline(y=wti0,line_dash="dash",line_color="#9A958A",line_width=1.4,
         annotation_text=f"Current ${wti0:.2f}",annotation_font=dict(family="JetBrains Mono",size=10,color="#9A958A"))
+    fig_mc.add_hline(y=40,line_dash="dot",line_color=C["burgundy"],line_width=1.4,
+        annotation_text="Stress Target $40",annotation_font=dict(family="JetBrains Mono",size=10,color=C["burgundy"]))
+    fig_mc.add_hline(y=150,line_dash="dot",line_color=C["burgundy"],line_width=1.4,
+        annotation_text="Stress Target $150",annotation_font=dict(family="JetBrains Mono",size=10,color=C["burgundy"]))
     fig_mc.update_layout(xaxis_title="Trading Days Ahead",yaxis_title="Price (USD/bbl)",yaxis_tickprefix="$")
     st.plotly_chart(fig_mc, use_container_width=True)
 
