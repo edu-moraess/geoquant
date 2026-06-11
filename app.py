@@ -8,6 +8,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.express as px
 from plotly.subplots import make_subplots
 import os, csv, logging, warnings
 from datetime import datetime, timedelta
@@ -19,9 +20,6 @@ from statsmodels.tsa.vector_ar.var_model import VAR
 import yfinance as yf
 from arch import arch_model
 
-# ----------------------------------------------------------------------
-# Configuration
-# ----------------------------------------------------------------------
 warnings.filterwarnings("ignore")
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -33,6 +31,9 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ----------------------------------------------------------------------
+# Configuration
+# ----------------------------------------------------------------------
 TICKERS = {
     "oil": "CL=F", "brent": "BZ=F", "natgas": "NG=F",
     "gold": "GC=F", "silver": "SI=F", "copper": "HG=F",
@@ -134,14 +135,8 @@ st.markdown(
 )
 
 # ----------------------------------------------------------------------
-# Core functions (rolling_zscore, fill_gaps, get_usda, fert_black_swan,
-# gold_signals, silver_demand_proxy, build_fert_index, calibrate_weights,
-# build_geofactor, build_zscore, fit_garch, bayes_shrink, fit_dcc,
-# _tail_jumps, _jumps_vec, run_mc, fetch_data, fetch_live)
+# Core functions (all)
 # ----------------------------------------------------------------------
-# [All functions are identical to the previous full script – omitted here
-#  for brevity, but must be present exactly as before. They are unchanged.]
-
 def rolling_zscore(s, w=60):
     return (s - s.rolling(w).mean()) / s.rolling(w).std().replace(0, np.nan)
 
@@ -158,6 +153,7 @@ def fill_gaps(s):
     except:
         return s.ffill()
 
+# Fertilizer data with real prices (June 2026)
 def _fert_csv(path="fertilizer_backup.csv"):
     if os.path.exists(path):
         return
@@ -169,7 +165,7 @@ def _fert_csv(path="fertilizer_backup.csv"):
             ["2026-03-15", 590, 780], ["2026-04-15", 616, 857],
             ["2026-05-01", 720, 900], ["2026-05-06", 810, 920],
             ["2026-05-12", 857, 920], ["2026-06-01", 860, 925],
-            ["2026-06-10", 453.5, 920],
+            ["2026-06-10", 453.5, 920],  # Real market price drop
         ])
 
 def get_usda():
@@ -205,11 +201,17 @@ def fert_black_swan(usda):
         if sig == 0:
             return 1.0
         z = (cur - mu) / sig
+        # If price drops > 2 sigma, reduce multiplier (negative black swan)
+        if z < -FERT_BS_Z_THR:
+            return max(0.5, 1.0 + z * 0.3)
         return min(1.0 + max(0, z - FERT_BS_Z_THR) * 0.8, 3.0)
     try:
         shape, loc, scale = stats.genpareto.fit(exc)
         cr = np.log(cur / hist[-1])
         if cr <= thr:
+            # Strong negative return (price collapse)
+            if cr < -0.1:
+                return 0.6
             return 1.0
         p = 1 - stats.genpareto.cdf(cr - thr, shape, loc=loc, scale=scale)
         return 1.0 + min(p * 5, 2.0)
@@ -541,7 +543,6 @@ if needs_run:
         st.error("Failed to load market data. Check internet connection and try again.")
         st.stop()
 
-    # ensure all columns exist
     for key in TICKERS:
         if key not in prices.columns:
             prices[key] = np.nan
@@ -622,6 +623,7 @@ if needs_run:
     except:
         corr = 0.95
 
+    # Additional metrics for new visualizations
     ret_ann = returns[["oil", "brent"]].mean() * 252
     vol_ann = returns[["oil", "brent"]].std() * np.sqrt(252)
     sharpe = ret_ann / vol_ann
@@ -631,6 +633,24 @@ if needs_run:
     kurt_oil = returns["oil"].kurtosis()
     skew_brt = returns["brent"].skew()
     kurt_brt = returns["brent"].kurtosis()
+
+    # Dynamic correlation matrix for heatmap
+    corr_matrix = returns[["oil", "brent", "gold", "dxy", "tnx"]].dropna().corr()
+
+    # Global stress indicator (composite)
+    stress_components = pd.DataFrame({
+        "vol_wti": vw.rolling(20).mean() * np.sqrt(252) * 100,
+        "vol_brent": vb.rolling(20).mean() * np.sqrt(252) * 100,
+        "corr_wti_brent": returns["oil"].rolling(20).corr(returns["brent"]),
+        "gold_zscore": rolling_zscore(prices["gold"], 60),
+        "geofactor": gf,
+    })
+    stress_components = stress_components.dropna()
+    stress_index = (stress_components["vol_wti"] / 50 + stress_components["vol_brent"] / 50 +
+                    np.abs(stress_components["corr_wti_brent"] - 0.8) * 2 +
+                    stress_components["gold_zscore"].clip(0, 3) / 3 +
+                    stress_components["geofactor"].clip(0, 2) / 2) / 5
+    stress_index = stress_index.clip(0, 1)
 
     prog.progress(100)
     info_placeholder.empty()
@@ -647,10 +667,11 @@ if needs_run:
         "skew_oil": skew_oil, "kurt_oil": kurt_oil,
         "skew_brt": skew_brt, "kurt_brt": kurt_brt,
         "mc_sims": mc_sims, "mc_steps": mc_steps,
+        "corr_matrix": corr_matrix, "stress_index": stress_index,
     })
 
 # ----------------------------------------------------------------------
-# Display (only if results exist)
+# Display
 # ----------------------------------------------------------------------
 if "results" in st.session_state:
     # retrieve all variables
@@ -688,11 +709,13 @@ if "results" in st.session_state:
     kurt_brt = st.session_state.get("kurt_brt", 0)
     mc_sims = st.session_state.get("mc_sims", 5000)
     mc_steps = st.session_state.get("mc_steps", 10)
+    corr_matrix = st.session_state.get("corr_matrix")
+    stress_index = st.session_state.get("stress_index")
     spread = brt0 - wti0
 
-    # Tabs
-    tab_market, tab_geo, tab_mc, tab_stats, tab_exec = st.tabs(
-        ["Market & Risk", "Geopolitical", "Monte Carlo", "Quantitative Stats", "Executive Summary"]
+    # Tabs: added "Macro & Correlations" as sixth tab
+    tab_market, tab_geo, tab_mc, tab_stats, tab_macro, tab_exec = st.tabs(
+        ["Market & Risk", "Geopolitical", "Monte Carlo", "Quantitative Stats", "Macro & Correlations", "Executive Summary"]
     )
 
     # ----- Tab 1: Market & Risk -----
@@ -731,7 +754,7 @@ if "results" in st.session_state:
                 fig_f.update_yaxes(title_text="Fertilizer Index", secondary_y=False)
                 fig_f.update_yaxes(title_text="NatGas Vol %", secondary_y=True)
                 st.plotly_chart(fig_f, use_container_width=True)
-            bs_str = f" · Black Swan x{bs:.2f}" if bs > 1.2 else ""
+            bs_str = f" · Black Swan x{bs:.2f}" if bs > 1.2 else (" · Deflationary shock" if bs < 0.8 else "")
             st.caption(f"Urea ${usda['urea_price']:.1f}/t  |  DAP ${usda['dap_price']:.0f}/t  |  {usda['source']}{bs_str}")
 
         with col_b:
@@ -783,7 +806,7 @@ if "results" in st.session_state:
     # ----- Tab 3: Monte Carlo Forecast -----
     with tab_mc:
         war_note = " | War boost active" if war_t else ""
-        bs_note = f" | Fertilizer Black Swan x{bs:.2f}" if bs > 1.2 else ""
+        bs_note = f" | Fertilizer Black Swan x{bs:.2f}" if bs > 1.2 else (" | Fertilizer deflation" if bs < 0.8 else "")
         st.subheader(f"Probabilistic Price Forecast – {mc_sims:,} paths, {mc_steps} days{war_note}{bs_note}")
         if fan is not None and len(fan[50]) > 1:
             x_ax = list(range(mc_steps + 1))
@@ -836,7 +859,71 @@ if "results" in st.session_state:
         st.metric("DCC α (short‑term shock)", f"{dcc_a:.4f}", delta=f"β (persistence): {dcc_b:.4f}")
         st.metric("DCC Persistence (α+β)", f"{dcc_a+dcc_b:.4f}")
 
-    # ----- Tab 5: Executive Summary -----
+    # ----- Tab 5: Macro & Correlations (new) -----
+    with tab_macro:
+        st.subheader("Global Market Correlations")
+        if corr_matrix is not None:
+            fig_heatmap = go.Figure(data=go.Heatmap(
+                z=corr_matrix.values,
+                x=corr_matrix.columns,
+                y=corr_matrix.index,
+                colorscale="Blues",
+                zmin=-1, zmax=1,
+                text=np.round(corr_matrix.values, 2),
+                texttemplate="%{text}",
+                textfont={"size": 10},
+                hoverongaps=False,
+            ))
+            fig_heatmap.update_layout(height=450, title="Rolling Correlation Matrix (Oil, Brent, Gold, DXY, 10Y Yield)")
+            st.plotly_chart(fig_heatmap, use_container_width=True)
+        else:
+            st.info("Correlation matrix not available.")
+
+        st.divider()
+        st.subheader("Risk-Return Profile")
+        # Scatter plot: Sharpe vs Volatility
+        risk_return = pd.DataFrame({
+            "Asset": ["WTI", "Brent"],
+            "Sharpe": [sharpe["oil"], sharpe["brent"]],
+            "Volatility": [M["vol_wti"], M["vol_brt"]],
+        })
+        fig_scatter = go.Figure()
+        fig_scatter.add_trace(go.Scatter(
+            x=risk_return["Volatility"], y=risk_return["Sharpe"],
+            mode="markers+text", text=risk_return["Asset"],
+            textposition="top center",
+            marker=dict(size=20, color=[COLORS["wti"], COLORS["brent"]]),
+            showlegend=False,
+        ))
+        fig_scatter.add_shape(type="line", x0=0, y0=0, x1=100, y1=2, line=dict(dash="dot", color="gray"))
+        fig_scatter.update_layout(
+            xaxis_title="Annualised Volatility (%)",
+            yaxis_title="Sharpe Ratio",
+            height=450,
+            title="Efficient Frontier Implied: WTI vs Brent",
+        )
+        st.plotly_chart(fig_scatter, use_container_width=True)
+
+        st.divider()
+        st.subheader("Global Stress Indicator (Composite)")
+        if stress_index is not None and len(stress_index) > 0:
+            fig_stress = quant_fig(350)
+            fig_stress.add_trace(go.Scatter(x=stress_index.index, y=stress_index.values,
+                                            fill="tozeroy", line=dict(color=COLORS["stress"], width=2),
+                                            name="Stress Index"))
+            fig_stress.add_hline(y=0.3, line_dash="dash", line_color="green", annotation_text="Low Stress")
+            fig_stress.add_hline(y=0.6, line_dash="dash", line_color="orange", annotation_text="Elevated")
+            fig_stress.add_hline(y=0.8, line_dash="dash", line_color="red", annotation_text="Crisis")
+            fig_stress.update_layout(yaxis_title="Composite Stress (0-1)", title="Market Stress Indicator")
+            st.plotly_chart(fig_stress, use_container_width=True)
+
+            latest_stress = stress_index.iloc[-1]
+            stress_color = "green" if latest_stress < 0.3 else ("orange" if latest_stress < 0.6 else "red")
+            st.markdown(f"**Current Stress Level:** <span style='color:{stress_color}; font-weight:bold;'>{latest_stress:.2f}</span>", unsafe_allow_html=True)
+        else:
+            st.info("Stress index not available.")
+
+    # ----- Tab 6: Executive Summary (unchanged) -----
     with tab_exec:
         st.subheader("Model Diagnostics & Key Metrics")
         col_left, col_right = st.columns(2)
