@@ -346,7 +346,7 @@ padding:1.4rem 0 1rem;border-bottom:1px solid #D9D5CD;margin-bottom:1.6rem;'>
 </div>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════
-#   QUANT ENGINE
+#   QUANT ENGINE (Robustified)
 # ══════════════════════════════════════════════════════════
 def rolling_zscore(s, w=60):
     return (s - s.rolling(w).mean()) / s.rolling(w).std().replace(0, np.nan)
@@ -519,19 +519,18 @@ def build_zscore(prices, gs, window=60):
 def fit_garch(ret, exog, min_obs=30):
     """
     Robust GARCH fitting with fallback.
-    `exog` can be a Series or None.
+    Returns a non-empty Series aligned with ret.index.
     """
-    # Ensure ret is a clean Series
     r = ret.dropna()
+    # Ensure we have enough data
     if len(r) < min_obs:
-        # Not enough data: return constant vol
-        return pd.Series(r.std(), index=ret.index)
+        const_vol = pd.Series(r.std(), index=ret.index).ffill().bfill()
+        return const_vol
 
-    # If exog is provided, align indices
+    # Align exogenous
     if exog is not None and not exog.empty:
         common_idx = r.index.intersection(exog.dropna().index)
         if len(common_idx) < min_obs:
-            # Fallback: ignore exog
             exog = None
         else:
             rc = r.loc[common_idx] * 100
@@ -540,7 +539,7 @@ def fit_garch(ret, exog, min_obs=30):
         rc = r * 100
         xc = None
 
-    # Try GARCH(1,1) with normal innovations (more stable)
+    # Attempt GARCH(1,1) with normal innovations
     try:
         if xc is not None:
             res = arch_model(rc, x=xc, mean="Constant", vol="GARCH", p=1, q=1, dist="normal").fit(disp="off")
@@ -550,11 +549,24 @@ def fit_garch(ret, exog, min_obs=30):
         # Reindex to original ret index
         return vol.reindex(ret.index).ffill().bfill()
     except Exception:
-        # Ultimate fallback: rolling 20-day std
+        pass
+
+    # Fallback: rolling 20-day standard deviation
+    try:
         roll_vol = r.rolling(20).std()
         return roll_vol.reindex(ret.index).ffill().bfill()
+    except:
+        return pd.Series(r.std(), index=ret.index)
 
 def bayes_shrink(vg, prior_d, n, geofactor=None):
+    """
+    Bayesian shrinkage of volatility.
+    vg must be a non-empty Series.
+    """
+    if vg.empty:
+        # Safety: create a Series filled with prior
+        return pd.Series(prior_d, index=vg.index), {"vga": prior_d*np.sqrt(252)*100, "vsa": prior_d*np.sqrt(252)*100, "w": 1.0}
+
     w = np.clip(np.sqrt(n / 252), 0.10, 0.95)
     prior = prior_d * (1.0 + 0.4 * np.tanh(float(geofactor.iloc[-1]))) if geofactor is not None and not geofactor.empty else prior_d
     lo, hi = prior * 0.5, prior * 1.5
@@ -926,7 +938,6 @@ if needs_run:
 
     # 3 · GARCH (robust handling)
     prog.progress(38)
-    # If geofactor is empty or too short, pass None
     gf_clean = gf.dropna() if not gf.empty else None
     if gf_clean is not None and len(gf_clean) < 30:
         gf_clean = None
@@ -934,13 +945,32 @@ if needs_run:
     vw = fit_garch(returns["oil"], gf_clean)
     vb_s = fit_garch(returns["brent"], gf_clean)
     vg = fit_garch(returns["gold"], gf_clean)
+
+    # Ensure no empty series (unlikely now, but safety)
+    if vw.empty:
+        vw = pd.Series(prior_wti/np.sqrt(252), index=returns.index)
+    if vb_s.empty:
+        vb_s = pd.Series(prior_brent/np.sqrt(252), index=returns.index)
+    if vg.empty:
+        vg = pd.Series(0.18/np.sqrt(252), index=returns.index)
+
     n = len(returns)
     pwd = prior_wti / np.sqrt(252)
     pbd = prior_brent / np.sqrt(252)
     pgd = 0.18 / np.sqrt(252)
+
     vw, dw = bayes_shrink(vw, pwd, n, gf)
     vb_s, db = bayes_shrink(vb_s, pbd, n, gf)
     vg, _ = bayes_shrink(vg, pgd, n)
+
+    # Ensure shrunk series are not empty
+    if vw.empty:
+        vw = pd.Series(pwd, index=returns.index)
+    if vb_s.empty:
+        vb_s = pd.Series(pbd, index=returns.index)
+    if vg.empty:
+        vg = pd.Series(pgd, index=returns.index)
+
     bvw = float(vw.iloc[-1])
     bvb = float(vb_s.iloc[-1])
 
