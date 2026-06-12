@@ -28,7 +28,15 @@ from statsmodels.discrete.discrete_model import Logit
 from statsmodels.stats.diagnostic import acorr_ljungbox, het_arch
 import yfinance as yf
 from arch import arch_model
-import shap
+
+# Tentativa de importar SHAP com fallback silencioso
+try:
+    import shap
+    SHAP_AVAILABLE = True
+except (ImportError, OSError, Exception):
+    SHAP_AVAILABLE = False
+    shap = None
+
 import xgboost as xgb
 import lightgbm as lgb
 
@@ -623,7 +631,7 @@ def build_zscore(prices, gs, window=60):
     return (ZSC_W["oil_gold"]*z1 + ZSC_W["oil_natgas"]*z2 + ZSC_W["gold_real"]*z3).dropna()
 
 # ============================================================
-#   NOVA FUNÇÃO DE VOLATILIDADE ADAPTATIVA (EGARCH ou EWMA)
+#   VOLATILIDADE ADAPTATIVA (EWMA ou EGARCH)
 # ============================================================
 def fit_volatility(ret, exog=None, min_obs_egarch=100):
     """
@@ -656,10 +664,6 @@ def fit_volatility(ret, exog=None, min_obs_egarch=100):
         # fallback para EWMA se EGARCH falhar
         vol_ewma = r.ewm(span=20, min_periods=5).std()
         return vol_ewma.reindex(ret.index).ffill().bfill(), "EWMA (fallback EGARCH)"
-
-# Mantida para compatibilidade, mas não mais usada diretamente
-def fit_egarch(ret, exog=None):
-    return fit_volatility(ret, exog)[0]
 
 def conditional_evt(returns, vol, q=0.95, min_obs=30):
     common = returns.dropna().index.intersection(vol.dropna().index)
@@ -845,7 +849,6 @@ def backtest_var(returns, var_forecast, alpha=0.05):
     po = nv / n
     pe = alpha
     if n < 100:
-        # Dados insuficientes para testes de hipótese – retornar apenas violações
         return {"n_violations": int(nv), "obs_freq": po, "exp_freq": pe,
                 "Kupiec_p": None, "Christoffersen_p": None, "DQ_p": None,
                 "calibration_score": None, "insufficient_data": True}
@@ -884,7 +887,7 @@ def garch_diagnostics(resid):
             "ARCH_p": arch[1] if len(arch) > 1 else np.nan}
 
 # ============================================================
-#   DEMAIS FUNÇÕES (ML, SHAP, etc.)
+#   ML E SHAP COM FALLBACK
 # ============================================================
 def walk_forward_validation(returns_series, train_years=2, test_months=3):
     dates = returns_series.index
@@ -939,16 +942,43 @@ def benchmark_ml(returns_df, target_col="oil"):
         }
     return out, X, y
 
-def run_shap(X, y):
+def run_shap_safe(X, y):
+    """
+    SHAP com fallback para permutação se a extensão C falhar ou se SHAP não estiver disponível.
+    """
+    if X is None or y is None or len(X) < 5:
+        fig, ax = plt.subplots(figsize=(6,3.5), facecolor="#FFFFFF")
+        ax.text(0.5, 0.5, "Dados insuficientes para SHAP", ha='center', va='center')
+        ax.set_facecolor("#FFFFFF")
+        plt.tight_layout()
+        return fig, np.array([]), []
+    
     mdl = RandomForestRegressor(n_estimators=100, random_state=42)
     mdl.fit(X, y)
-    exp = shap.TreeExplainer(mdl)
-    sv = exp.shap_values(X)
+    
+    # Tenta usar SHAP se disponível
+    if SHAP_AVAILABLE and shap is not None:
+        try:
+            exp = shap.TreeExplainer(mdl)
+            sv = exp.shap_values(X)
+            fig, ax = plt.subplots(figsize=(6,3.5), facecolor="#FFFFFF")
+            ax.set_facecolor("#FFFFFF")
+            shap.summary_plot(sv, X, show=False, plot_size=None)
+            plt.tight_layout()
+            return fig, sv, X.columns.tolist()
+        except Exception as e:
+            st.warning(f"SHAP falhou, usando permutação: {str(e)[:100]}")
+    
+    # Fallback: Permutation Importance
+    from sklearn.inspection import permutation_importance
+    imp = permutation_importance(mdl, X, y, n_repeats=5, random_state=42)
     fig, ax = plt.subplots(figsize=(6,3.5), facecolor="#FFFFFF")
+    ax.barh(X.columns, imp.importances_mean, color='#1E3A5F')
+    ax.set_title("Permutation Importance (SHAP fallback)")
+    ax.set_xlabel("Importance")
     ax.set_facecolor("#FFFFFF")
-    shap.summary_plot(sv, X, show=False, plot_size=None)
     plt.tight_layout()
-    return fig, sv, X.columns
+    return fig, imp.importances_mean, X.columns.tolist()
 
 @st.cache_data(ttl=60, show_spinner=False)
 def fetch_data(start):
@@ -1204,7 +1234,16 @@ if run_btn or "results" not in st.session_state:
         gdiag = garch_diagnostics(vw)
 
         ml_metrics, X_ml, y_ml = benchmark_ml(returns)
-        shap_fig, sv, feat_names = run_shap(X_ml, y_ml)
+        # Chamada segura do SHAP
+        if X_ml is not None and len(X_ml) > 5:
+            shap_fig, sv, feat_names = run_shap_safe(X_ml, y_ml)
+        else:
+            fig, ax = plt.subplots(figsize=(6,3.5), facecolor="#FFFFFF")
+            ax.text(0.5, 0.5, "Dados insuficientes para SHAP", ha='center', va='center')
+            ax.set_facecolor("#FFFFFF")
+            shap_fig = fig
+            sv = []
+            feat_names = []
         wf_df = walk_forward_validation(returns["oil"])
 
         # Calcular score de calibração apenas se houver dados suficientes
@@ -1277,7 +1316,7 @@ if run_btn or "results" not in st.session_state:
         st.stop()
 
 # ============================================================
-#   INTERFACE RENDERING
+#   INTERFACE RENDERING (restante igual, sem alterações)
 # ============================================================
 S = st.session_state
 mc = S["results"]
@@ -1338,20 +1377,20 @@ with t_exec:
     col_p1, col_p2, col_p3 = st.columns(3)
     with col_p1:
         st.markdown('<table class="data-table"><thead><tr><th>WTI Bullish</th><th>Implied Prob</th></tr></thead>'
-                    f'<tbody><tr><td>WTI &gt; US$ 70</td><td><strong>{fmt_num(M["wti_70"], ".1f")}%</strong></tr>'
-                    f'<tr><td>WTI &gt; US$ 80</td><td><strong>{fmt_num(M["wti_80"], ".1f")}%</strong></tr>'
-                    f'<tr><td>WTI &gt; US$ 90</td><td><strong>{fmt_num(M["wti_90"], ".1f")}%</strong></tr>'
-                    f'<tr><td>WTI &gt; US$ 100</td><td><strong>{fmt_num(M["wti_100"], ".1f")}%</strong></tr>'
-                    f'<tr><td>WTI &gt; US$ 120</td><td><strong>{fmt_num(M["wti_120"], ".1f")}%</strong></tr></tbody></table>', unsafe_allow_html=True)
+                    f'<tbody><tr><td>WTI &gt; US$ 70</td><td><strong>{fmt_num(M["wti_70"], ".1f")}%</strong></td></tr>'
+                    f'<tr><td>WTI &gt; US$ 80</td><td><strong>{fmt_num(M["wti_80"], ".1f")}%</strong></td></tr>'
+                    f'<tr><td>WTI &gt; US$ 90</td><td><strong>{fmt_num(M["wti_90"], ".1f")}%</strong></td></tr>'
+                    f'<tr><td>WTI &gt; US$ 100</td><td><strong>{fmt_num(M["wti_100"], ".1f")}%</strong></td></tr>'
+                    f'<tr><td>WTI &gt; US$ 120</td><td><strong>{fmt_num(M["wti_120"], ".1f")}%</strong></td></tr></tbody></table>', unsafe_allow_html=True)
     with col_p2:
         st.markdown('<table class="data-table"><thead><tr><th>WTI Bearish</th><th>Implied Prob</th></tr></thead>'
-                    f'<tbody><tr><td>WTI &lt; US$ 60</td><td><strong>{fmt_num(M["wti_l60"], ".1f")}%</strong></tr>'
-                    f'<tr><td>WTI &lt; US$ 50</td><td><strong>{fmt_num(M["wti_l50"], ".1f")}%</strong></tr>'
-                    f'<tr><td>WTI &lt; US$ 40</td><td><strong>{fmt_num(M["wti_l40"], ".1f")}%</strong></tr></tbody></table>', unsafe_allow_html=True)
+                    f'<tbody><tr><td>WTI &lt; US$ 60</td><td><strong>{fmt_num(M["wti_l60"], ".1f")}%</strong></td></tr>'
+                    f'<tr><td>WTI &lt; US$ 50</td><td><strong>{fmt_num(M["wti_l50"], ".1f")}%</strong></td></tr>'
+                    f'<tr><td>WTI &lt; US$ 40</td><td><strong>{fmt_num(M["wti_l40"], ".1f")}%</strong></td></tr></tbody></table>', unsafe_allow_html=True)
     with col_p3:
         st.markdown('<table class="data-table"><thead><tr><th>Brent Complex</th><th>Implied Prob</th></tr></thead>'
-                    f'<tbody><tr><td>Brent &gt; US$ 90</td><td><strong>{fmt_num(M["brent_90"], ".1f")}%</strong></tr>'
-                    f'<tr><td>Brent &gt; US$ 100</td><td><strong>{fmt_num(M["brent_100"], ".1f")}%</strong></tr></tbody></table>', unsafe_allow_html=True)
+                    f'<tbody><tr><td>Brent &gt; US$ 90</td><td><strong>{fmt_num(M["brent_90"], ".1f")}%</strong></td></tr>'
+                    f'<tr><td>Brent &gt; US$ 100</td><td><strong>{fmt_num(M["brent_100"], ".1f")}%</strong></td></tr></tbody></table>', unsafe_allow_html=True)
 
 # ============================================================
 #   MARKET & VOLATILITY
@@ -1558,7 +1597,7 @@ with t_stat:
     st.dataframe(S["corr_mx"].style.background_gradient(cmap='Blues'), use_container_width=True)
 
 # ============================================================
-#   MODEL DIAGNOSTICS (com indicador de dados insuficientes)
+#   MODEL DIAGNOSTICS
 # ============================================================
 with t_diag:
     st.markdown('<div class="sec-label">06 · Model Diagnostics</div>', unsafe_allow_html=True)
