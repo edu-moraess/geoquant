@@ -1565,7 +1565,7 @@ def main():
             <div style='font-family:"JetBrains Mono",monospace;font-size:.5rem;color:#7A766E;letter-spacing:.14em;margin-top:.3rem;'>Quantitative Research Infrastructure v5.0</div>
         </div>""", unsafe_allow_html=True)
         def slabel(t: str):
-            st.markdown(f'<div style="font-family:'JetBrains Mono',monospace;font-size:.54rem;letter-spacing:.2em;color:#B49450;text-transform:uppercase;margin:.9rem 0 .4rem;">{t}</div>', unsafe_allow_html=True)
+            st.markdown(f"<div style=\"font-family:'JetBrains Mono',monospace;font-size:.54rem;letter-spacing:.2em;color:#B49450;text-transform:uppercase;margin:.9rem 0 .4rem;\">{t}</div>", unsafe_allow_html=True)
         def ssep():
             st.markdown('<div style="height:1px;background:#D9D5CD;margin:.6rem 0;"></div>', unsafe_allow_html=True)
         slabel("· Simulation")
